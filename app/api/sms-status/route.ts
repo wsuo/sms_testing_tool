@@ -112,15 +112,16 @@ export async function POST(request: NextRequest) {
       console.log('Available OutIds:', allOutIds)
       console.log('All records preview:', allRecords.slice(0, 3))
       
-      return NextResponse.json(
-        { 
-          error: `未找到OutId为${outId}的短信记录`,
-          details: `在 ${smsDetails.length} 条记录中未找到匹配项`,
-          availableOutIds: allOutIds.slice(0, 10),
-          searchedDate: sendDate
-        },
-        { status: 404 }
-      )
+      // 不返回404，而是返回"发送中"状态
+      // 因为找不到记录通常意味着短信已提交至运营商网关但尚未收到回执
+      return NextResponse.json({
+        status: "发送中",
+        errorCode: undefined,
+        receiveDate: undefined,
+        sendDate: undefined,
+        note: "短信已提交至运营商网关，尚未收到回执",
+        retryable: true
+      })
     }
 
     console.log('Found target record:', {

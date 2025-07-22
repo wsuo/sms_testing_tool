@@ -91,7 +91,7 @@ export default function SmsMonitorPage() {
     const total = data.length
     const success = data.filter(r => r.status === "已送达").length
     const failed = data.filter(r => r.status === "发送失败").length
-    const pending = data.filter(r => r.status === "发送中").length
+    const pending = data.filter(r => r.status === "发送中" || r.status === "发送中(已停止查询)").length
     const todayTotal = todayRecords.length
     const successRate = total > 0 ? (success / total * 100) : 0
 
@@ -168,6 +168,8 @@ export default function SmsMonitorPage() {
         return "destructive"
       case "发送中":
         return "secondary"
+      case "发送中(已停止查询)":
+        return "outline"
       default:
         return "outline"
     }
@@ -181,6 +183,8 @@ export default function SmsMonitorPage() {
         return <XCircle className="w-4 h-4 text-red-500" />
       case "发送中":
         return <Clock className="w-4 h-4 text-yellow-500" />
+      case "发送中(已停止查询)":
+        return <Clock className="w-4 h-4 text-gray-500" />
       default:
         return <Clock className="w-4 h-4 text-gray-500" />
     }
@@ -345,6 +349,7 @@ export default function SmsMonitorPage() {
                   <SelectItem value="已送达">已送达</SelectItem>
                   <SelectItem value="发送失败">发送失败</SelectItem>
                   <SelectItem value="发送中">发送中</SelectItem>
+                  <SelectItem value="发送中(已停止查询)">发送中(已停止查询)</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={dateFilter} onValueChange={setDateFilter}>

@@ -523,13 +523,6 @@ export default function SmsTestingTool() {
       if (!response.ok) {
         const errorData = await response.json()
         console.error("API调用失败:", errorData)
-        
-        // Handle specific error cases
-        if (response.status === 404) {
-          console.warn(`短信记录未找到: OutId=${outId}`)
-          return null
-        }
-        
         throw new Error(errorData.error || '未知错误')
       }
 
@@ -564,6 +557,52 @@ export default function SmsTestingTool() {
       smsStatuses.map(async (sms) => {
         if (sms.status === "已送达" || sms.status === "发送失败") {
           return sms // Don't update completed statuses
+        }
+
+        // 检查数据库中的重试记录
+        try {
+          const dbResponse = await fetch(`/api/sms-records?out_id=${sms.outId}`)
+          if (dbResponse.ok) {
+            const dbResult = await dbResponse.json()
+            const dbRecord = dbResult.data?.[0]
+            
+            // 如果重试次数已达到上限或自动刷新已禁用，跳过查询
+            if (dbRecord && (
+              (dbRecord.retry_count >= 20) || 
+              (dbRecord.auto_refresh_enabled === 0) ||
+              (dbRecord.retry_count >= 20 && Date.now() - new Date(dbRecord.created_at).getTime() > 60000) // 1分钟
+            )) {
+              console.log(`SMS ${sms.outId} 已达到重试上限或被禁用自动刷新，跳过查询`)
+              
+              // 如果还是发送中状态，添加说明
+              if (sms.status === "发送中" && dbRecord.retry_count >= 20) {
+                return { 
+                  ...sms, 
+                  status: "发送中(已停止查询)",
+                  note: "已重试20次，交由用户手动刷新" 
+                }
+              }
+              return sms
+            }
+            
+            // 更新重试计数
+            const newRetryCount = (dbRecord?.retry_count || 0) + 1
+            await fetch('/api/sms-records', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                out_id: sms.outId,
+                retry_count: newRetryCount,
+                last_retry_at: new Date().toISOString()
+              })
+            })
+            
+            console.log(`SMS ${sms.outId} 重试次数: ${newRetryCount}/20`)
+          }
+        } catch (dbError) {
+          console.error('Failed to check retry count:', dbError)
         }
 
         const statusUpdate = await checkSmsStatus(sms.outId)
@@ -610,10 +649,15 @@ export default function SmsTestingTool() {
 
   // Stop auto-refresh when all messages are completed
   useEffect(() => {
-    const allCompleted = smsStatuses.every((sms) => sms.status === "已送达" || sms.status === "发送失败")
+    const allCompleted = smsStatuses.every((sms) => 
+      sms.status === "已送达" || 
+      sms.status === "发送失败" || 
+      sms.status === "发送中(已停止查询)"
+    )
 
     if (allCompleted && smsStatuses.length > 0) {
       setAutoRefresh(false)
+      console.log("所有SMS状态已完成或停止查询，停止自动刷新")
     }
   }, [smsStatuses])
 
@@ -625,6 +669,8 @@ export default function SmsTestingTool() {
         return "destructive"
       case "发送中":
         return "secondary"
+      case "发送中(已停止查询)":
+        return "outline"
       default:
         return "outline"
     }

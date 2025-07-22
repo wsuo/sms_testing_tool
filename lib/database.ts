@@ -39,6 +39,9 @@ function initializeTables() {
       receive_date TEXT,
       status TEXT NOT NULL DEFAULT '发送中',
       error_code TEXT,
+      retry_count INTEGER DEFAULT 0, -- 重试次数
+      last_retry_at DATETIME, -- 最后重试时间
+      auto_refresh_enabled INTEGER DEFAULT 1, -- 是否启用自动刷新 (1=启用, 0=禁用)
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -79,6 +82,9 @@ export interface SmsRecord {
   receive_date?: string
   status: string
   error_code?: string
+  retry_count?: number
+  last_retry_at?: string
+  auto_refresh_enabled?: number
   created_at?: string
   updated_at?: string
 }
@@ -114,7 +120,7 @@ export class SmsRecordDB {
   }
   
   // 更新SMS状态
-  updateStatus(outId: string, updates: Partial<Pick<SmsRecord, 'status' | 'error_code' | 'receive_date'>>): boolean {
+  updateStatus(outId: string, updates: Partial<Pick<SmsRecord, 'status' | 'error_code' | 'receive_date' | 'retry_count' | 'last_retry_at' | 'auto_refresh_enabled'>>): boolean {
     const updateFields: string[] = []
     const values: any[] = []
     
@@ -131,6 +137,21 @@ export class SmsRecordDB {
     if (updates.receive_date !== undefined) {
       updateFields.push('receive_date = ?')
       values.push(updates.receive_date)
+    }
+    
+    if (updates.retry_count !== undefined) {
+      updateFields.push('retry_count = ?')
+      values.push(updates.retry_count)
+    }
+    
+    if (updates.last_retry_at !== undefined) {
+      updateFields.push('last_retry_at = ?')
+      values.push(updates.last_retry_at)
+    }
+    
+    if (updates.auto_refresh_enabled !== undefined) {
+      updateFields.push('auto_refresh_enabled = ?')
+      values.push(updates.auto_refresh_enabled)
     }
     
     if (updateFields.length === 0) return false
@@ -180,6 +201,8 @@ export class SmsRecordDB {
     const stmt = this.db.prepare(`
       SELECT * FROM sms_records 
       WHERE status IN ('发送中') 
+      AND auto_refresh_enabled = 1
+      AND (retry_count < 20 OR retry_count IS NULL)
       ORDER BY created_at DESC
     `)
     return stmt.all() as SmsRecord[]

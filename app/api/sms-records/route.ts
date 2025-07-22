@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
     const phoneNumber = searchParams.get('phoneNumber')
+    const outId = searchParams.get('out_id')
     
     let records: SmsRecord[]
     
-    if (phoneNumber) {
+    if (outId) {
+      // 根据OutId查询单个记录
+      const record = smsRecordDB.findByOutId(outId)
+      records = record ? [record] : []
+    } else if (phoneNumber) {
       // 根据手机号查询
       records = smsRecordDB.findByPhoneNumber(phoneNumber, limit)
     } else {
@@ -116,11 +121,14 @@ export async function PUT(request: NextRequest) {
     }
     
     // 准备更新数据
-    const updates: Partial<Pick<SmsRecord, 'status' | 'error_code' | 'receive_date'>> = {}
+    const updates: Partial<Pick<SmsRecord, 'status' | 'error_code' | 'receive_date' | 'retry_count' | 'last_retry_at' | 'auto_refresh_enabled'>> = {}
     
     if (body.status) updates.status = body.status
     if (body.error_code !== undefined) updates.error_code = body.error_code
     if (body.receive_date) updates.receive_date = body.receive_date
+    if (body.retry_count !== undefined) updates.retry_count = body.retry_count
+    if (body.last_retry_at) updates.last_retry_at = body.last_retry_at
+    if (body.auto_refresh_enabled !== undefined) updates.auto_refresh_enabled = body.auto_refresh_enabled
     
     // 执行更新
     const updated = smsRecordDB.updateStatus(body.out_id, updates)
