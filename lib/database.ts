@@ -59,6 +59,9 @@ function initializeTables() {
     db.exec(createSmsRecordsTable)
     console.log('SMS records table created/verified')
     
+    // 执行数据库迁移
+    runMigrations()
+    
     createIndexes.forEach(indexSQL => {
       db!.exec(indexSQL)
     })
@@ -67,6 +70,40 @@ function initializeTables() {
   } catch (error) {
     console.error('Database initialization failed:', error)
     throw error
+  }
+}
+
+// 数据库迁移函数
+function runMigrations() {
+  if (!db) return
+  
+  try {
+    // 检查是否存在新字段，如果不存在则添加
+    const checkColumns = db.prepare("PRAGMA table_info(sms_records)").all() as any[]
+    const existingColumns = checkColumns.map(col => col.name)
+    
+    console.log('Existing columns:', existingColumns)
+    
+    // 需要添加的新字段
+    const requiredColumns = [
+      { name: 'retry_count', sql: 'ALTER TABLE sms_records ADD COLUMN retry_count INTEGER DEFAULT 0' },
+      { name: 'last_retry_at', sql: 'ALTER TABLE sms_records ADD COLUMN last_retry_at DATETIME' },
+      { name: 'auto_refresh_enabled', sql: 'ALTER TABLE sms_records ADD COLUMN auto_refresh_enabled INTEGER DEFAULT 1' }
+    ]
+    
+    // 添加缺失的字段
+    for (const column of requiredColumns) {
+      if (!existingColumns.includes(column.name)) {
+        console.log(`Adding missing column: ${column.name}`)
+        db.exec(column.sql)
+      }
+    }
+    
+    console.log('Database migration completed')
+    
+  } catch (error) {
+    console.error('Database migration failed:', error)
+    // 不抛出错误，让应用继续运行
   }
 }
 
