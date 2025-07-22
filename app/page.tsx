@@ -33,16 +33,18 @@ interface SmsStatus {
 export default function SmsTestingTool() {
   const { toast } = useToast()
 
-  // Token management - remove expired default tokens
+  // Token management
   const [adminToken, setAdminToken] = useState("")
   const [refreshToken, setRefreshToken] = useState("")
-  const [aliyunCookie, setAliyunCookie] = useState("")
+  const [aliyunAccessKeyId, setAliyunAccessKeyId] = useState("")
+  const [aliyunAccessKeySecret, setAliyunAccessKeySecret] = useState("")
   const [tokensConfigured, setTokensConfigured] = useState(false)
   
   // Password visibility states
   const [showAdminToken, setShowAdminToken] = useState(false)
   const [showRefreshToken, setShowRefreshToken] = useState(false)
-  const [showAliyunCookie, setShowAliyunCookie] = useState(false)
+  const [showAliyunAccessKeyId, setShowAliyunAccessKeyId] = useState(false)
+  const [showAliyunAccessKeySecret, setShowAliyunAccessKeySecret] = useState(false)
 
   // SMS template management
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
@@ -178,12 +180,14 @@ export default function SmsTestingTool() {
   useEffect(() => {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
     const savedRefreshToken = localStorage.getItem("sms-refresh-token")
-    const savedAliyunCookie = localStorage.getItem("sms-aliyun-cookie") // Changed to localStorage
+    const savedAliyunAccessKeyId = localStorage.getItem("sms-aliyun-access-key-id")
+    const savedAliyunAccessKeySecret = localStorage.getItem("sms-aliyun-access-key-secret")
 
     console.log("Loading saved tokens:", {
       hasAdminToken: !!savedAdminToken,
       hasRefreshToken: !!savedRefreshToken,
-      hasAliyunCookie: !!savedAliyunCookie
+      hasAliyunAccessKeyId: !!savedAliyunAccessKeyId,
+      hasAliyunAccessKeySecret: !!savedAliyunAccessKeySecret
     })
 
     // Load saved tokens if available
@@ -193,14 +197,17 @@ export default function SmsTestingTool() {
     if (savedRefreshToken) {
       setRefreshToken(savedRefreshToken)
     }
-    if (savedAliyunCookie) {
-      setAliyunCookie(savedAliyunCookie)
+    if (savedAliyunAccessKeyId) {
+      setAliyunAccessKeyId(savedAliyunAccessKeyId)
+    }
+    if (savedAliyunAccessKeySecret) {
+      setAliyunAccessKeySecret(savedAliyunAccessKeySecret)
     }
 
-    // Only mark as configured if both tokens exist
-    if (savedAdminToken && savedAliyunCookie) {
+    // Only mark as configured if both admin token and aliyun credentials exist
+    if (savedAdminToken && savedAliyunAccessKeyId && savedAliyunAccessKeySecret) {
       setTokensConfigured(true)
-      // Validate tokens by trying to fetch templates - pass the saved token directly
+      // Validate tokens by trying to fetch templates
       setTimeout(() => {
         fetchTemplates(savedAdminToken)
       }, 500)
@@ -218,10 +225,16 @@ export default function SmsTestingTool() {
   }, [adminToken])
 
   useEffect(() => {
-    if (aliyunCookie.trim()) {
-      localStorage.setItem("sms-aliyun-cookie", aliyunCookie) // Changed to localStorage
+    if (aliyunAccessKeyId.trim()) {
+      localStorage.setItem("sms-aliyun-access-key-id", aliyunAccessKeyId)
     }
-  }, [aliyunCookie])
+  }, [aliyunAccessKeyId])
+
+  useEffect(() => {
+    if (aliyunAccessKeySecret.trim()) {
+      localStorage.setItem("sms-aliyun-access-key-secret", aliyunAccessKeySecret)
+    }
+  }, [aliyunAccessKeySecret])
 
   useEffect(() => {
     if (refreshToken.trim()) {
@@ -231,7 +244,7 @@ export default function SmsTestingTool() {
 
   // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
-    if (!adminToken.trim() || !aliyunCookie.trim()) {
+    if (!adminToken.trim() || !aliyunAccessKeyId.trim() || !aliyunAccessKeySecret.trim()) {
       toast({
         title: "错误",
         description: "请填写完整的令牌信息",
@@ -241,7 +254,8 @@ export default function SmsTestingTool() {
     }
 
     localStorage.setItem("sms-admin-token", adminToken)
-    localStorage.setItem("sms-aliyun-cookie", aliyunCookie) // Changed to localStorage
+    localStorage.setItem("sms-aliyun-access-key-id", aliyunAccessKeyId)
+    localStorage.setItem("sms-aliyun-access-key-secret", aliyunAccessKeySecret)
     if (refreshToken.trim()) {
       localStorage.setItem("sms-refresh-token", refreshToken)
     }
@@ -457,18 +471,17 @@ export default function SmsTestingTool() {
     }
   }
 
-  // Check SMS status using real Aliyun API through proxy
+  // Check SMS status using Aliyun SDK
   const checkSmsStatus = async (outId: string) => {
     try {
-      if (!aliyunCookie.trim()) {
-        console.error("阿里云Cookie未配置")
+      if (!phoneNumber.trim()) {
+        console.error("手机号码未配置")
         return null
       }
 
       console.log('Sending request with:', {
         outId,
-        cookieLength: aliyunCookie.length,
-        cookiePreview: aliyunCookie.substring(0, 100) + '...'
+        phoneNumber: phoneNumber
       })
 
       const response = await fetch('/api/sms-status', {
@@ -478,7 +491,7 @@ export default function SmsTestingTool() {
         },
         body: JSON.stringify({
           outId,
-          aliyunCookie // Send cookie in request body
+          phoneNumber: phoneNumber // 使用当前选择的手机号
         })
       })
 
@@ -507,7 +520,7 @@ export default function SmsTestingTool() {
       if (shouldShowToast) {
         toast({
           title: "状态查询失败",
-          description: error instanceof Error ? error.message : "无法连接到阿里云API，请检查令牌配置",
+          description: error instanceof Error ? error.message : "无法连接到阿里云API，请检查配置",
           variant: "destructive",
         })
       }
@@ -588,7 +601,7 @@ export default function SmsTestingTool() {
                   <strong>获取令牌说明：</strong>
                   <ul className="mt-2 space-y-1 text-sm">
                     <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
-                    <li>• 阿里云Cookie：从阿里云短信控制台复制完整Cookie</li>
+                    <li>• 阿里云AccessKey：从阿里云控制台获取AccessKey ID和Secret</li>
                     <li>• 令牌过期时需要重新获取并配置</li>
                   </ul>
                 </AlertDescription>
@@ -641,28 +654,50 @@ export default function SmsTestingTool() {
                 </p>
               </div>
               <div>
-                <Label htmlFor="aliyun-cookie">阿里云控制台Cookie</Label>
+                <Label htmlFor="aliyun-access-key-id">阿里云AccessKey ID</Label>
                 <div className="relative">
-                  <Textarea
-                    id="aliyun-cookie"
-                    placeholder="请输入阿里云控制台完整Cookie"
-                    value={showAliyunCookie ? aliyunCookie : aliyunCookie ? '••••••••••••••••••••' : ''}
-                    onChange={(e) => setAliyunCookie(e.target.value)}
-                    className="min-h-[100px] font-mono text-sm resize-y pr-10"
-                    readOnly={!showAliyunCookie && !!aliyunCookie}
+                  <Input
+                    id="aliyun-access-key-id"
+                    type={showAliyunAccessKeyId ? "text" : "password"}
+                    placeholder="请输入阿里云AccessKey ID"
+                    value={aliyunAccessKeyId}
+                    onChange={(e) => setAliyunAccessKeyId(e.target.value)}
+                    className="pr-10"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-8 px-3 hover:bg-transparent"
-                    onClick={() => setShowAliyunCookie(!showAliyunCookie)}
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowAliyunAccessKeyId(!showAliyunAccessKeyId)}
                   >
-                    {showAliyunCookie ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showAliyunAccessKeyId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="aliyun-access-key-secret">阿里云AccessKey Secret</Label>
+                <div className="relative">
+                  <Input
+                    id="aliyun-access-key-secret"
+                    type={showAliyunAccessKeySecret ? "text" : "password"}
+                    placeholder="请输入阿里云AccessKey Secret"
+                    value={aliyunAccessKeySecret}
+                    onChange={(e) => setAliyunAccessKeySecret(e.target.value)}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowAliyunAccessKeySecret(!showAliyunAccessKeySecret)}
+                  >
+                    {showAliyunAccessKeySecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  从阿里云短信控制台开发者工具中复制完整的Cookie
+                  从阿里云控制台访问控制页面获取AccessKey ID和Secret
                 </p>
               </div>
               <Button onClick={saveTokens} className="w-full">
