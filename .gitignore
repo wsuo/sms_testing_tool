@@ -87,3 +87,6 @@ coverage/
 # temporary folders
 tmp/
 temp/
+
+# local data
+data/

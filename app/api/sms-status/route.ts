@@ -1,12 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Parse cookie string to extract sec_token
+function parseSecTokenFromCookie(cookieString: string): string | null {
+  if (!cookieString) return null
+  
+  // Split cookies by semicolon
+  const cookies = cookieString.split(';').map(c => c.trim())
+  
+  // Find sec_token cookie
+  for (const cookie of cookies) {
+    const [name, value] = cookie.split('=')
+    if (name.trim() === 'sec_token') {
+      return value?.trim() || null
+    }
+  }
+  
+  return null
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { outId, aliyunToken } = await request.json()
-
-    if (!outId || !aliyunToken) {
+    const { outId } = await request.json()
+    
+    // Get aliyun cookie from cookie
+    const aliyunCookieString = request.cookies.get('sms-aliyun-cookie')?.value
+    
+    if (!outId || !aliyunCookieString) {
       return NextResponse.json(
         { error: '缺少必需参数' },
+        { status: 400 }
+      )
+    }
+    
+    // Extract sec_token from cookie string
+    const aliyunToken = parseSecTokenFromCookie(aliyunCookieString)
+    
+    if (!aliyunToken) {
+      return NextResponse.json(
+        { error: '无法从Cookie中提取sec_token' },
         { status: 400 }
       )
     }
@@ -42,7 +73,8 @@ export async function POST(request: NextRequest) {
           'Accept': 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'Cookie': aliyunCookieString // Add full cookie string
         },
         body: formData.toString()
       }

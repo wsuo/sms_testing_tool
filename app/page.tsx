@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { setCookie, getCookie, deleteCookie } from "@/lib/cookies"
+import PhoneNumberManager from "@/components/phone-number-manager"
 
 interface SmsTemplate {
   id: string
@@ -35,7 +37,8 @@ export default function SmsTestingTool() {
 
   // Token management - remove expired default tokens
   const [adminToken, setAdminToken] = useState("")
-  const [aliyunToken, setAliyunToken] = useState("")
+  const [refreshToken, setRefreshToken] = useState("")
+  const [aliyunCookie, setAliyunCookie] = useState("")
   const [tokensConfigured, setTokensConfigured] = useState(false)
 
   // SMS template management
@@ -46,33 +49,132 @@ export default function SmsTestingTool() {
   // Phone number and sending
   const [phoneNumber, setPhoneNumber] = useState("")
   const [isSending, setIsSending] = useState(false)
+  const [savedPhoneNumbers, setSavedPhoneNumbers] = useState<any[]>([])
+  const [useCustomNumber, setUseCustomNumber] = useState(false)
 
   // Status monitoring
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
 
+  // Refresh token utility function
+  const refreshAccessToken = async (): Promise<{ success: boolean; newToken?: string }> => {
+    if (!refreshToken) {
+      return { success: false }
+    }
+
+    try {
+      const response = await fetch(`/admin-api/system/auth/refresh-token?refreshToken=${refreshToken}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.code === 0 && data.data) {
+          // Update tokens
+          setAdminToken(data.data.accessToken)
+          setRefreshToken(data.data.refreshToken)
+          
+          // Save to localStorage
+          localStorage.setItem("sms-admin-token", data.data.accessToken)
+          localStorage.setItem("sms-refresh-token", data.data.refreshToken)
+          
+          return { success: true, newToken: data.data.accessToken }
+        }
+      }
+    } catch (error) {
+      console.error("Token refresh failed:", error)
+    }
+    
+    return { success: false }
+  }
+
+  // Generic API call with automatic token refresh
+  const callAdminApi = async (url: string, options: RequestInit = {}) => {
+    const makeRequest = async (token: string) => {
+      const headers = {
+        ...options.headers,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      }
+      
+      console.log("Making API request:", {
+        url,
+        token,
+        headers
+      })
+      
+      return await fetch(url, {
+        ...options,
+        headers,
+      })
+    }
+
+    // First attempt with current token
+    let response = await makeRequest(adminToken)
+    
+    console.log("API response status:", response.status)
+
+    // If 401, try to refresh and retry
+    if (response.status === 401) {
+      console.log("Got 401, attempting token refresh...")
+      const refreshResult = await refreshAccessToken()
+      if (refreshResult.success && refreshResult.newToken) {
+        console.log("Token refreshed successfully, retrying request...")
+        response = await makeRequest(refreshResult.newToken)
+        console.log("Retry response status:", response.status)
+      } else {
+        console.log("Token refresh failed")
+      }
+    }
+
+    return response
+  }
+
+  // Load saved phone numbers
+  const loadSavedPhoneNumbers = async () => {
+    try {
+      const response = await fetch('/api/phone-numbers')
+      if (response.ok) {
+        const data = await response.json()
+        setSavedPhoneNumbers(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to load saved phone numbers:', error)
+    }
+  }
+
   // Load tokens from localStorage on mount with validation
   useEffect(() => {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
-    const savedAliyunToken = localStorage.getItem("sms-aliyun-token")
+    const savedRefreshToken = localStorage.getItem("sms-refresh-token")
+    const savedAliyunCookie = getCookie("sms-aliyun-cookie") // Read from cookie
 
     // Load saved tokens if available
     if (savedAdminToken) {
       setAdminToken(savedAdminToken)
     }
-    if (savedAliyunToken) {
-      setAliyunToken(savedAliyunToken)
+    if (savedRefreshToken) {
+      setRefreshToken(savedRefreshToken)
+    }
+    if (savedAliyunCookie) {
+      setAliyunCookie(savedAliyunCookie)
     }
 
     // Only mark as configured if both tokens exist
-    if (savedAdminToken && savedAliyunToken) {
+    if (savedAdminToken && savedAliyunCookie) {
       setTokensConfigured(true)
       // Validate tokens by trying to fetch templates
       setTimeout(() => {
         fetchTemplates()
       }, 500)
     }
+    
+    // Load saved phone numbers
+    loadSavedPhoneNumbers()
   }, [])
 
   // Auto-save tokens to localStorage when they change
@@ -83,14 +185,20 @@ export default function SmsTestingTool() {
   }, [adminToken])
 
   useEffect(() => {
-    if (aliyunToken.trim()) {
-      localStorage.setItem("sms-aliyun-token", aliyunToken)
+    if (aliyunCookie.trim()) {
+      setCookie("sms-aliyun-cookie", aliyunCookie) // Save to cookie
     }
-  }, [aliyunToken])
+  }, [aliyunCookie])
+
+  useEffect(() => {
+    if (refreshToken.trim()) {
+      localStorage.setItem("sms-refresh-token", refreshToken)
+    }
+  }, [refreshToken])
 
   // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
-    if (!adminToken.trim() || !aliyunToken.trim()) {
+    if (!adminToken.trim() || !aliyunCookie.trim()) {
       toast({
         title: "错误",
         description: "请填写完整的令牌信息",
@@ -100,7 +208,10 @@ export default function SmsTestingTool() {
     }
 
     localStorage.setItem("sms-admin-token", adminToken)
-    localStorage.setItem("sms-aliyun-token", aliyunToken)
+    setCookie("sms-aliyun-cookie", aliyunCookie) // Save to cookie
+    if (refreshToken.trim()) {
+      localStorage.setItem("sms-refresh-token", refreshToken)
+    }
     setTokensConfigured(true)
 
     toast({
@@ -115,22 +226,24 @@ export default function SmsTestingTool() {
   // Fetch SMS templates with improved error handling
   const fetchTemplates = async () => {
     try {
-      const response = await fetch("/admin-api/system/sms-template/page", {
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-          "Content-Type": "application/json",
-        },
-      })
+      console.log("Fetching templates with adminToken:", adminToken)
+      const response = await callAdminApi("/admin-api/system/sms-template/page")
 
       if (response.ok) {
         const data = await response.json()
-        setTemplates(data.data || [])
+        console.log("Template API response:", data) // Debug log
+        
+        // Ensure templates is always an array
+        const templatesData = Array.isArray(data.data) ? data.data : 
+                              (data.data?.list ? data.data.list : [])
+        
+        setTemplates(templatesData)
         toast({
           title: "成功",
-          description: `已加载 ${data.data?.length || 0} 个短信模板`,
+          description: `已加载 ${templatesData.length} 个短信模板`,
         })
       } else if (response.status === 401) {
-        // Handle token expiration
+        // If still 401 after refresh attempt, handle as before
         setTokensConfigured(false)
         toast({
           title: "认证失败",
@@ -139,10 +252,13 @@ export default function SmsTestingTool() {
         })
       } else {
         const errorData = await response.json().catch(() => ({}))
+        console.error("API error response:", errorData)
         throw new Error(errorData.msg || "获取模板失败")
       }
     } catch (error) {
       console.error("获取短信模板失败:", error)
+      // Ensure templates is empty array on error
+      setTemplates([])
       toast({
         title: "错误",
         description: error instanceof Error ? error.message : "获取短信模板失败，请检查网络连接",
@@ -154,12 +270,7 @@ export default function SmsTestingTool() {
   // Get template details
   const getTemplateDetails = async (templateId: string) => {
     try {
-      const response = await fetch(`/admin-api/system/sms-template/get?id=${templateId}`, {
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-          "Content-Type": "application/json",
-        },
-      })
+      const response = await callAdminApi(`/admin-api/system/sms-template/get?id=${templateId}`)
 
       if (response.ok) {
         const data = await response.json()
@@ -206,12 +317,8 @@ export default function SmsTestingTool() {
     setIsSending(true)
 
     try {
-      const response = await fetch("/admin-api/system/sms-template/send-sms", {
+      const response = await callAdminApi("/admin-api/system/sms-template/send-sms", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           content: selectedTemplate.content,
           params: selectedTemplate.params,
@@ -240,6 +347,14 @@ export default function SmsTestingTool() {
           title: "成功",
           description: `短信发送成功，OutId: ${outId}`,
         })
+      } else if (response.status === 401) {
+        // If still 401 after refresh attempt
+        setTokensConfigured(false)
+        toast({
+          title: "认证失败",
+          description: "管理后台令牌已过期，请重新配置令牌",
+          variant: "destructive",
+        })
       } else {
         throw new Error("发送失败")
       }
@@ -257,8 +372,8 @@ export default function SmsTestingTool() {
   // Check SMS status using real Aliyun API through proxy
   const checkSmsStatus = async (outId: string) => {
     try {
-      if (!aliyunToken.trim()) {
-        console.error("阿里云令牌未配置")
+      if (!aliyunCookie.trim()) {
+        console.error("阿里云Cookie未配置")
         return null
       }
 
@@ -268,8 +383,8 @@ export default function SmsTestingTool() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          outId,
-          aliyunToken
+          outId
+          // aliyunCookie is now sent as cookie
         })
       })
 
@@ -379,7 +494,7 @@ export default function SmsTestingTool() {
                   <strong>获取令牌说明：</strong>
                   <ul className="mt-2 space-y-1 text-sm">
                     <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
-                    <li>• 阿里云令牌：从阿里云控制台获取sec_token</li>
+                    <li>• 阿里云Cookie：从阿里云短信控制台复制完整Cookie</li>
                     <li>• 令牌过期时需要重新获取并配置</li>
                   </ul>
                 </AlertDescription>
@@ -395,14 +510,30 @@ export default function SmsTestingTool() {
                 />
               </div>
               <div>
-                <Label htmlFor="aliyun-token">阿里云控制台令牌</Label>
+                <Label htmlFor="refresh-token">管理后台刷新令牌 (可选)</Label>
                 <Input
-                  id="aliyun-token"
+                  id="refresh-token"
                   type="password"
-                  placeholder="请输入阿里云控制台令牌"
-                  value={aliyunToken}
-                  onChange={(e) => setAliyunToken(e.target.value)}
+                  placeholder="请输入管理后台刷新令牌"
+                  value={refreshToken}
+                  onChange={(e) => setRefreshToken(e.target.value)}
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  提供刷新令牌可以自动更新过期的访问令牌
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="aliyun-cookie">阿里云控制台Cookie</Label>
+                <Input
+                  id="aliyun-cookie"
+                  type="password"
+                  placeholder="请输入阿里云控制台完整Cookie"
+                  value={aliyunCookie}
+                  onChange={(e) => setAliyunCookie(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  从阿里云短信控制台开发者工具中复制完整的Cookie
+                </p>
               </div>
               <Button onClick={saveTokens} className="w-full">
                 保存配置
@@ -432,11 +563,12 @@ export default function SmsTestingTool() {
               
               // Clear localStorage tokens
               localStorage.removeItem("sms-admin-token")
-              localStorage.removeItem("sms-aliyun-token")
+              localStorage.removeItem("sms-refresh-token")
+              deleteCookie("sms-aliyun-cookie") // Clear cookie
               
               // Reset token values
               setAdminToken("")
-              setAliyunToken("")
+              setAliyunCookie("")
               
               toast({
                 title: "配置已清除",
@@ -506,9 +638,28 @@ export default function SmsTestingTool() {
                   />
                   <Select onValueChange={setPhoneNumber}>
                     <SelectTrigger className="w-40">
-                      <SelectValue placeholder="测试号码" />
+                      <SelectValue placeholder="选择号码" />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* 保存的号码 */}
+                      {savedPhoneNumbers.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-medium text-gray-500">保存的号码</div>
+                          {savedPhoneNumbers.map((phone) => (
+                            <SelectItem key={phone.id} value={phone.number}>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {phone.carrier}
+                                </Badge>
+                                {phone.number}
+                              </div>
+                            </SelectItem>
+                          ))}
+                          <div className="my-1 border-t" />
+                        </>
+                      )}
+                      {/* 常用测试号码 */}
+                      <div className="px-2 py-1.5 text-xs font-medium text-gray-500">测试号码</div>
                       {commonTestNumbers.map((number) => (
                         <SelectItem key={number} value={number}>
                           {number}
@@ -583,7 +734,7 @@ export default function SmsTestingTool() {
                   <div className="text-center py-8 text-gray-500">暂无发送记录</div>
                 ) : (
                   <div className="space-y-4">
-                    {smsStatuses.map((sms, index) => (
+                    {smsStatuses.map((sms) => (
                       <div key={sms.outId} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">OutId: {sms.outId}</span>
@@ -615,6 +766,11 @@ export default function SmsTestingTool() {
               </AlertDescription>
             </Alert>
           </div>
+        </div>
+        
+        {/* Phone Number Manager */}
+        <div className="mt-6">
+          <PhoneNumberManager onPhoneNumbersChange={loadSavedPhoneNumbers} />
         </div>
       </div>
     </div>
