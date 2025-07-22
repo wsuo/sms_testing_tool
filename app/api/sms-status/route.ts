@@ -125,19 +125,16 @@ export async function POST(request: NextRequest) {
     // Generate timestamp for the request
     const timestamp = Date.now()
     
-    // Extract the latest collina and sec_token from cookie (more dynamic)
-    let latestCollina = ""
-    let latestSecToken = ""
+    // The collina parameter is not in cookie, it's dynamically generated
+    // We'll use the known working collina from your real request
+    const staticCollina = "140%23LCFojPGgzzWOpzo22xK%2BwtSrOSUKMVIpuk1lUcNlDSXkqrjtYIFCl4n5sEi1QyllSbahoD4ckT%2F7StOfPrXFX6hqzzc%2BuXU4niTzzZ8Kba7ulFzx2DD3VtgqDDDx2CeT4EhvzWXiqUuFoG15adb61pxJNibiL2kKllfzzDrVtv%2FqWtQm2wswyINIPtrPHpcDmKliqMYF0s7Mnuxub8j3x5KXJ9e1aodjhhlW15SR1QJY7UhcYEefDKYbNvNNFIAoyIaAS6WNibTJqBPmkbrWNLxsqMnXlk%2BcyL8WnqpCx9dJUekbpMHrsGAVnKQoJMsDpsun%2BU%2BKH5yq4kdUzQkqhSdpjhVDzv5BIo4zLSQe49f3yn7rYTiStnJ5dxgkh6riiK4J2nB7yTqCMbciuyRrR0ITcv0sz9O%2BoOni2aB3xGkiRSAIy139PcXETbT40Xe2yOuVmMOA%2BNRF0XlvLqMq4rGPHwxWKr1iaiacuJWpxncd0t1HFvBeQkWFatovoP%2BcPtVN2UbFsNWtbQJalWNqsCfK7ci0NZToABvWMAPTLCEEscJ22IhvchO145N6Ui3mmBDyeDaWw7LQU1g84M8aS8aNRBl9fCPXdI6dSt3L8YcYGNWXafcjFshl%2F%2Bsee2evOFJKOoGwkZrOXoJYmD2aGfu8ZxNSA9KMO%2B%2FmM8o%2B8Boe79srdpzCPzg4%2BI0O16V5G1mAWqFXIRT5PSCRxS5HzHY4UUK3t8cN5JX9jug%2FWcvia8UXVOs7mGbvF29A6%2FV1J0fub8mwvjiOctBZFI1VuAfLn1lkbjc9wUGbhTu%2FUN%2BhrrJZBi9gdnCbFawj8isIu3D1xXlM993wbilQPTYr3iR7hXAXa4cvzF%3D%3D"
     
-    // Try to extract collina from cookie if available
-    const collinaMatch = decodedCookie.match(/collina=([^;]+)/i)
-    if (collinaMatch) {
-      latestCollina = collinaMatch[1]
-      console.log('Found collina in cookie:', latestCollina.substring(0, 50) + '...')
-    }
+    // Get the correct sec_token from cookie (login_aliyunid_csrf value)
+    const secTokenMatch = decodedCookie.match(/login_aliyunid_csrf=([^;]+)/i)
+    const latestSecToken = secTokenMatch ? secTokenMatch[1] : "hlwNUitqNN2ZzyYDW1H2D6"
     
-    // Use sec_token from cookie parsing or fallback
-    latestSecToken = aliyunToken || csrfToken || "hlwNUitqNN2ZzyYDW1H2D6"
+    console.log('Using static collina (from real working request)')
+    console.log('Using sec_token from login_aliyunid_csrf:', latestSecToken)
     
     // Use parameters that match your real request exactly
     const formData = new URLSearchParams({
@@ -156,8 +153,8 @@ export async function POST(request: NextRequest) {
       }),
       // Use the actual umid from your real request
       umid: "Ya8cd8a07cf07c6a8158f0dcc0a3d8f3e",
-      // Use collina from cookie if available, otherwise fallback
-      collina: latestCollina || "140%23LCFojPGgzzWOpzo22xK%2BwtSrOSUKMVIpuk1lUcNlDSXkqrjtYIFCl4n5sEi1QyllSbahoD4ckT%2F7StOfPrXFX6hqzzc%2BuXU4niTzzZ8Kba7ulFzx2DD3VtgqDDDx2CeT4EhvzWXiqUuFoG15adb61pxJNibiL2kKllfzzDrVtv%2FqWtQm2wswyINIPtrPHpcDmKliqMYF0s7Mnuxub8j3x5KXJ9e1aodjhhlW15SR1QJY7UhcYEefDKYbNvNNFIAoyIaAS6WNibTJqBPmkbrWNLxsqMnXlk%2BcyL8WnqpCx9dJUekbpMHrsGAVnKQoJMsDpsun%2BU%2BKH5yq4kdUzQkqhSdpjhVDzv5BIo4zLSQe49f3yn7rYTiStnJ5dxgkh6riiK4J2nB7yTqCMbciuyRrR0ITcv0sz9O%2BoOni2aB3xGkiRSAIy139PcXETbT40Xe2yOuVmMOA%2BNRF0XlvLqMq4rGPHwxWKr1iaiacuJWpxncd0t1HFvBeQkWFatovoP%2BcPtVN2UbFsNWtbQJalWNqsCfK7ci0NZToABvWMAPTLCEEscJ22IhvchO145N6Ui3mmBDyeDaWw7LQU1g84M8aS8aNRBl9fCPXdI6dSt3L8YcYGNWXafcjFshl%2F%2Bsee2evOFJKOoGwkZrOXoJYmD2aGfu8ZxNSA9KMO%2B%2FmM8o%2B8Boe79srdpzCPzg4%2BI0O16V5G1mAWqFXIRT5PSCRxS5HzHY4UUK3t8cN5JX9jug%2FWcvia8UXVOs7mGbvF29A6%2FV1J0fub8mwvjiOctBZFI1VuAfLn1lkbjc9wUGbhTu%2FUN%2BhrrJZBi9gdnCbFawj8isIu3D1xXlM993wbilQPTYr3iR7hXAXa4cvzF%3D%3D",
+      // Use static collina from working request
+      collina: staticCollina,
       // Use sec_token from cookie
       sec_token: latestSecToken
     })
@@ -165,8 +162,8 @@ export async function POST(request: NextRequest) {
     console.log('Using parameters matching real browser request:')
     console.log('- PageSize: 10 (not 50)')
     console.log('- BizId: empty (not using outId)')
-    console.log('- collina from cookie:', latestCollina ? 'Found' : 'Using fallback')
-    console.log('- sec_token:', latestSecToken?.substring(0, 10) + '...')
+    console.log('- collina: static from working request')
+    console.log('- sec_token from login_aliyunid_csrf:', latestSecToken?.substring(0, 20) + '...')
     console.log('Form data keys:', Array.from(formData.keys()).join(', '))
 
     // Try to find the SMS records by calling the SMS dashboard API
