@@ -33,13 +33,9 @@ const commonTestNumbers = ["13800138000", "13900139000", "15000150000", "1800018
 export default function SmsTestingTool() {
   const { toast } = useToast()
 
-  // Default token values from your previous configuration
-  const DEFAULT_ADMIN_TOKEN = "ade3ae2a424e4bcda1b475fdbab915a2"
-  const DEFAULT_ALIYUN_TOKEN = "hlwNUitqNN2ZzyYDW1H2D6"
-
-  // Token management with default values
-  const [adminToken, setAdminToken] = useState(DEFAULT_ADMIN_TOKEN)
-  const [aliyunToken, setAliyunToken] = useState(DEFAULT_ALIYUN_TOKEN)
+  // Token management - remove expired default tokens
+  const [adminToken, setAdminToken] = useState("")
+  const [aliyunToken, setAliyunToken] = useState("")
   const [tokensConfigured, setTokensConfigured] = useState(false)
 
   // SMS template management
@@ -56,12 +52,12 @@ export default function SmsTestingTool() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
 
-  // Load tokens from localStorage on mount with improved persistence
+  // Load tokens from localStorage on mount with validation
   useEffect(() => {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
     const savedAliyunToken = localStorage.getItem("sms-aliyun-token")
 
-    // Use saved tokens if available, otherwise keep defaults
+    // Load saved tokens if available
     if (savedAdminToken) {
       setAdminToken(savedAdminToken)
     }
@@ -69,13 +65,10 @@ export default function SmsTestingTool() {
       setAliyunToken(savedAliyunToken)
     }
 
-    // Check if tokens are configured (either saved tokens or defaults are valid)
-    const adminTokenToUse = savedAdminToken || DEFAULT_ADMIN_TOKEN
-    const aliyunTokenToUse = savedAliyunToken || DEFAULT_ALIYUN_TOKEN
-    
-    if (adminTokenToUse.trim() && aliyunTokenToUse.trim()) {
+    // Only mark as configured if both tokens exist
+    if (savedAdminToken && savedAliyunToken) {
       setTokensConfigured(true)
-      // Auto-load templates if tokens are ready
+      // Validate tokens by trying to fetch templates
       setTimeout(() => {
         fetchTemplates()
       }, 500)
@@ -84,13 +77,13 @@ export default function SmsTestingTool() {
 
   // Auto-save tokens to localStorage when they change
   useEffect(() => {
-    if (adminToken.trim() && adminToken !== DEFAULT_ADMIN_TOKEN) {
+    if (adminToken.trim()) {
       localStorage.setItem("sms-admin-token", adminToken)
     }
   }, [adminToken])
 
   useEffect(() => {
-    if (aliyunToken.trim() && aliyunToken !== DEFAULT_ALIYUN_TOKEN) {
+    if (aliyunToken.trim()) {
       localStorage.setItem("sms-aliyun-token", aliyunToken)
     }
   }, [aliyunToken])
@@ -119,7 +112,7 @@ export default function SmsTestingTool() {
     fetchTemplates()
   }
 
-  // Fetch SMS templates
+  // Fetch SMS templates with improved error handling
   const fetchTemplates = async () => {
     try {
       const response = await fetch("/admin-api/system/sms-template/page", {
@@ -136,13 +129,23 @@ export default function SmsTestingTool() {
           title: "成功",
           description: `已加载 ${data.data?.length || 0} 个短信模板`,
         })
+      } else if (response.status === 401) {
+        // Handle token expiration
+        setTokensConfigured(false)
+        toast({
+          title: "认证失败",
+          description: "管理后台令牌已过期，请重新配置令牌",
+          variant: "destructive",
+        })
       } else {
-        throw new Error("获取模板失败")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.msg || "获取模板失败")
       }
     } catch (error) {
+      console.error("获取短信模板失败:", error)
       toast({
         title: "错误",
-        description: "获取短信模板失败，请检查令牌是否正确",
+        description: error instanceof Error ? error.message : "获取短信模板失败，请检查网络连接",
         variant: "destructive",
       })
     }
@@ -371,6 +374,16 @@ export default function SmsTestingTool() {
               <CardTitle>短信测试工具配置</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  <strong>获取令牌说明：</strong>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
+                    <li>• 阿里云令牌：从阿里云控制台获取sec_token</li>
+                    <li>• 令牌过期时需要重新获取并配置</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
               <div>
                 <Label htmlFor="admin-token">管理后台令牌</Label>
                 <Input
@@ -410,9 +423,25 @@ export default function SmsTestingTool() {
           <Button
             variant="outline"
             onClick={() => {
+              // Clear tokens and reset state
               setTokensConfigured(false)
               setTemplates([])
               setSelectedTemplate(null)
+              setSmsStatuses([])
+              setAutoRefresh(false)
+              
+              // Clear localStorage tokens
+              localStorage.removeItem("sms-admin-token")
+              localStorage.removeItem("sms-aliyun-token")
+              
+              // Reset token values
+              setAdminToken("")
+              setAliyunToken("")
+              
+              toast({
+                title: "配置已清除",
+                description: "请重新输入有效的令牌",
+              })
             }}
           >
             <Settings className="w-4 h-4 mr-2" />
