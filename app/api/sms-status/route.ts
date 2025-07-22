@@ -50,10 +50,9 @@ export async function POST(request: NextRequest) {
     // 获取当前日期 (yyyyMMdd格式)
     const sendDate = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     
-    // 创建查询请求
+    // 创建查询请求 - 不使用bizId，通过手机号码和日期查询
     const queryReq = new $Dysmsapi.QuerySendDetailsRequest({
       phoneNumber: phoneNumber,
-      bizId: outId, // outId对应bizId
       sendDate: sendDate,
       pageSize: 50,
       currentPage: 1,
@@ -61,10 +60,10 @@ export async function POST(request: NextRequest) {
 
     console.log('Query parameters:', {
       phoneNumber,
-      bizId: outId,
       sendDate,
       pageSize: 50,
-      currentPage: 1
+      currentPage: 1,
+      note: 'Querying by phone number and date only'
     })
 
     // 调用API查询
@@ -89,21 +88,36 @@ export async function POST(request: NextRequest) {
     const smsDetails = queryResp.body.smsSendDetailDTOs?.smsSendDetailDTO || []
     console.log('Found SMS records:', smsDetails.length)
 
-    // 查找匹配的记录（通过OutId/BizId匹配）
+    // 查找匹配的记录（通过OutId匹配，注意OutId是外部流水扩展字段）
     const targetRecord = smsDetails.find((record: any) => {
-      return String(record.outId) === String(outId)
+      // 检查OutId字段匹配
+      if (record.outId && String(record.outId) === String(outId)) {
+        return true
+      }
+      // 如果没有OutId，可能需要通过其他方式匹配，比如时间和内容
+      // 但这里暂时只通过OutId匹配
+      return false
     })
 
     if (!targetRecord) {
       console.log('No matching record found for OutId:', outId)
       const allOutIds = smsDetails.map((record: any) => record.outId)
+      const allRecords = smsDetails.map((record: any) => ({
+        outId: record.outId,
+        phoneNum: record.phoneNum,
+        sendDate: record.sendDate,
+        sendStatus: record.sendStatus
+      }))
+      
       console.log('Available OutIds:', allOutIds)
+      console.log('All records preview:', allRecords.slice(0, 3))
       
       return NextResponse.json(
         { 
           error: `未找到OutId为${outId}的短信记录`,
           details: `在 ${smsDetails.length} 条记录中未找到匹配项`,
-          availableOutIds: allOutIds.slice(0, 10)
+          availableOutIds: allOutIds.slice(0, 10),
+          searchedDate: sendDate
         },
         { status: 404 }
       )
@@ -112,12 +126,14 @@ export async function POST(request: NextRequest) {
     console.log('Found target record:', {
       outId: targetRecord.outId,
       sendStatus: targetRecord.sendStatus,
-      phoneNum: targetRecord.phoneNum
+      phoneNum: targetRecord.phoneNum,
+      errCode: targetRecord.errCode
     })
 
     // 映射阿里云状态到中文
     const mapSendStatus = (sendStatus: number, errCode?: string) => {
-      if (errCode && errCode !== "DELIVRD") {
+      // 根据阿里云文档，DELIVERED表示发送成功
+      if (errCode && errCode !== "DELIVERED") {
         return "发送失败"
       }
       
@@ -134,9 +150,15 @@ export async function POST(request: NextRequest) {
 
     const status = mapSendStatus(targetRecord.sendStatus, targetRecord.errCode)
     
+    console.log('Status mapping result:', {
+      sendStatus: targetRecord.sendStatus,
+      errCode: targetRecord.errCode,
+      mappedStatus: status
+    })
+    
     return NextResponse.json({
       status,
-      errorCode: targetRecord.errCode && targetRecord.errCode !== "DELIVRD" ? targetRecord.errCode : undefined,
+      errorCode: targetRecord.errCode && targetRecord.errCode !== "DELIVERED" ? targetRecord.errCode : undefined,
       receiveDate: targetRecord.receiveDate || undefined,
       sendDate: targetRecord.sendDate || undefined,
     })

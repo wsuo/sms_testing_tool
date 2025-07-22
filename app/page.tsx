@@ -36,15 +36,11 @@ export default function SmsTestingTool() {
   // Token management
   const [adminToken, setAdminToken] = useState("")
   const [refreshToken, setRefreshToken] = useState("")
-  const [aliyunAccessKeyId, setAliyunAccessKeyId] = useState("")
-  const [aliyunAccessKeySecret, setAliyunAccessKeySecret] = useState("")
   const [tokensConfigured, setTokensConfigured] = useState(false)
   
   // Password visibility states
   const [showAdminToken, setShowAdminToken] = useState(false)
   const [showRefreshToken, setShowRefreshToken] = useState(false)
-  const [showAliyunAccessKeyId, setShowAliyunAccessKeyId] = useState(false)
-  const [showAliyunAccessKeySecret, setShowAliyunAccessKeySecret] = useState(false)
 
   // SMS template management
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
@@ -180,14 +176,10 @@ export default function SmsTestingTool() {
   useEffect(() => {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
     const savedRefreshToken = localStorage.getItem("sms-refresh-token")
-    const savedAliyunAccessKeyId = localStorage.getItem("sms-aliyun-access-key-id")
-    const savedAliyunAccessKeySecret = localStorage.getItem("sms-aliyun-access-key-secret")
 
     console.log("Loading saved tokens:", {
       hasAdminToken: !!savedAdminToken,
       hasRefreshToken: !!savedRefreshToken,
-      hasAliyunAccessKeyId: !!savedAliyunAccessKeyId,
-      hasAliyunAccessKeySecret: !!savedAliyunAccessKeySecret
     })
 
     // Load saved tokens if available
@@ -197,15 +189,9 @@ export default function SmsTestingTool() {
     if (savedRefreshToken) {
       setRefreshToken(savedRefreshToken)
     }
-    if (savedAliyunAccessKeyId) {
-      setAliyunAccessKeyId(savedAliyunAccessKeyId)
-    }
-    if (savedAliyunAccessKeySecret) {
-      setAliyunAccessKeySecret(savedAliyunAccessKeySecret)
-    }
 
-    // Only mark as configured if both admin token and aliyun credentials exist
-    if (savedAdminToken && savedAliyunAccessKeyId && savedAliyunAccessKeySecret) {
+    // Only mark as configured if admin token exists
+    if (savedAdminToken) {
       setTokensConfigured(true)
       // Validate tokens by trying to fetch templates
       setTimeout(() => {
@@ -224,17 +210,6 @@ export default function SmsTestingTool() {
     }
   }, [adminToken])
 
-  useEffect(() => {
-    if (aliyunAccessKeyId.trim()) {
-      localStorage.setItem("sms-aliyun-access-key-id", aliyunAccessKeyId)
-    }
-  }, [aliyunAccessKeyId])
-
-  useEffect(() => {
-    if (aliyunAccessKeySecret.trim()) {
-      localStorage.setItem("sms-aliyun-access-key-secret", aliyunAccessKeySecret)
-    }
-  }, [aliyunAccessKeySecret])
 
   useEffect(() => {
     if (refreshToken.trim()) {
@@ -244,18 +219,16 @@ export default function SmsTestingTool() {
 
   // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
-    if (!adminToken.trim() || !aliyunAccessKeyId.trim() || !aliyunAccessKeySecret.trim()) {
+    if (!adminToken.trim()) {
       toast({
         title: "错误",
-        description: "请填写完整的令牌信息",
+        description: "请填写管理后台令牌",
         variant: "destructive",
       })
       return
     }
 
     localStorage.setItem("sms-admin-token", adminToken)
-    localStorage.setItem("sms-aliyun-access-key-id", aliyunAccessKeyId)
-    localStorage.setItem("sms-aliyun-access-key-secret", aliyunAccessKeySecret)
     if (refreshToken.trim()) {
       localStorage.setItem("sms-refresh-token", refreshToken)
     }
@@ -601,7 +574,7 @@ export default function SmsTestingTool() {
                   <strong>获取令牌说明：</strong>
                   <ul className="mt-2 space-y-1 text-sm">
                     <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
-                    <li>• 阿里云AccessKey：从阿里云控制台获取AccessKey ID和Secret</li>
+                    <li>• 阿里云AccessKey已在服务器环境变量中配置</li>
                     <li>• 令牌过期时需要重新获取并配置</li>
                   </ul>
                 </AlertDescription>
@@ -651,53 +624,6 @@ export default function SmsTestingTool() {
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   提供刷新令牌可以自动更新过期的访问令牌
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="aliyun-access-key-id">阿里云AccessKey ID</Label>
-                <div className="relative">
-                  <Input
-                    id="aliyun-access-key-id"
-                    type={showAliyunAccessKeyId ? "text" : "password"}
-                    placeholder="请输入阿里云AccessKey ID"
-                    value={aliyunAccessKeyId}
-                    onChange={(e) => setAliyunAccessKeyId(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowAliyunAccessKeyId(!showAliyunAccessKeyId)}
-                  >
-                    {showAliyunAccessKeyId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="aliyun-access-key-secret">阿里云AccessKey Secret</Label>
-                <div className="relative">
-                  <Input
-                    id="aliyun-access-key-secret"
-                    type={showAliyunAccessKeySecret ? "text" : "password"}
-                    placeholder="请输入阿里云AccessKey Secret"
-                    value={aliyunAccessKeySecret}
-                    onChange={(e) => setAliyunAccessKeySecret(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowAliyunAccessKeySecret(!showAliyunAccessKeySecret)}
-                  >
-                    {showAliyunAccessKeySecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  从阿里云控制台访问控制页面获取AccessKey ID和Secret
                 </p>
               </div>
               <Button onClick={saveTokens} className="w-full">
