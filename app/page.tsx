@@ -946,7 +946,7 @@ export default function SmsTestingTool() {
                           <p>手机号码: {sms.phoneNumber}</p>
                           <p>发送时间: {sms.sendDate}</p>
                           {sms.receiveDate && <p>送达时间: {sms.receiveDate}</p>}
-                          {sms.errorCode && <p className="text-red-600">错误代码: {sms.errorCode}</p>}
+                          {sms.errorCode && sms.errorCode !== "DELIVERED" && <p className="text-red-600">错误代码: {sms.errorCode}</p>}
                         </div>
                       </div>
                     ))}
