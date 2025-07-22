@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import PhoneNumberManager from "@/components/phone-number-manager"
+import PhoneNumberManagerModal from "@/components/phone-number-manager-modal"
 import { Textarea } from "@/components/ui/textarea"
+import Link from "next/link"
 
 interface SmsTemplate {
   id: string
@@ -810,6 +811,10 @@ export default function SmsTestingTool() {
                       )}
                     </SelectContent>
                   </Select>
+                  <PhoneNumberManagerModal 
+                    onPhoneNumbersChange={loadSavedPhoneNumbers}
+                    onSelectNumber={setPhoneNumber}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -860,9 +865,14 @@ export default function SmsTestingTool() {
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center">
                     <Clock className="w-5 h-5 mr-2" />
-                    发送状态监控
+                    实时状态
                   </div>
                   <div className="flex gap-2">
+                    <Link href="/monitor">
+                      <Button variant="outline" size="sm">
+                        查看详情
+                      </Button>
+                    </Link>
                     <Button variant="outline" size="sm" onClick={refreshStatuses} disabled={isRefreshing}>
                       <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
                     </Button>
@@ -877,7 +887,7 @@ export default function SmsTestingTool() {
                   <div className="text-center py-8 text-gray-500">暂无发送记录</div>
                 ) : (
                   <div className="space-y-4">
-                    {smsStatuses.map((sms) => (
+                    {smsStatuses.slice(0, 3).map((sms) => (
                       <div key={sms.outId} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">OutId: {sms.outId}</span>
@@ -891,6 +901,15 @@ export default function SmsTestingTool() {
                         </div>
                       </div>
                     ))}
+                    {smsStatuses.length > 3 && (
+                      <div className="text-center pt-2">
+                        <Link href="/monitor">
+                          <Button variant="outline" size="sm">
+                            查看全部 {smsStatuses.length} 条记录
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -902,18 +921,14 @@ export default function SmsTestingTool() {
                 <strong>使用说明:</strong>
                 <ul className="mt-2 space-y-1 text-sm">
                   <li>• 系统每3秒自动刷新发送状态</li>
-                  <li>• 可点击刷新按钮手动更新状态</li>
+                  <li>• 可点击"查看详情"查看完整的发送记录和统计</li>
+                  <li>• 点击"管理号码"可添加和管理常用手机号</li>
                   <li>• 令牌信息已本地保存，刷新页面不会丢失</li>
                   <li>• 支持多个短信同时监控状态</li>
                 </ul>
               </AlertDescription>
             </Alert>
           </div>
-        </div>
-        
-        {/* Phone Number Manager */}
-        <div className="mt-6">
-          <PhoneNumberManager onPhoneNumbersChange={loadSavedPhoneNumbers} />
         </div>
       </div>
     </div>

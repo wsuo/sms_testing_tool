@@ -10,8 +10,11 @@ This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadc
 
 ### Core Application Structure
 - **Next.js App Router**: Using the new app directory structure
-- **Single Page Application**: Main functionality in `app/page.tsx` 
+- **Main Pages**: 
+  - `/` - Main SMS testing interface (app/page.tsx)
+  - `/monitor` - Dedicated SMS monitoring and statistics page (app/monitor/page.tsx)
 - **Component Library**: shadcn/ui components in `components/ui/`
+- **Database**: SQLite with better-sqlite3 for SMS record persistence (lib/database.ts)
 - **State Management**: React hooks with localStorage persistence
 - **API Integration**: Proxied backend calls through Next.js rewrites
 
@@ -20,7 +23,10 @@ This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadc
 2. **SMS Template Selection**: Fetches and manages SMS templates from admin API
 3. **Message Sending**: Posts SMS requests with template parameters  
 4. **Status Monitoring**: Real-time status checks with integrated Aliyun SMS API
-5. **Phone Number Management**: Predefined test numbers and custom input
+5. **Phone Number Management**: Modal-based phone number management with carrier info
+6. **Data Persistence**: Complete SMS record storage with SQLite database
+7. **Statistics Dashboard**: Comprehensive monitoring page with stats and filtering
+8. **Real-time Updates**: Auto-refresh status monitoring every 3 seconds
 
 ### API Integration Points
 - Admin API: `/admin-api/system/sms-template/*` (proxied to https://wxapp.agrochainhub.com)
