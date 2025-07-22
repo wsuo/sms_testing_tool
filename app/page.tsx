@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock } from "lucide-react"
+import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { setCookie, getCookie, deleteCookie } from "@/lib/cookies"
 import PhoneNumberManager from "@/components/phone-number-manager"
+import { Textarea } from "@/components/ui/textarea"
 
 interface SmsTemplate {
   id: string
@@ -30,8 +31,6 @@ interface SmsStatus {
   phoneNumber: string
 }
 
-const commonTestNumbers = ["13800138000", "13900139000", "15000150000", "18000180000"]
-
 export default function SmsTestingTool() {
   const { toast } = useToast()
 
@@ -40,6 +39,11 @@ export default function SmsTestingTool() {
   const [refreshToken, setRefreshToken] = useState("")
   const [aliyunCookie, setAliyunCookie] = useState("")
   const [tokensConfigured, setTokensConfigured] = useState(false)
+  
+  // Password visibility states
+  const [showAdminToken, setShowAdminToken] = useState(false)
+  const [showRefreshToken, setShowRefreshToken] = useState(false)
+  const [showAliyunCookie, setShowAliyunCookie] = useState(false)
 
   // SMS template management
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
@@ -249,7 +253,7 @@ export default function SmsTestingTool() {
   const fetchTemplates = async () => {
     try {
       console.log("Fetching templates with adminToken:", adminToken)
-      const response = await callAdminApi("/admin-api/system/sms-template/page")
+      const response = await callAdminApi("/admin-api/system/sms-template/page?pageNo=1&pageSize=10&channelId=8")
 
       if (response.ok) {
         const data = await response.json()
@@ -566,36 +570,76 @@ export default function SmsTestingTool() {
               </Alert>
               <div>
                 <Label htmlFor="admin-token">管理后台令牌</Label>
-                <Input
-                  id="admin-token"
-                  type="password"
-                  placeholder="请输入管理后台API令牌"
-                  value={adminToken}
-                  onChange={(e) => setAdminToken(e.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="admin-token"
+                    type={showAdminToken ? "text" : "password"}
+                    placeholder="请输入管理后台API令牌"
+                    value={adminToken}
+                    onChange={(e) => setAdminToken(e.target.value)}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowAdminToken(!showAdminToken)}
+                  >
+                    {showAdminToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div>
                 <Label htmlFor="refresh-token">管理后台刷新令牌 (可选)</Label>
-                <Input
-                  id="refresh-token"
-                  type="password"
-                  placeholder="请输入管理后台刷新令牌"
-                  value={refreshToken}
-                  onChange={(e) => setRefreshToken(e.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="refresh-token"
+                    type={showRefreshToken ? "text" : "password"}
+                    placeholder="请输入管理后台刷新令牌"
+                    value={refreshToken}
+                    onChange={(e) => setRefreshToken(e.target.value)}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowRefreshToken(!showRefreshToken)}
+                  >
+                    {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
                   提供刷新令牌可以自动更新过期的访问令牌
                 </p>
               </div>
               <div>
                 <Label htmlFor="aliyun-cookie">阿里云控制台Cookie</Label>
-                <Input
-                  id="aliyun-cookie"
-                  type="password"
-                  placeholder="请输入阿里云控制台完整Cookie"
-                  value={aliyunCookie}
-                  onChange={(e) => setAliyunCookie(e.target.value)}
-                />
+                <div className="relative">
+                  <Textarea
+                    id="aliyun-cookie"
+                    placeholder="请输入阿里云控制台完整Cookie"
+                    value={aliyunCookie}
+                    onChange={(e) => setAliyunCookie(e.target.value)}
+                    className="min-h-[100px] font-mono text-sm resize-y pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-8 px-3 hover:bg-transparent"
+                    onClick={() => setShowAliyunCookie(!showAliyunCookie)}
+                  >
+                    {showAliyunCookie ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                  {!showAliyunCookie && aliyunCookie && (
+                    <div className="absolute inset-0 bg-gray-100 rounded-md flex items-center justify-center pointer-events-none">
+                      <span className="text-gray-500">点击眼睛图标查看内容</span>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
                   从阿里云短信控制台开发者工具中复制完整的Cookie
                 </p>
@@ -619,25 +663,16 @@ export default function SmsTestingTool() {
           <Button
             variant="outline"
             onClick={() => {
-              // Clear tokens and reset state
+              // Reset configuration state but keep token values for re-editing
               setTokensConfigured(false)
               setTemplates([])
               setSelectedTemplate(null)
               setSmsStatuses([])
               setAutoRefresh(false)
               
-              // Clear localStorage tokens
-              localStorage.removeItem("sms-admin-token")
-              localStorage.removeItem("sms-refresh-token")
-              deleteCookie("sms-aliyun-cookie") // Clear cookie
-              
-              // Reset token values
-              setAdminToken("")
-              setAliyunCookie("")
-              
               toast({
-                title: "配置已清除",
-                description: "请重新输入有效的令牌",
+                title: "重新配置",
+                description: "请检查并更新令牌配置",
               })
             }}
           >
@@ -707,29 +742,20 @@ export default function SmsTestingTool() {
                     </SelectTrigger>
                     <SelectContent>
                       {/* 保存的号码 */}
-                      {savedPhoneNumbers.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-xs font-medium text-gray-500">保存的号码</div>
-                          {savedPhoneNumbers.map((phone) => (
-                            <SelectItem key={phone.id} value={phone.number}>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {phone.carrier}
-                                </Badge>
-                                {phone.number}
-                              </div>
-                            </SelectItem>
-                          ))}
-                          <div className="my-1 border-t" />
-                        </>
+                      {savedPhoneNumbers.length > 0 ? (
+                        savedPhoneNumbers.map((phone) => (
+                          <SelectItem key={phone.id} value={phone.number}>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {phone.carrier}
+                              </Badge>
+                              {phone.number}
+                            </div>
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-xs text-gray-500">暂无保存的号码</div>
                       )}
-                      {/* 常用测试号码 */}
-                      <div className="px-2 py-1.5 text-xs font-medium text-gray-500">测试号码</div>
-                      {commonTestNumbers.map((number) => (
-                        <SelectItem key={number} value={number}>
-                          {number}
-                        </SelectItem>
-                      ))}
                     </SelectContent>
                   </Select>
                 </div>
