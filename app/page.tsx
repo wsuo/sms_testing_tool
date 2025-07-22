@@ -33,9 +33,13 @@ const commonTestNumbers = ["13800138000", "13900139000", "15000150000", "1800018
 export default function SmsTestingTool() {
   const { toast } = useToast()
 
-  // Token management
-  const [adminToken, setAdminToken] = useState("")
-  const [aliyunToken, setAliyunToken] = useState("")
+  // Default token values from your previous configuration
+  const DEFAULT_ADMIN_TOKEN = "ade3ae2a424e4bcda1b475fdbab915a2"
+  const DEFAULT_ALIYUN_TOKEN = "hlwNUitqNN2ZzyYDW1H2D6"
+
+  // Token management with default values
+  const [adminToken, setAdminToken] = useState(DEFAULT_ADMIN_TOKEN)
+  const [aliyunToken, setAliyunToken] = useState(DEFAULT_ALIYUN_TOKEN)
   const [tokensConfigured, setTokensConfigured] = useState(false)
 
   // SMS template management
@@ -52,20 +56,46 @@ export default function SmsTestingTool() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
 
-  // Load tokens from localStorage on mount
+  // Load tokens from localStorage on mount with improved persistence
   useEffect(() => {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
     const savedAliyunToken = localStorage.getItem("sms-aliyun-token")
 
-    if (savedAdminToken) setAdminToken(savedAdminToken)
-    if (savedAliyunToken) setAliyunToken(savedAliyunToken)
+    // Use saved tokens if available, otherwise keep defaults
+    if (savedAdminToken) {
+      setAdminToken(savedAdminToken)
+    }
+    if (savedAliyunToken) {
+      setAliyunToken(savedAliyunToken)
+    }
 
-    if (savedAdminToken && savedAliyunToken) {
+    // Check if tokens are configured (either saved tokens or defaults are valid)
+    const adminTokenToUse = savedAdminToken || DEFAULT_ADMIN_TOKEN
+    const aliyunTokenToUse = savedAliyunToken || DEFAULT_ALIYUN_TOKEN
+    
+    if (adminTokenToUse.trim() && aliyunTokenToUse.trim()) {
       setTokensConfigured(true)
+      // Auto-load templates if tokens are ready
+      setTimeout(() => {
+        fetchTemplates()
+      }, 500)
     }
   }, [])
 
-  // Save tokens to localStorage
+  // Auto-save tokens to localStorage when they change
+  useEffect(() => {
+    if (adminToken.trim() && adminToken !== DEFAULT_ADMIN_TOKEN) {
+      localStorage.setItem("sms-admin-token", adminToken)
+    }
+  }, [adminToken])
+
+  useEffect(() => {
+    if (aliyunToken.trim() && aliyunToken !== DEFAULT_ALIYUN_TOKEN) {
+      localStorage.setItem("sms-aliyun-token", aliyunToken)
+    }
+  }, [aliyunToken])
+
+  // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
     if (!adminToken.trim() || !aliyunToken.trim()) {
       toast({

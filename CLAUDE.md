@@ -16,7 +16,7 @@ This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadc
 - **API Integration**: Proxied backend calls through Next.js rewrites
 
 ### Key Features
-1. **Token Management**: Stores admin and Aliyun tokens in localStorage
+1. **Token Management**: Pre-populated default tokens with automatic localStorage persistence
 2. **SMS Template Selection**: Fetches and manages SMS templates from admin API
 3. **Message Sending**: Posts SMS requests with template parameters  
 4. **Status Monitoring**: Real-time status checks with integrated Aliyun SMS API
@@ -31,19 +31,19 @@ This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadc
 
 ```bash
 # Install dependencies
-pnpm install
+npm install
 
-# Run development server
-pnpm dev
+# Run development server (on port 3030)
+npm run dev
 
 # Build for production  
-pnpm build
+npm run build
 
 # Start production server
-pnpm start
+npm start
 
 # Lint code
-pnpm lint
+npm run lint
 ```
 
 ## Important Configuration
@@ -66,8 +66,10 @@ pnpm lint
 ## Key Implementation Details
 
 ### State Persistence
-- Tokens stored in localStorage with keys: `sms-admin-token`, `sms-aliyun-token`
-- Auto-loads on component mount
+- Tokens pre-populated with working default values on first load
+- Automatic localStorage persistence when tokens change
+- Auto-loading of SMS templates when tokens are valid
+- Tokens auto-saved on modification
 
 ### SMS Status Monitoring  
 - Real Aliyun SMS API integration via `/api/sms-status` proxy endpoint
