@@ -13,7 +13,7 @@ const nextConfig = {
     return [
       {
         source: '/admin-api/:path*',
-        destination: 'http://your-admin-backend.com/admin-api/:path*', // Replace with your actual backend URL
+        destination: 'https://wxapp.agrochainhub.com/admin-api/:path*',
       },
     ]
   },

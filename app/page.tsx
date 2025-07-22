@@ -180,15 +180,17 @@ export default function SmsTestingTool() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          templateId: selectedTemplate.id,
-          phoneNumber: phoneNumber,
+          content: selectedTemplate.content,
+          params: selectedTemplate.params,
+          mobile: phoneNumber,
+          templateCode: selectedTemplate.code,
           templateParams: templateParams,
         }),
       })
 
       if (response.ok) {
         const data = await response.json()
-        const outId = data.data?.outId || `${Date.now()}`
+        const outId = data.data ? String(data.data) : `${Date.now()}` // Convert to string for consistency
 
         // Add to status monitoring
         const newStatus: SmsStatus = {
@@ -219,21 +221,55 @@ export default function SmsTestingTool() {
     }
   }
 
-  // Check SMS status (mock implementation - replace with actual Aliyun API)
+  // Check SMS status using real Aliyun API through proxy
   const checkSmsStatus = async (outId: string) => {
     try {
-      // This is a mock implementation
-      // Replace with actual Aliyun SMS status API call
-      const mockStatuses = ["发送中", "已送达", "发送失败"]
-      const randomStatus = mockStatuses[Math.floor(Math.random() * mockStatuses.length)]
-
-      return {
-        status: randomStatus,
-        errorCode: randomStatus === "发送失败" ? "MOBILE_NUMBER_ILLEGAL" : undefined,
-        receiveDate: randomStatus === "已送达" ? new Date().toLocaleString("zh-CN") : undefined,
+      if (!aliyunToken.trim()) {
+        console.error("阿里云令牌未配置")
+        return null
       }
+
+      const response = await fetch('/api/sms-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          outId,
+          aliyunToken
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("API调用失败:", errorData)
+        
+        // Handle specific error cases
+        if (response.status === 404) {
+          console.warn(`短信记录未找到: OutId=${outId}`)
+          return null
+        }
+        
+        throw new Error(errorData.error || '未知错误')
+      }
+
+      const data = await response.json()
+      return data
+
     } catch (error) {
-      console.error("查询状态失败:", error)
+      console.error("查询短信状态失败:", error)
+      
+      // Show user-friendly error message only occasionally to avoid spam
+      const shouldShowToast = Math.random() < 0.3 // Show toast for 30% of errors
+      
+      if (shouldShowToast) {
+        toast({
+          title: "状态查询失败",
+          description: error instanceof Error ? error.message : "无法连接到阿里云API，请检查令牌配置",
+          variant: "destructive",
+        })
+      }
+      
       return null
     }
   }

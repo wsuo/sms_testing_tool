@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadcn/ui components. The application provides a web interface for testing SMS message delivery through an admin API backend and monitors status via Aliyun SMS services.
+This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadcn/ui components. The application provides a web interface for testing SMS message delivery through an admin API backend and monitors status via real Aliyun SMS API integration.
 
 ## Architecture
 
@@ -19,13 +19,13 @@ This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadc
 1. **Token Management**: Stores admin and Aliyun tokens in localStorage
 2. **SMS Template Selection**: Fetches and manages SMS templates from admin API
 3. **Message Sending**: Posts SMS requests with template parameters  
-4. **Status Monitoring**: Auto-refreshing status checks with mock Aliyun API calls
+4. **Status Monitoring**: Real-time status checks with integrated Aliyun SMS API
 5. **Phone Number Management**: Predefined test numbers and custom input
 
 ### API Integration Points
-- Admin API: `/admin-api/system/sms-template/*` (proxied to external backend)
-- Authentication: Bearer token authorization
-- Status monitoring: Mock implementation (needs real Aliyun SMS API integration)
+- Admin API: `/admin-api/system/sms-template/*` (proxied to https://wxapp.agrochainhub.com)
+- Aliyun SMS Status API: `/api/sms-status` (server-side proxy to dysms.console.aliyun.com)
+- Authentication: Bearer token for admin API, sec_token for Aliyun API
 
 ## Development Commands
 
@@ -51,7 +51,7 @@ pnpm lint
 ### Next.js Configuration
 - ESLint and TypeScript errors ignored during builds (see `next.config.mjs:4-8`)
 - Images are unoptimized for deployment flexibility
-- Admin API requests proxied to `http://your-admin-backend.com` (update in `next.config.mjs:16`)
+- Admin API requests proxied to https://wxapp.agrochainhub.com (configured in `next.config.mjs:16`)
 
 ### TypeScript Setup
 - Strict mode enabled
@@ -70,18 +70,40 @@ pnpm lint
 - Auto-loads on component mount
 
 ### SMS Status Monitoring  
-- Mock implementation in `checkSmsStatus()` function (lines 223-239)
+- Real Aliyun SMS API integration via `/api/sms-status` proxy endpoint
 - Auto-refresh every 3 seconds when active
 - Stops when all messages reach final state
+- Maps Aliyun SendStatus codes: 1=发送中, 3=已送达, others=发送失败
 
 ### Error Handling
 - Toast notifications for user feedback
-- Graceful API failure handling
+- Graceful API failure handling with reduced notification frequency
 - Token validation before operations
 
 ## Development Notes
 
-- The backend URL in `next.config.mjs` must be updated for your environment
-- SMS status checking is currently mocked and needs real Aliyun SMS API integration  
+- Admin API is fully configured and integrated with real backend
+- Aliyun SMS status checking is now fully integrated via proxy API route
 - All UI text is in Chinese - consider internationalization for broader use
 - Component uses extensive shadcn/ui components - familiarize with their API patterns
+- API route `/api/sms-status/route.ts` handles CORS and authentication for Aliyun API calls
+
+When implementing UI elements in this Next.js SMS testing application, prioritize using the existing shadcn/ui components from the `components/ui/` directory. These components are already configured and styled consistently with the project's design system.
+
+Available components include:
+- `Button` for actions and interactions
+- `Input` for form fields
+- `Card`, `CardContent`, `CardHeader`, `CardTitle` for content containers
+- `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue` for dropdowns
+- `Badge` for status indicators
+- `Alert`, `AlertDescription` for notifications
+- `Label` for form labels
+- Toast components (`useToast` hook, `Toaster`) for user feedback
+- `Skeleton` for loading states
+- `Progress` for progress indicators
+- `Switch` for toggle controls
+- `Separator` for visual dividers
+
+Before creating custom UI components or using external libraries, check if an existing shadcn/ui component can fulfill the requirement. If modifications are needed, extend the existing components rather than replacing them to maintain design consistency and theming support (including dark mode).
+
+Import these components using the configured path aliases: `@/components/ui/[component-name]`
