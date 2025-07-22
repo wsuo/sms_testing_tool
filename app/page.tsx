@@ -497,16 +497,19 @@ export default function SmsTestingTool() {
   }
 
   // Check SMS status using Aliyun SDK
-  const checkSmsStatus = async (outId: string) => {
+  const checkSmsStatus = async (outId: string, smsPhoneNumber?: string) => {
     try {
-      if (!phoneNumber.trim()) {
+      // 优先使用SMS记录的手机号，其次使用当前选择的手机号
+      const phoneToUse = smsPhoneNumber || phoneNumber.trim()
+      
+      if (!phoneToUse) {
         console.error("手机号码未配置")
         return null
       }
 
       console.log('Sending request with:', {
         outId,
-        phoneNumber: phoneNumber
+        phoneNumber: phoneToUse
       })
 
       const response = await fetch('/api/sms-status', {
@@ -516,7 +519,7 @@ export default function SmsTestingTool() {
         },
         body: JSON.stringify({
           outId,
-          phoneNumber: phoneNumber // 使用当前选择的手机号
+          phoneNumber: phoneToUse // 使用正确的手机号
         })
       })
 
@@ -605,7 +608,7 @@ export default function SmsTestingTool() {
           console.error('Failed to check retry count:', dbError)
         }
 
-        const statusUpdate = await checkSmsStatus(sms.outId)
+        const statusUpdate = await checkSmsStatus(sms.outId, sms.phoneNumber)
         if (statusUpdate) {
           // Update database with new status
           try {
