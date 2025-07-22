@@ -125,31 +125,48 @@ export async function POST(request: NextRequest) {
     // Generate timestamp for the request
     const timestamp = Date.now()
     
-    // Use realistic parameters based on your actual Aliyun request
+    // Extract the latest collina and sec_token from cookie (more dynamic)
+    let latestCollina = ""
+    let latestSecToken = ""
+    
+    // Try to extract collina from cookie if available
+    const collinaMatch = decodedCookie.match(/collina=([^;]+)/i)
+    if (collinaMatch) {
+      latestCollina = collinaMatch[1]
+      console.log('Found collina in cookie:', latestCollina.substring(0, 50) + '...')
+    }
+    
+    // Use sec_token from cookie parsing or fallback
+    latestSecToken = aliyunToken || csrfToken || "hlwNUitqNN2ZzyYDW1H2D6"
+    
+    // Use parameters that match your real request exactly
     const formData = new URLSearchParams({
       action: 'QuerySendDetailsByPhoneNumNew',
       product: 'dysms20170620',
       params: JSON.stringify({
         PageNo: 1,
-        PageSize: 50,
+        PageSize: 10, // Use same PageSize as real request
         PhoneNum: "",
         SendDate: currentDate,
         SendStatus: "",
         SignName: "",
         ErrorCode: "",
-        BizId: outId,
+        BizId: "", // Leave BizId empty like real request
         TemplateCode: ""
       }),
       // Use the actual umid from your real request
       umid: "Ya8cd8a07cf07c6a8158f0dcc0a3d8f3e",
-      // Use the actual collina from your real request
-      collina: "140%23sd2x0bZ0zzWmLQo2%2BQiQKtN8s9zPIvTQWCVgq9Ou7dYoDoym8pZJoZ%2B86wAOqhzSDlVqlbzxVnc3V51%2FzzrQ1OK7lpTzzPzbVXl%2FlbubbPd6%2FoTkGQrU2X8%2BlpYazDziVn%2FqlWfdOT8I1wba7X53xEZmIggNskuwuqM75RhThaITGjEdGIZrxXuX0b3RS4MEQDR%2B3WYAoRZY5KJ2RnZhTZF%2FgNgZ2XWVjo9aJgVcBpJG%2BnSPF5DEquHwJMVHQZJiohas67IH4RL3eZK5VV4gfLfhj94LGtLIjqSSGOWAkzji3TbDy%2F1SQGDxi0Zj3NLAb9Ydsgle%2FtVICvUUSp7lbDBCBKiXxDhQ%2Ba8hn%2FFWzjUZEJTTURasiEDFCyiaQxLC4BFwomRrqCMyLGyuLEXhro%2FcFFBRSRFi3IVg4cf8HZQtYecA9JrXgSuI1r1qBtLjYlVZAC956FfLK0j8viQggJiILZQW8JDkffI35O81wig4F5xR0Cza9AtsATAIT62M%2F7uYksaDfmKxeyK0v%2FOf2lOoYcwUwuR9JYlbpm3GE3Oxb%2BTYw6tA7gIB9zayrriGLebVHlPVSlXUH7SvPPSgOp4n8IfN47BLXq2VpRZfMRWSMA0LOcbOLWpLyavwikOA2J62aJA8Vc%2FbF1u%3D",
-      // Use the actual sec_token from your real request
-      sec_token: "hlwNUitqNN2ZzyYDW1H2D6"
+      // Use collina from cookie if available, otherwise fallback
+      collina: latestCollina || "140%23LCFojPGgzzWOpzo22xK%2BwtSrOSUKMVIpuk1lUcNlDSXkqrjtYIFCl4n5sEi1QyllSbahoD4ckT%2F7StOfPrXFX6hqzzc%2BuXU4niTzzZ8Kba7ulFzx2DD3VtgqDDDx2CeT4EhvzWXiqUuFoG15adb61pxJNibiL2kKllfzzDrVtv%2FqWtQm2wswyINIPtrPHpcDmKliqMYF0s7Mnuxub8j3x5KXJ9e1aodjhhlW15SR1QJY7UhcYEefDKYbNvNNFIAoyIaAS6WNibTJqBPmkbrWNLxsqMnXlk%2BcyL8WnqpCx9dJUekbpMHrsGAVnKQoJMsDpsun%2BU%2BKH5yq4kdUzQkqhSdpjhVDzv5BIo4zLSQe49f3yn7rYTiStnJ5dxgkh6riiK4J2nB7yTqCMbciuyRrR0ITcv0sz9O%2BoOni2aB3xGkiRSAIy139PcXETbT40Xe2yOuVmMOA%2BNRF0XlvLqMq4rGPHwxWKr1iaiacuJWpxncd0t1HFvBeQkWFatovoP%2BcPtVN2UbFsNWtbQJalWNqsCfK7ci0NZToABvWMAPTLCEEscJ22IhvchO145N6Ui3mmBDyeDaWw7LQU1g84M8aS8aNRBl9fCPXdI6dSt3L8YcYGNWXafcjFshl%2F%2Bsee2evOFJKOoGwkZrOXoJYmD2aGfu8ZxNSA9KMO%2B%2FmM8o%2B8Boe79srdpzCPzg4%2BI0O16V5G1mAWqFXIRT5PSCRxS5HzHY4UUK3t8cN5JX9jug%2FWcvia8UXVOs7mGbvF29A6%2FV1J0fub8mwvjiOctBZFI1VuAfLn1lkbjc9wUGbhTu%2FUN%2BhrrJZBi9gdnCbFawj8isIu3D1xXlM993wbilQPTYr3iR7hXAXa4cvzF%3D%3D",
+      // Use sec_token from cookie
+      sec_token: latestSecToken
     })
     
-    console.log('Using real parameters from your SMS query request')
-    console.log('sec_token:', "hlwNUitqNN2ZzyYDW1H2D6")
+    console.log('Using parameters matching real browser request:')
+    console.log('- PageSize: 10 (not 50)')
+    console.log('- BizId: empty (not using outId)')
+    console.log('- collina from cookie:', latestCollina ? 'Found' : 'Using fallback')
+    console.log('- sec_token:', latestSecToken?.substring(0, 10) + '...')
     console.log('Form data keys:', Array.from(formData.keys()).join(', '))
 
     // Try to find the SMS records by calling the SMS dashboard API
@@ -160,10 +177,12 @@ export async function POST(request: NextRequest) {
         headers: {
           'accept': 'application/json',
           'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'bx-v': '2.5.31',
           'content-type': 'application/x-www-form-urlencoded',
-          'origin': 'https://dysms.console.aliyun.com',
+          'eagleeye-pappname': 'eb362az63s@0b3b1f5d42665b1',
+          'eagleeye-sessionid': '3dmw6dsteF87pneU6iszdvhk879j',
+          'eagleeye-traceid': `7a40fe8c${timestamp}${Math.random().toString().substr(2, 6)}`,
           'priority': 'u=1, i',
-          'referer': 'https://dysms.console.aliyun.com/record',
           'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
           'sec-ch-ua-mobile': '?0',
           'sec-ch-ua-platform': '"macOS"',
@@ -171,6 +190,7 @@ export async function POST(request: NextRequest) {
           'sec-fetch-mode': 'cors',
           'sec-fetch-site': 'same-origin',
           'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+          'Referer': 'https://dysms.console.aliyun.com/record',
           'Cookie': aliyunCookie // Use full cookie string from request body
         },
         body: formData.toString()
@@ -211,13 +231,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find the SMS record by OutId
+    // Find the SMS record by OutId - since BizId is empty, we need to search through all records
     const smsRecords = data.data?.List?.SmsSendDetailResponse || []
-    const targetRecord = smsRecords.find((record: any) => record.OutId === outId)
+    console.log('Total SMS records found:', smsRecords.length)
+    
+    // Log all OutIds for debugging
+    const allOutIds = smsRecords.map((record: any) => record.OutId)
+    console.log('All OutIds in response:', allOutIds)
+    
+    const targetRecord = smsRecords.find((record: any) => {
+      // Convert both to strings for comparison since OutId can be number or string
+      return String(record.OutId) === String(outId)
+    })
+    
+    console.log('Looking for OutId:', outId, 'Type:', typeof outId)
+    console.log('Found target record:', !!targetRecord)
     
     if (!targetRecord) {
+      console.log('No matching record found for OutId:', outId)
+      console.log('Available OutIds:', allOutIds)
       return NextResponse.json(
-        { error: `未找到OutId为${outId}的短信记录` },
+        { 
+          error: `未找到OutId为${outId}的短信记录`,
+          details: `在 ${smsRecords.length} 条记录中未找到匹配项`,
+          availableOutIds: allOutIds.slice(0, 10) // Show first 10 for debugging
+        },
         { status: 404 }
       )
     }
