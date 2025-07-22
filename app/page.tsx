@@ -117,10 +117,32 @@ export default function SmsTestingTool() {
     let response = await makeRequest(adminToken)
     
     console.log("API response status:", response.status)
+    
+    // Check if response body contains 401 error
+    if (response.ok) {
+      const responseClone = response.clone()
+      try {
+        const data = await responseClone.json()
+        if (data.code === 401) {
+          console.log("API returned 401 in response body, attempting token refresh...")
+          const refreshResult = await refreshAccessToken()
+          if (refreshResult.success && refreshResult.newToken) {
+            console.log("Token refreshed successfully, retrying request...")
+            response = await makeRequest(refreshResult.newToken)
+            console.log("Retry response status:", response.status)
+          } else {
+            console.log("Token refresh failed")
+          }
+        }
+      } catch (e) {
+        // If parsing fails, continue with original response
+        console.log("Failed to parse response for 401 check:", e)
+      }
+    }
 
-    // If 401, try to refresh and retry
+    // If HTTP 401, try to refresh and retry
     if (response.status === 401) {
-      console.log("Got 401, attempting token refresh...")
+      console.log("Got HTTP 401, attempting token refresh...")
       const refreshResult = await refreshAccessToken()
       if (refreshResult.success && refreshResult.newToken) {
         console.log("Token refreshed successfully, retrying request...")
@@ -233,6 +255,24 @@ export default function SmsTestingTool() {
         const data = await response.json()
         console.log("Template API response:", data) // Debug log
         
+        // Check if the response indicates authentication failure
+        if (data.code === 401) {
+          console.log("API returned 401 in response body, handling as authentication failure")
+          // If still 401 after refresh attempt, handle as before
+          setTokensConfigured(false)
+          toast({
+            title: "认证失败",
+            description: "管理后台令牌已过期，请重新配置令牌",
+            variant: "destructive",
+          })
+          return
+        }
+        
+        // Check if response is successful
+        if (data.code !== 0) {
+          throw new Error(data.msg || "获取模板失败")
+        }
+        
         // Ensure templates is always an array
         const templatesData = Array.isArray(data.data) ? data.data : 
                               (data.data?.list ? data.data.list : [])
@@ -274,7 +314,16 @@ export default function SmsTestingTool() {
 
       if (response.ok) {
         const data = await response.json()
-        return data.data
+        
+        // Check for authentication error in response body
+        if (data.code === 401) {
+          console.log("Template details API returned 401")
+          return null
+        }
+        
+        if (data.code === 0 && data.data) {
+          return data.data
+        }
       }
     } catch (error) {
       console.error("获取模板详情失败:", error)
@@ -330,6 +379,22 @@ export default function SmsTestingTool() {
 
       if (response.ok) {
         const data = await response.json()
+        
+        // Check for authentication error in response body
+        if (data.code === 401) {
+          setTokensConfigured(false)
+          toast({
+            title: "认证失败",
+            description: "管理后台令牌已过期，请重新配置令牌",
+            variant: "destructive",
+          })
+          return
+        }
+        
+        if (data.code !== 0) {
+          throw new Error(data.msg || "发送失败")
+        }
+        
         const outId = data.data ? String(data.data) : `${Date.now()}` // Convert to string for consistency
 
         // Add to status monitoring
