@@ -122,19 +122,33 @@ export async function POST(request: NextRequest) {
     // Get current date for query
     const currentDate = new Date().toISOString().split('T')[0]
     
-    // Generate timestamp for the request
+    // Generate dynamic values based on current session
     const timestamp = Date.now()
+    const sessionId = Math.random().toString(36).substr(2, 9)
+    const traceId = `7a40fe8c${timestamp}${Math.floor(Math.random() * 1000000)}`
     
-    // The collina parameter is not in cookie, it's dynamically generated
-    // We'll use the known working collina from your real request
-    const staticCollina = "140%23LCFojPGgzzWOpzo22xK%2BwtSrOSUKMVIpuk1lUcNlDSXkqrjtYIFCl4n5sEi1QyllSbahoD4ckT%2F7StOfPrXFX6hqzzc%2BuXU4niTzzZ8Kba7ulFzx2DD3VtgqDDDx2CeT4EhvzWXiqUuFoG15adb61pxJNibiL2kKllfzzDrVtv%2FqWtQm2wswyINIPtrPHpcDmKliqMYF0s7Mnuxub8j3x5KXJ9e1aodjhhlW15SR1QJY7UhcYEefDKYbNvNNFIAoyIaAS6WNibTJqBPmkbrWNLxsqMnXlk%2BcyL8WnqpCx9dJUekbpMHrsGAVnKQoJMsDpsun%2BU%2BKH5yq4kdUzQkqhSdpjhVDzv5BIo4zLSQe49f3yn7rYTiStnJ5dxgkh6riiK4J2nB7yTqCMbciuyRrR0ITcv0sz9O%2BoOni2aB3xGkiRSAIy139PcXETbT40Xe2yOuVmMOA%2BNRF0XlvLqMq4rGPHwxWKr1iaiacuJWpxncd0t1HFvBeQkWFatovoP%2BcPtVN2UbFsNWtbQJalWNqsCfK7ci0NZToABvWMAPTLCEEscJ22IhvchO145N6Ui3mmBDyeDaWw7LQU1g84M8aS8aNRBl9fCPXdI6dSt3L8YcYGNWXafcjFshl%2F%2Bsee2evOFJKOoGwkZrOXoJYmD2aGfu8ZxNSA9KMO%2B%2FmM8o%2B8Boe79srdpzCPzg4%2BI0O16V5G1mAWqFXIRT5PSCRxS5HzHY4UUK3t8cN5JX9jug%2FWcvia8UXVOs7mGbvF29A6%2FV1J0fub8mwvjiOctBZFI1VuAfLn1lkbjc9wUGbhTu%2FUN%2BhrrJZBi9gdnCbFawj8isIu3D1xXlM993wbilQPTYr3iR7hXAXa4cvzF%3D%3D"
+    // Extract session-specific values from cookie
+    const cnaMatch = decodedCookie.match(/cna=([^;]+)/i)
+    const cna = cnaMatch ? cnaMatch[1] : 'unknown'
+    
+    // Use _uab_collina value from cookie as base for collina generation
+    const uabCollinaMatch = decodedCookie.match(/_uab_collina=([^;]+)/i)
+    const uabCollina = uabCollinaMatch ? uabCollinaMatch[1] : ''
+    
+    // Generate a more dynamic collina based on session
+    const dynamicCollina = uabCollina ? `140%23${uabCollina}` : "140%23LCFojPGgzzWOpzo22xK%2BwtSrOSUKMVIpuk1lUcNlDSXkqrjtYIFCl4n5sEi1QyllSbahoD4ckT%2F7StOfPrXFX6hqzzc%2BuXU4niTzzZ8Kba7ulFzx2DD3VtgqDDDx2CeT4EhvzWXiqUuFoG15adb61pxJNibiL2kKllfzzDrVtv%2FqWtQm2wswyINIPtrPHpcDmKliqMYF0s7Mnuxub8j3x5KXJ9e1aodjhhlW15SR1QJY7UhcYEefDKYbNvNNFIAoyIaAS6WNibTJqBPmkbrWNLxsqMnXlk%2BcyL8WnqpCx9dJUekbpMHrsGAVnKQoJMsDpsun%2BU%2BKH5yq4kdUzQkqhSdpjhVDzv5BIo4zLSQe49f3yn7rYTiStnJ5dxgkh6riiK4J2nB7yTqCMbciuyRrR0ITcv0sz9O%2BoOni2aB3xGkiRSAIy139PcXETbT40Xe2yOuVmMOA%2BNRF0XlvLqMq4rGPHwxWKr1iaiacuJWpxncd0t1HFvBeQkWFatovoP%2BcPtVN2UbFsNWtbQJalWNqsCfK7ci0NZToABvWMAPTLCEEscJ22IhvchO145N6Ui3mmBDyeDaWw7LQU1g84M8aS8aNRBl9fCPXdI6dSt3L8YcYGNWXafcjFshl%2F%2Bsee2evOFJKOoGwkZrOXoJYmD2aGfu8ZxNSA9KMO%2B%2FmM8o%2B8Boe79srdpzCPzg4%2BI0O16V5G1mAWqFXIRT5PSCRxS5HzHY4UUK3t8cN5JX9jug%2FWcvia8UXVOs7mGbvF29A6%2FV1J0fub8mwvjiOctBZFI1VuAfLn1lkbjc9wUGbhTu%2FUN%2BhrrJZBi9gdnCbFawj8isIu3D1xXlM993wbilQPTYr3iR7hXAXa4cvzF%3D%3D"
     
     // Get the correct sec_token from cookie (login_aliyunid_csrf value)
     const secTokenMatch = decodedCookie.match(/login_aliyunid_csrf=([^;]+)/i)
     const latestSecToken = secTokenMatch ? secTokenMatch[1] : "hlwNUitqNN2ZzyYDW1H2D6"
     
-    console.log('Using static collina (from real working request)')
-    console.log('Using sec_token from login_aliyunid_csrf:', latestSecToken)
+    console.log('Generated dynamic values:')
+    console.log('- cna:', cna)
+    console.log('- uab_collina:', uabCollina)
+    console.log('- dynamic_collina prefix:', dynamicCollina.substring(0, 50) + '...')
+    console.log('- sec_token from login_aliyunid_csrf:', latestSecToken)
+    console.log('- sessionId:', sessionId)
+    console.log('- traceId:', traceId)
     
     // Use parameters that match your real request exactly
     const formData = new URLSearchParams({
@@ -153,17 +167,19 @@ export async function POST(request: NextRequest) {
       }),
       // Use the actual umid from your real request
       umid: "Ya8cd8a07cf07c6a8158f0dcc0a3d8f3e",
-      // Use static collina from working request
-      collina: staticCollina,
+      // Use dynamic collina based on session
+      collina: dynamicCollina,
       // Use sec_token from cookie
       sec_token: latestSecToken
     })
     
-    console.log('Using parameters matching real browser request:')
-    console.log('- PageSize: 10 (not 50)')
-    console.log('- BizId: empty (not using outId)')
-    console.log('- collina: static from working request')
+    console.log('Using dynamic parameters based on current session:')
+    console.log('- PageSize: 10 (matching real request)')
+    console.log('- BizId: empty (matching real request)')
+    console.log('- collina: dynamic based on _uab_collina')
     console.log('- sec_token from login_aliyunid_csrf:', latestSecToken?.substring(0, 20) + '...')
+    console.log('- sessionId (dynamic):', sessionId)
+    console.log('- traceId (dynamic):', traceId)
     console.log('Form data keys:', Array.from(formData.keys()).join(', '))
 
     // Try to find the SMS records by calling the SMS dashboard API
@@ -177,8 +193,8 @@ export async function POST(request: NextRequest) {
           'bx-v': '2.5.31',
           'content-type': 'application/x-www-form-urlencoded',
           'eagleeye-pappname': 'eb362az63s@0b3b1f5d42665b1',
-          'eagleeye-sessionid': '3dmw6dsteF87pneU6iszdvhk879j',
-          'eagleeye-traceid': `7a40fe8c${timestamp}${Math.random().toString().substr(2, 6)}`,
+          'eagleeye-sessionid': sessionId,
+          'eagleeye-traceid': traceId,
           'priority': 'u=1, i',
           'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
           'sec-ch-ua-mobile': '?0',
