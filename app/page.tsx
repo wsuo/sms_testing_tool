@@ -159,6 +159,32 @@ export default function SmsTestingTool() {
     return response
   }
 
+  // Load SMS history from database
+  const loadSmsHistory = async () => {
+    try {
+      const response = await fetch('/api/sms-records?limit=50')
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data) {
+          // Convert database records to SmsStatus format
+          const historyStatuses: SmsStatus[] = result.data.map((record: any) => ({
+            outId: record.out_id,
+            status: record.status,
+            errorCode: record.error_code,
+            receiveDate: record.receive_date,
+            sendDate: record.send_date || record.created_at,
+            phoneNumber: record.phone_number,
+          }))
+          
+          setSmsStatuses(historyStatuses)
+          console.log(`Loaded ${historyStatuses.length} SMS records from database`)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load SMS history:', error)
+    }
+  }
+
   // Load saved phone numbers
   const loadSavedPhoneNumbers = async () => {
     try {
@@ -201,6 +227,9 @@ export default function SmsTestingTool() {
     
     // Load saved phone numbers
     loadSavedPhoneNumbers()
+    
+    // Load SMS history from database
+    loadSmsHistory()
   }, [])
 
   // Auto-save tokens to localStorage when they change
@@ -407,6 +436,28 @@ export default function SmsTestingTool() {
         
         const outId = data.data ? String(data.data) : `${Date.now()}` // Convert to string for consistency
 
+        // Save to database
+        try {
+          await fetch('/api/sms-records', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              out_id: outId,
+              phone_number: phoneNumber,
+              template_code: selectedTemplate?.code,
+              template_params: templateParams,
+              content: selectedTemplate?.content,
+              send_date: new Date().toLocaleString("zh-CN"),
+              status: "发送中"
+            })
+          })
+        } catch (dbError) {
+          console.error('Failed to save SMS record to database:', dbError)
+          // 不阻断用户流程，只记录错误
+        }
+
         // Add to status monitoring
         const newStatus: SmsStatus = {
           outId,
@@ -516,6 +567,25 @@ export default function SmsTestingTool() {
 
         const statusUpdate = await checkSmsStatus(sms.outId)
         if (statusUpdate) {
+          // Update database with new status
+          try {
+            await fetch('/api/sms-records', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                out_id: sms.outId,
+                status: statusUpdate.status,
+                error_code: statusUpdate.errorCode,
+                receive_date: statusUpdate.receiveDate
+              })
+            })
+          } catch (dbError) {
+            console.error('Failed to update SMS record in database:', dbError)
+            // 不阻断用户流程，只记录错误
+          }
+          
           return { ...sms, ...statusUpdate }
         }
         return sms
