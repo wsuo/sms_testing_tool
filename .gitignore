@@ -90,3 +90,7 @@ temp/
 
 # local data
 data/
+
+# SQLite database files
+*.db
+*.db-journal
