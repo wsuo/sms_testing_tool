@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { setCookie, getCookie, deleteCookie } from "@/lib/cookies"
 import PhoneNumberManager from "@/components/phone-number-manager"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -97,7 +96,7 @@ export default function SmsTestingTool() {
   }
 
   // Generic API call with automatic token refresh
-  const callAdminApi = async (url: string, options: RequestInit = {}) => {
+  const callAdminApi = async (url: string, options: RequestInit = {}, tokenOverride?: string) => {
     const makeRequest = async (token: string) => {
       const headers = {
         ...options.headers,
@@ -117,8 +116,10 @@ export default function SmsTestingTool() {
       })
     }
 
+    const tokenToUse = tokenOverride || adminToken
+    
     // First attempt with current token
-    let response = await makeRequest(adminToken)
+    let response = await makeRequest(tokenToUse)
     
     console.log("API response status:", response.status)
     
@@ -177,7 +178,13 @@ export default function SmsTestingTool() {
   useEffect(() => {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
     const savedRefreshToken = localStorage.getItem("sms-refresh-token")
-    const savedAliyunCookie = getCookie("sms-aliyun-cookie") // Read from cookie
+    const savedAliyunCookie = localStorage.getItem("sms-aliyun-cookie") // Changed to localStorage
+
+    console.log("Loading saved tokens:", {
+      hasAdminToken: !!savedAdminToken,
+      hasRefreshToken: !!savedRefreshToken,
+      hasAliyunCookie: !!savedAliyunCookie
+    })
 
     // Load saved tokens if available
     if (savedAdminToken) {
@@ -193,9 +200,9 @@ export default function SmsTestingTool() {
     // Only mark as configured if both tokens exist
     if (savedAdminToken && savedAliyunCookie) {
       setTokensConfigured(true)
-      // Validate tokens by trying to fetch templates
+      // Validate tokens by trying to fetch templates - pass the saved token directly
       setTimeout(() => {
-        fetchTemplates()
+        fetchTemplates(savedAdminToken)
       }, 500)
     }
     
@@ -212,7 +219,7 @@ export default function SmsTestingTool() {
 
   useEffect(() => {
     if (aliyunCookie.trim()) {
-      setCookie("sms-aliyun-cookie", aliyunCookie) // Save to cookie
+      localStorage.setItem("sms-aliyun-cookie", aliyunCookie) // Changed to localStorage
     }
   }, [aliyunCookie])
 
@@ -234,7 +241,7 @@ export default function SmsTestingTool() {
     }
 
     localStorage.setItem("sms-admin-token", adminToken)
-    setCookie("sms-aliyun-cookie", aliyunCookie) // Save to cookie
+    localStorage.setItem("sms-aliyun-cookie", aliyunCookie) // Changed to localStorage
     if (refreshToken.trim()) {
       localStorage.setItem("sms-refresh-token", refreshToken)
     }
@@ -250,10 +257,17 @@ export default function SmsTestingTool() {
   }
 
   // Fetch SMS templates with improved error handling
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async (tokenOverride?: string) => {
     try {
-      console.log("Fetching templates with adminToken:", adminToken)
-      const response = await callAdminApi("/admin-api/system/sms-template/page?pageNo=1&pageSize=10&channelId=8")
+      const tokenToUse = tokenOverride || adminToken
+      console.log("Fetching templates with token:", tokenToUse)
+      
+      if (!tokenToUse) {
+        console.log("No token available for fetching templates")
+        return
+      }
+      
+      const response = await callAdminApi("/admin-api/system/sms-template/page?pageNo=1&pageSize=10&channelId=8", {}, tokenToUse)
 
       if (response.ok) {
         const data = await response.json()
@@ -309,7 +323,7 @@ export default function SmsTestingTool() {
         variant: "destructive",
       })
     }
-  }
+  }, [adminToken, toast, callAdminApi])
 
   // Get template details
   const getTemplateDetails = async (templateId: string) => {
@@ -347,10 +361,15 @@ export default function SmsTestingTool() {
         params: details.params || [],
       })
 
-      // Initialize template parameters with default values
+      // Initialize template parameters with specific default values
       const defaultParams: Record<string, string> = {}
+      const defaultValues = ['供应商', '采购商', '草甘膦']
+      
       details.params?.forEach((param: string, index: number) => {
-        defaultParams[param] = `测试值${index + 1}`
+        // Use specific default values for the first 3 parameters, then generic for the rest
+        defaultParams[param] = index < defaultValues.length 
+          ? defaultValues[index] 
+          : `测试值${index + 1}`
       })
       setTemplateParams(defaultParams)
     }
@@ -446,14 +465,20 @@ export default function SmsTestingTool() {
         return null
       }
 
+      console.log('Sending request with:', {
+        outId,
+        cookieLength: aliyunCookie.length,
+        cookiePreview: aliyunCookie.substring(0, 100) + '...'
+      })
+
       const response = await fetch('/api/sms-status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          outId
-          // aliyunCookie is now sent as cookie
+          outId,
+          aliyunCookie // Send cookie in request body
         })
       })
 
@@ -621,9 +646,10 @@ export default function SmsTestingTool() {
                   <Textarea
                     id="aliyun-cookie"
                     placeholder="请输入阿里云控制台完整Cookie"
-                    value={aliyunCookie}
+                    value={showAliyunCookie ? aliyunCookie : aliyunCookie ? '••••••••••••••••••••' : ''}
                     onChange={(e) => setAliyunCookie(e.target.value)}
                     className="min-h-[100px] font-mono text-sm resize-y pr-10"
+                    readOnly={!showAliyunCookie && !!aliyunCookie}
                   />
                   <Button
                     type="button"
@@ -634,11 +660,6 @@ export default function SmsTestingTool() {
                   >
                     {showAliyunCookie ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
-                  {!showAliyunCookie && aliyunCookie && (
-                    <div className="absolute inset-0 bg-gray-100 rounded-md flex items-center justify-center pointer-events-none">
-                      <span className="text-gray-500">点击眼睛图标查看内容</span>
-                    </div>
-                  )}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   从阿里云短信控制台开发者工具中复制完整的Cookie

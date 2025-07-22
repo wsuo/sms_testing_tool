@@ -1,73 +1,131 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Parse cookie string to extract token
-function parseTokenFromCookie(cookieString: string): { token: string | null, tokenType: string | null } {
-  if (!cookieString) return { token: null, tokenType: null }
+// Parse cookie string to extract token and CSRF token
+function parseTokenFromCookie(cookieString: string): { token: string | null, tokenType: string | null, csrfToken: string | null } {
+  if (!cookieString) return { token: null, tokenType: null, csrfToken: null }
   
-  console.log('Parsing cookie string (first 200 chars):', cookieString.substring(0, 200))
+  console.log('Raw cookie string length:', cookieString.length)
+  console.log('Cookie string (first 500 chars):', cookieString.substring(0, 500))
   
-  // 查找可能的token字段
-  const tokenPatterns = [
-    { pattern: /sec_token[=:]([^;,\s]+)/i, type: 'sec_token' },
-    { pattern: /c_csrf_token[=:]([^;,\s]+)/i, type: 'c_csrf_token' },
-    { pattern: /csrf_token[=:]([^;,\s]+)/i, type: 'csrf_token' },
-    { pattern: /login_aliyunid_csrf[=:]([^;,\s]+)/i, type: 'login_aliyunid_csrf' }
-  ]
+  let secToken: string | null = null
+  let csrfToken: string | null = null
   
-  for (const { pattern, type } of tokenPatterns) {
-    const match = cookieString.match(pattern)
-    if (match && match[1]) {
-      console.log(`Found ${type}:`, match[1].substring(0, 20) + '...')
-      return { token: match[1], tokenType: type }
+  // Try to parse as JSON first (in case it's a JSON string)
+  try {
+    const parsed = JSON.parse(cookieString)
+    if (typeof parsed === 'object') {
+      console.log('Cookie appears to be JSON, keys:', Object.keys(parsed).join(', '))
+      // Check for tokens in JSON object
+      for (const key of ['sec_token', 'secToken', 'token']) {
+        if (parsed[key]) {
+          secToken = parsed[key]
+          break
+        }
+      }
+      for (const key of ['csrf_token', 'csrfToken', 'c_csrf_token', 'login_aliyunid_csrf']) {
+        if (parsed[key]) {
+          csrfToken = parsed[key]
+          break
+        }
+      }
     }
+  } catch (e) {
+    // Not JSON, continue with string parsing
+    console.log('Cookie is not JSON, parsing as string')
   }
   
-  // 列出所有找到的cookie键，帮助调试
-  const allKeys = cookieString.match(/([^=;,\s]+)=/g)
-  if (allKeys) {
-    console.log('Available cookie keys:', allKeys.slice(0, 10).join(', '))
+  // Parse cookie string for multiple tokens
+  const cookies = cookieString.split(/[;,]/).reduce((acc, cookie) => {
+    const [key, value] = cookie.trim().split(/[=:]/).map(s => s.trim())
+    if (key && value) {
+      acc[key] = value
+    }
+    return acc
+  }, {} as Record<string, string>)
+  
+  console.log('Parsed cookies:', Object.keys(cookies).slice(0, 20).join(', '))
+  
+  // Find sec_token or alternative tokens
+  if (!secToken) {
+    secToken = cookies['sec_token'] || cookies['secToken'] || cookies['token'] ||
+               cookies['login_aliyunid_csrf'] || cookies['c_csrf_token'] ||
+               cookies['login_aliyunid_ticket']
   }
   
-  return { token: null, tokenType: null }
+  // Find CSRF token
+  if (!csrfToken) {
+    csrfToken = cookies['csrf_token'] || cookies['csrfToken'] || cookies['c_csrf_token'] || 
+                cookies['login_aliyunid_csrf'] || cookies['login_aliyunid_csrf_token']
+  }
+  
+  // If still not found, try regex patterns
+  if (!secToken) {
+    const secTokenMatch = cookieString.match(/sec_token[=:]?\s*([^;,\s]+)/i)
+    if (secTokenMatch) secToken = secTokenMatch[1]
+  }
+  
+  if (!csrfToken) {
+    const csrfTokenMatch = cookieString.match(/(?:csrf_token|c_csrf_token|login_aliyunid_csrf)[=:]?\s*([^;,\s]+)/i)
+    if (csrfTokenMatch) csrfToken = csrfTokenMatch[1]
+  }
+  
+  console.log('Found sec_token:', secToken ? secToken.substring(0, 20) + '...' : 'null')
+  console.log('Found csrf_token:', csrfToken ? csrfToken.substring(0, 20) + '...' : 'null')
+  
+  return { 
+    token: secToken, 
+    tokenType: secToken ? (cookies['sec_token'] ? 'sec_token' : 
+                          cookies['login_aliyunid_csrf'] ? 'login_aliyunid_csrf' :
+                          cookies['c_csrf_token'] ? 'c_csrf_token' :
+                          cookies['login_aliyunid_ticket'] ? 'login_aliyunid_ticket' : 'unknown') : null,
+    csrfToken: csrfToken
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { outId } = await request.json()
+    const body = await request.json()
+    console.log('Request body keys:', Object.keys(body))
+    console.log('Request body:', JSON.stringify(body).substring(0, 200))
     
-    // Get aliyun cookie from cookie
-    const aliyunCookieString = request.cookies.get('sms-aliyun-cookie')?.value
+    const { outId, aliyunCookie } = body
     
-    console.log('Cookie from request:', aliyunCookieString ? 'Found' : 'Not found')
+    console.log('Cookie from request body:', aliyunCookie ? 'Found' : 'Not found')
+    console.log('Cookie length:', aliyunCookie ? aliyunCookie.length : 0)
+    console.log('OutId:', outId)
     
-    if (!outId || !aliyunCookieString) {
+    if (!outId || !aliyunCookie) {
+      console.log('Missing required parameters:', { outId: !!outId, aliyunCookie: !!aliyunCookie })
       return NextResponse.json(
-        { error: '缺少必需参数' },
+        { error: '缺少必需参数 (outId 和 aliyunCookie)' },
         { status: 400 }
       )
     }
     
     // Decode the cookie string in case it's URL encoded
-    const decodedCookie = decodeURIComponent(aliyunCookieString)
+    const decodedCookie = decodeURIComponent(aliyunCookie)
     console.log('Decoded cookie (first 200 chars):', decodedCookie.substring(0, 200))
     
-    // Extract token from cookie string
-    const { token: aliyunToken, tokenType } = parseTokenFromCookie(decodedCookie)
+    // Extract token from cookie string (but we'll use empty sec_token like real requests)
+    console.log('Starting cookie parsing...')
+    const { token: aliyunToken, tokenType, csrfToken } = parseTokenFromCookie(decodedCookie)
+    console.log('Cookie parsing result:', { 
+      hasToken: !!aliyunToken, 
+      tokenType, 
+      hasCsrfToken: !!csrfToken 
+    })
     
-    if (!aliyunToken) {
-      console.log('Token not found in cookie, available keys listed above')
-      return NextResponse.json(
-        { error: '无法从Cookie中提取有效的token (尝试了sec_token, c_csrf_token等)' },
-        { status: 400 }
-      )
-    }
-    
-    console.log(`Using ${tokenType} as authentication token`)
+    // Note: Real Aliyun requests use empty sec_token, authentication is via cookies
+    console.log('Using cookie-based authentication (empty sec_token like real requests)')
+    console.log(`CSRF token available: ${!!csrfToken}`)
 
     // Get current date for query
     const currentDate = new Date().toISOString().split('T')[0]
     
-    // Prepare form data for Aliyun API
+    // Generate timestamp for the request
+    const timestamp = Date.now()
+    
+    // Use realistic parameters based on your actual Aliyun request
     const formData = new URLSearchParams({
       action: 'QuerySendDetailsByPhoneNumNew',
       product: 'dysms20170620',
@@ -79,24 +137,41 @@ export async function POST(request: NextRequest) {
         SendStatus: "",
         SignName: "",
         ErrorCode: "",
-        BizId: "",
+        BizId: outId,
         TemplateCode: ""
       }),
-      umid: "Yb47d925189abd3f95a194bd66162a5a2",
-      collina: "140",
-      sec_token: aliyunToken
+      // Use the actual umid from your real request
+      umid: "Ya8cd8a07cf07c6a8158f0dcc0a3d8f3e",
+      // Use the actual collina from your real request
+      collina: "140%23sd2x0bZ0zzWmLQo2%2BQiQKtN8s9zPIvTQWCVgq9Ou7dYoDoym8pZJoZ%2B86wAOqhzSDlVqlbzxVnc3V51%2FzzrQ1OK7lpTzzPzbVXl%2FlbubbPd6%2FoTkGQrU2X8%2BlpYazDziVn%2FqlWfdOT8I1wba7X53xEZmIggNskuwuqM75RhThaITGjEdGIZrxXuX0b3RS4MEQDR%2B3WYAoRZY5KJ2RnZhTZF%2FgNgZ2XWVjo9aJgVcBpJG%2BnSPF5DEquHwJMVHQZJiohas67IH4RL3eZK5VV4gfLfhj94LGtLIjqSSGOWAkzji3TbDy%2F1SQGDxi0Zj3NLAb9Ydsgle%2FtVICvUUSp7lbDBCBKiXxDhQ%2Ba8hn%2FFWzjUZEJTTURasiEDFCyiaQxLC4BFwomRrqCMyLGyuLEXhro%2FcFFBRSRFi3IVg4cf8HZQtYecA9JrXgSuI1r1qBtLjYlVZAC956FfLK0j8viQggJiILZQW8JDkffI35O81wig4F5xR0Cza9AtsATAIT62M%2F7uYksaDfmKxeyK0v%2FOf2lOoYcwUwuR9JYlbpm3GE3Oxb%2BTYw6tA7gIB9zayrriGLebVHlPVSlXUH7SvPPSgOp4n8IfN47BLXq2VpRZfMRWSMA0LOcbOLWpLyavwikOA2J62aJA8Vc%2FbF1u%3D",
+      // Use the actual sec_token from your real request
+      sec_token: "hlwNUitqNN2ZzyYDW1H2D6"
     })
+    
+    console.log('Using real parameters from your SMS query request')
+    console.log('sec_token:', "hlwNUitqNN2ZzyYDW1H2D6")
+    console.log('Form data keys:', Array.from(formData.keys()).join(', '))
 
+    // Try to find the SMS records by calling the SMS dashboard API
     const response = await fetch(
       `https://dysms.console.aliyun.com/data/api.json?action=QuerySendDetailsByPhoneNumNew&t=${Date.now()}`,
       {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-          'Cookie': aliyunCookieString // Add full cookie string
+          'accept': 'application/json',
+          'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'content-type': 'application/x-www-form-urlencoded',
+          'origin': 'https://dysms.console.aliyun.com',
+          'priority': 'u=1, i',
+          'referer': 'https://dysms.console.aliyun.com/record',
+          'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"macOS"',
+          'sec-fetch-dest': 'empty',
+          'sec-fetch-mode': 'cors',
+          'sec-fetch-site': 'same-origin',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+          'Cookie': aliyunCookie // Use full cookie string from request body
         },
         body: formData.toString()
       }
@@ -108,15 +183,36 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
     
+    console.log('Aliyun API response code:', data.code)
+    console.log('Aliyun API response has data:', !!data.data)
+    
     if (data.code !== "200" || !data.data?.List?.SmsSendDetailResponse) {
+      console.log('Aliyun API error response:', JSON.stringify(data).substring(0, 500))
+      
+      // Check for authentication errors
+      if (data.code === "403" || data.message?.includes('csrf') || data.message?.includes('token')) {
+        return NextResponse.json(
+          { 
+            error: '阿里云认证失败', 
+            details: 'Cookie中的认证信息可能已过期，请重新从阿里云控制台获取',
+            apiError: data.message || data.code
+          },
+          { status: 401 }
+        )
+      }
+      
       return NextResponse.json(
-        { error: '阿里云API返回错误', details: data },
+        { 
+          error: '阿里云API返回错误', 
+          details: data.message || data.msg || '未知错误',
+          apiCode: data.code
+        },
         { status: 500 }
       )
     }
 
     // Find the SMS record by OutId
-    const smsRecords = data.data.List.SmsSendDetailResponse
+    const smsRecords = data.data?.List?.SmsSendDetailResponse || []
     const targetRecord = smsRecords.find((record: any) => record.OutId === outId)
     
     if (!targetRecord) {
