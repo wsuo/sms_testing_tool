@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import PhoneNumberManagerModal from "@/components/phone-number-manager-modal"
-import { Textarea } from "@/components/ui/textarea"
 import Link from "next/link"
 
 interface SmsTemplate {
@@ -52,7 +51,10 @@ export default function SmsTestingTool() {
   const [phoneNumber, setPhoneNumber] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [savedPhoneNumbers, setSavedPhoneNumbers] = useState<any[]>([])
-  const [useCustomNumber, setUseCustomNumber] = useState(false)
+  
+  // Carrier selection states
+  const [selectedCarrier, setSelectedCarrier] = useState("")
+  const [carrierPhoneNumbers, setCarrierPhoneNumbers] = useState<any[]>([])
 
   // Status monitoring
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
@@ -197,6 +199,26 @@ export default function SmsTestingTool() {
     } catch (error) {
       console.error('Failed to load saved phone numbers:', error)
     }
+  }
+
+  // Handle carrier selection
+  const handleCarrierSelect = (carrier: string) => {
+    setSelectedCarrier(carrier)
+    setPhoneNumber("") // 清空当前选择的手机号
+    
+    if (carrier && carrier !== "") {
+      // 筛选该运营商的手机号码
+      const filteredNumbers = savedPhoneNumbers.filter(phone => phone.carrier === carrier)
+      setCarrierPhoneNumbers(filteredNumbers)
+    } else {
+      setCarrierPhoneNumbers([])
+    }
+  }
+
+  // Get unique carriers from saved phone numbers
+  const getUniqueCarriers = () => {
+    const carriers = [...new Set(savedPhoneNumbers.map(phone => phone.carrier))]
+    return carriers.filter(carrier => carrier) // 过滤掉空值
   }
 
   // Load tokens from localStorage on mount with validation
@@ -569,16 +591,12 @@ export default function SmsTestingTool() {
             const dbResult = await dbResponse.json()
             const dbRecord = dbResult.data?.[0]
             
-            // 如果重试次数已达到上限或自动刷新已禁用，跳过查询
-            if (dbRecord && (
-              (dbRecord.retry_count >= 20) || 
-              (dbRecord.auto_refresh_enabled === 0) ||
-              (dbRecord.retry_count >= 20 && Date.now() - new Date(dbRecord.created_at).getTime() > 60000) // 1分钟
-            )) {
-              console.log(`SMS ${sms.outId} 已达到重试上限或被禁用自动刷新，跳过查询`)
+            // 如果重试次数已达到上限，跳过查询
+            if (dbRecord && dbRecord.retry_count && dbRecord.retry_count >= 20) {
+              console.log(`SMS ${sms.outId} 已达到重试上限，跳过查询 (重试次数: ${dbRecord.retry_count})`)
               
               // 如果还是发送中状态，添加说明
-              if (sms.status === "发送中" && dbRecord.retry_count >= 20) {
+              if (sms.status === "发送中") {
                 return { 
                   ...sms, 
                   status: "发送中(已停止查询)",
@@ -677,6 +695,37 @@ export default function SmsTestingTool() {
       default:
         return "outline"
     }
+  }
+
+  // 错误代码转换为可读信息
+  const getErrorMessage = (errorCode: string) => {
+    const errorMap: Record<string, string> = {
+      'IS_CLOSE': '短信通道被关停，阿里云会自动剔除被关停通道，建议稍后重试',
+      'PARAMS_ILLEGAL': '参数错误，请检查短信签名、短信文案或手机号码等参数是否传入正确',
+      'MOBILE_NOT_ON_SERVICE': '手机号停机、空号、暂停服务、关机或不在服务区，请核实接收手机号码状态是否正常',
+      'MOBILE_SEND_LIMIT': '单个号码日、月发送上限或频繁发送超限，为防止恶意调用已进行流控限制',
+      'MOBILE_ACCOUNT_ABNORMAL': '用户账户异常、携号转网或欠费等，建议检查号码状态确保正常后重试',
+      'MOBILE_IN_BLACK': '手机号在黑名单中，通常是用户已退订此签名或命中运营商平台黑名单规则',
+      'MOBLLE_TERMINAL_ERROR': '手机终端问题，如内存满、SIM卡满、非法设备等，建议检查终端设备状况',
+      'CONTENT_KEYWORD': '内容关键字拦截，运营商自动拦截潜在风险或高投诉的内容关键字',
+      'INVALID_NUMBER': '号码状态异常，如关机、停机、空号、暂停服务、不在服务区或号码格式错误',
+      'CONTENT_ERROR': '推广短信内容中必须带退订信息，请在短信结尾添加"拒收请回复R"',
+      'REQUEST_SUCCESS': '请求成功但未收到运营商回执，大概率是接收用户状态异常导致',
+      'SP_NOT_BY_INTER_SMS': '收件人未开通国际短信功能，请联系运营商开通后再发送',
+      'SP_UNKNOWN_ERROR': '运营商未知错误，阿里云平台接收到的运营商回执报告为未知错误',
+      'USER_REJECT': '接收用户已退订此业务或产品未开通，建议将此类用户剔除出发送清单',
+      'NO_ROUTE': '当前短信内容无可用通道发送，发送的业务场景属于暂时无法支持的场景',
+      'isv.UNSUPPORTED_CONTENT': '不支持的短信内容，包含繁体字、emoji表情符号或其他非常用字符',
+      'isv.SMS_CONTENT_MISMATCH_TEMPLATE_TYPE': '短信内容和模板属性不匹配，通知模板无法发送推广营销文案',
+      'isv.ONE_CODE_MULTIPLE_SIGN': '一码多签，当前传入的扩展码和签名与历史记录不一致',
+      'isv.CODE_EXCEED_LIMIT': '自拓扩展码个数已超过上限，无法分配新的扩展码发送新签名',
+      'isv.CODE_ERROR': '传入扩展码不可用，自拓扩展位数超限',
+      'PORT_NOT_REGISTERED': '当前使用端口号尚未完成企业实名制报备流程，需要完成实名制报备',
+      'isv.SIGN_SOURCE_ILLEGAL': '签名来源不支持，创建和修改签名时使用了不支持的签名来源',
+      'DELIVERED': '已送达' // 成功状态，不是错误
+    }
+
+    return errorMap[errorCode] || `未知错误代码: ${errorCode}`
   }
 
   if (!tokensConfigured) {
@@ -808,7 +857,7 @@ export default function SmsTestingTool() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" onClick={fetchTemplates}>
+                  <Button variant="outline" onClick={() => fetchTemplates()}>
                     <RefreshCw className="w-4 h-4" />
                   </Button>
                 </div>
@@ -838,33 +887,125 @@ export default function SmsTestingTool() {
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     className="flex-1"
                   />
-                  <Select onValueChange={setPhoneNumber}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="选择号码" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* 保存的号码 */}
-                      {savedPhoneNumbers.length > 0 ? (
-                        savedPhoneNumbers.map((phone) => (
-                          <SelectItem key={phone.id} value={phone.number}>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {phone.carrier}
-                              </Badge>
-                              {phone.number}
-                            </div>
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="px-2 py-1.5 text-xs text-gray-500">暂无保存的号码</div>
-                      )}
-                    </SelectContent>
-                  </Select>
                   <PhoneNumberManagerModal 
                     onPhoneNumbersChange={loadSavedPhoneNumbers}
                     onSelectNumber={setPhoneNumber}
                   />
                 </div>
+                
+                {/* 运营商和号码级联选择 */}
+                {savedPhoneNumbers.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-sm text-gray-600">或从已保存的号码中选择：</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* 运营商选择 */}
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">选择运营商</Label>
+                        <div className="flex gap-1">
+                          <Select value={selectedCarrier} onValueChange={handleCarrierSelect}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="选择运营商" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getUniqueCarriers().map((carrier) => (
+                                <SelectItem key={carrier} value={carrier}>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {carrier}
+                                    </Badge>
+                                    <span className="text-xs text-gray-500">
+                                      ({savedPhoneNumbers.filter(p => p.carrier === carrier).length}个)
+                                    </span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedCarrier && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCarrierSelect("")}
+                              className="h-9 px-2"
+                              title="清空选择"
+                            >
+                              ×
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* 手机号码选择 */}
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">选择号码</Label>
+                        <Select 
+                          value={phoneNumber} 
+                          onValueChange={setPhoneNumber}
+                          disabled={!selectedCarrier}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder={selectedCarrier ? "选择号码" : "请先选择运营商"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {carrierPhoneNumbers.map((phone) => (
+                              <SelectItem key={phone.id} value={phone.number}>
+                                <div className="flex flex-col items-start py-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{phone.number}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {phone.carrier}
+                                    </Badge>
+                                  </div>
+                                  {phone.note && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      备注: {phone.note}
+                                    </div>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                            {carrierPhoneNumbers.length === 0 && selectedCarrier && (
+                              <div className="px-2 py-1.5 text-xs text-gray-500">
+                                该运营商暂无保存的号码
+                              </div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    {/* 快速选择所有号码的选项 */}
+                    {!selectedCarrier && (
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">快速选择</Label>
+                        <Select value={phoneNumber} onValueChange={setPhoneNumber}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="从所有号码中选择" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {savedPhoneNumbers.map((phone) => (
+                              <SelectItem key={phone.id} value={phone.number}>
+                                <div className="flex flex-col items-start py-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{phone.number}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {phone.carrier}
+                                    </Badge>
+                                  </div>
+                                  {phone.note && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      备注: {phone.note}
+                                    </div>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -946,7 +1087,12 @@ export default function SmsTestingTool() {
                           <p>手机号码: {sms.phoneNumber}</p>
                           <p>发送时间: {sms.sendDate}</p>
                           {sms.receiveDate && <p>送达时间: {sms.receiveDate}</p>}
-                          {sms.errorCode && sms.errorCode !== "DELIVERED" && <p className="text-red-600">错误代码: {sms.errorCode}</p>}
+                          {sms.errorCode && sms.errorCode !== "DELIVERED" && (
+                            <div className="text-red-600">
+                              <p className="font-medium">错误信息: {getErrorMessage(sms.errorCode)}</p>
+                              <p className="text-xs text-gray-500 mt-1">错误代码: {sms.errorCode}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
