@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import PhoneNumberManagerModal from "@/components/phone-number-manager-modal"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 
 interface SmsTemplate {
@@ -60,6 +61,9 @@ export default function SmsTestingTool() {
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
+
+  // Configuration modal
+  const [showConfigModal, setShowConfigModal] = useState(false)
 
   // Refresh token utility function
   const refreshAccessToken = async (): Promise<{ success: boolean; newToken?: string }> => {
@@ -221,6 +225,41 @@ export default function SmsTestingTool() {
     return carriers.filter(carrier => carrier) // 过滤掉空值
   }
 
+  // 保存用户状态到localStorage
+  const saveUserState = () => {
+    const userState = {
+      phoneNumber,
+      selectedCarrier,
+      selectedTemplate: selectedTemplate ? {
+        id: selectedTemplate.id,
+        name: selectedTemplate.name,
+        content: selectedTemplate.content,
+        code: selectedTemplate.code,
+        params: selectedTemplate.params
+      } : null,
+      templateParams
+    }
+    localStorage.setItem("sms-user-state", JSON.stringify(userState))
+  }
+
+  // 从localStorage恢复用户状态
+  const restoreUserState = () => {
+    try {
+      const savedState = localStorage.getItem("sms-user-state")
+      if (savedState) {
+        const userState = JSON.parse(savedState)
+        if (userState.phoneNumber) setPhoneNumber(userState.phoneNumber)
+        if (userState.selectedCarrier) setSelectedCarrier(userState.selectedCarrier)
+        if (userState.templateParams) setTemplateParams(userState.templateParams)
+        if (userState.selectedTemplate) {
+          setSelectedTemplate(userState.selectedTemplate)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to restore user state:', error)
+    }
+  }
+
   // Load tokens from localStorage on mount with validation
   useEffect(() => {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
@@ -234,18 +273,14 @@ export default function SmsTestingTool() {
     // Load saved tokens if available
     if (savedAdminToken) {
       setAdminToken(savedAdminToken)
-    }
-    if (savedRefreshToken) {
-      setRefreshToken(savedRefreshToken)
-    }
-
-    // Only mark as configured if admin token exists
-    if (savedAdminToken) {
       setTokensConfigured(true)
       // Validate tokens by trying to fetch templates
       setTimeout(() => {
         fetchTemplates(savedAdminToken)
       }, 500)
+    }
+    if (savedRefreshToken) {
+      setRefreshToken(savedRefreshToken)
     }
     
     // Load saved phone numbers
@@ -253,6 +288,9 @@ export default function SmsTestingTool() {
     
     // Load SMS history from database
     loadSmsHistory()
+    
+    // Restore user state
+    restoreUserState()
   }, [])
 
   // Auto-save tokens to localStorage when they change
@@ -268,6 +306,19 @@ export default function SmsTestingTool() {
       localStorage.setItem("sms-refresh-token", refreshToken)
     }
   }, [refreshToken])
+
+  // 保存用户状态当状态变化时
+  useEffect(() => {
+    saveUserState()
+  }, [phoneNumber, selectedCarrier, selectedTemplate, templateParams])
+
+  // 当手机号码加载完成且有选择的运营商时，恢复级联选择状态
+  useEffect(() => {
+    if (savedPhoneNumbers.length > 0 && selectedCarrier) {
+      const filteredNumbers = savedPhoneNumbers.filter(phone => phone.carrier === selectedCarrier)
+      setCarrierPhoneNumbers(filteredNumbers)
+    }
+  }, [savedPhoneNumbers, selectedCarrier])
 
   // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
@@ -285,6 +336,7 @@ export default function SmsTestingTool() {
       localStorage.setItem("sms-refresh-token", refreshToken)
     }
     setTokensConfigured(true)
+    setShowConfigModal(false) // 关闭模态框
 
     toast({
       title: "成功",
@@ -315,8 +367,8 @@ export default function SmsTestingTool() {
         // Check if the response indicates authentication failure
         if (data.code === 401) {
           console.log("API returned 401 in response body, handling as authentication failure")
-          // If still 401 after refresh attempt, handle as before
-          setTokensConfigured(false)
+          // If still 401 after refresh attempt, show config modal
+          setShowConfigModal(true)
           toast({
             title: "认证失败",
             description: "管理后台令牌已过期，请重新配置令牌",
@@ -340,8 +392,8 @@ export default function SmsTestingTool() {
           description: `已加载 ${templatesData.length} 个短信模板`,
         })
       } else if (response.status === 401) {
-        // If still 401 after refresh attempt, handle as before
-        setTokensConfigured(false)
+        // If still 401 after refresh attempt, show config modal
+        setShowConfigModal(true)
         toast({
           title: "认证失败",
           description: "管理后台令牌已过期，请重新配置令牌",
@@ -444,7 +496,7 @@ export default function SmsTestingTool() {
         
         // Check for authentication error in response body
         if (data.code === 401) {
-          setTokensConfigured(false)
+          setShowConfigModal(true)
           toast({
             title: "认证失败",
             description: "管理后台令牌已过期，请重新配置令牌",
@@ -498,7 +550,7 @@ export default function SmsTestingTool() {
         })
       } else if (response.status === 401) {
         // If still 401 after refresh attempt
-        setTokensConfigured(false)
+        setShowConfigModal(true)
         toast({
           title: "认证失败",
           description: "管理后台令牌已过期，请重新配置令牌",
@@ -728,82 +780,81 @@ export default function SmsTestingTool() {
     return errorMap[errorCode] || `未知错误代码: ${errorCode}`
   }
 
-  if (!tokensConfigured) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-md mx-auto pt-20">
-          <Card>
-            <CardHeader className="text-center">
-              <Settings className="w-12 h-12 mx-auto mb-4 text-blue-600" />
-              <CardTitle>短信测试工具配置</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <AlertDescription>
-                  <strong>获取令牌说明：</strong>
-                  <ul className="mt-2 space-y-1 text-sm">
-                    <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
-                    <li>• 阿里云AccessKey已在服务器环境变量中配置</li>
-                    <li>• 令牌过期时需要重新获取并配置</li>
-                  </ul>
-                </AlertDescription>
-              </Alert>
-              <div>
-                <Label htmlFor="admin-token">管理后台令牌</Label>
-                <div className="relative">
-                  <Input
-                    id="admin-token"
-                    type={showAdminToken ? "text" : "password"}
-                    placeholder="请输入管理后台API令牌"
-                    value={adminToken}
-                    onChange={(e) => setAdminToken(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowAdminToken(!showAdminToken)}
-                  >
-                    {showAdminToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="refresh-token">管理后台刷新令牌 (可选)</Label>
-                <div className="relative">
-                  <Input
-                    id="refresh-token"
-                    type={showRefreshToken ? "text" : "password"}
-                    placeholder="请输入管理后台刷新令牌"
-                    value={refreshToken}
-                    onChange={(e) => setRefreshToken(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowRefreshToken(!showRefreshToken)}
-                  >
-                    {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  提供刷新令牌可以自动更新过期的访问令牌
-                </p>
-              </div>
-              <Button onClick={saveTokens} className="w-full">
-                保存配置
+  // Configuration Modal Component
+  const ConfigurationModal = () => (
+    <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <Settings className="w-5 h-5 mr-2" />
+            Token配置
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Alert>
+            <AlertDescription>
+              <strong>获取令牌说明：</strong>
+              <ul className="mt-2 space-y-1 text-sm">
+                <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
+                <li>• 阿里云AccessKey已在服务器环境变量中配置</li>
+                <li>• 令牌过期时需要重新获取并配置</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+          <div>
+            <Label htmlFor="admin-token">管理后台令牌</Label>
+            <div className="relative">
+              <Input
+                id="admin-token"
+                type={showAdminToken ? "text" : "password"}
+                placeholder="请输入管理后台API令牌"
+                value={adminToken}
+                onChange={(e) => setAdminToken(e.target.value)}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                onClick={() => setShowAdminToken(!showAdminToken)}
+              >
+                {showAdminToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="refresh-token">管理后台刷新令牌 (可选)</Label>
+            <div className="relative">
+              <Input
+                id="refresh-token"
+                type={showRefreshToken ? "text" : "password"}
+                placeholder="请输入管理后台刷新令牌"
+                value={refreshToken}
+                onChange={(e) => setRefreshToken(e.target.value)}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                onClick={() => setShowRefreshToken(!showRefreshToken)}
+              >
+                {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              提供刷新令牌可以自动更新过期的访问令牌
+            </p>
+          </div>
+          <Button onClick={saveTokens} className="w-full">
+            保存配置
+          </Button>
         </div>
-      </div>
-    )
-  }
+      </DialogContent>
+    </Dialog>
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -813,22 +864,10 @@ export default function SmsTestingTool() {
           <h1 className="text-3xl font-bold text-gray-900">短信测试工具</h1>
           <Button
             variant="outline"
-            onClick={() => {
-              // Reset configuration state but keep token values for re-editing
-              setTokensConfigured(false)
-              setTemplates([])
-              setSelectedTemplate(null)
-              setSmsStatuses([])
-              setAutoRefresh(false)
-              
-              toast({
-                title: "重新配置",
-                description: "请检查并更新令牌配置",
-              })
-            }}
+            onClick={() => setShowConfigModal(true)}
           >
             <Settings className="w-4 h-4 mr-2" />
-            重新配置
+            配置Token
           </Button>
         </div>
 
@@ -949,15 +988,15 @@ export default function SmsTestingTool() {
                           <SelectContent>
                             {carrierPhoneNumbers.map((phone) => (
                               <SelectItem key={phone.id} value={phone.number}>
-                                <div className="flex flex-col items-start py-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">{phone.number}</span>
-                                    <Badge variant="outline" className="text-xs">
+                                <div className="flex flex-col items-start py-1 max-w-full">
+                                  <div className="flex items-center gap-2 max-w-full">
+                                    <span className="font-medium truncate">{phone.number}</span>
+                                    <Badge variant="outline" className="text-xs flex-shrink-0">
                                       {phone.carrier}
                                     </Badge>
                                   </div>
                                   {phone.note && (
-                                    <div className="text-xs text-gray-500 mt-1">
+                                    <div className="text-xs text-gray-500 mt-1 max-w-full truncate">
                                       备注: {phone.note}
                                     </div>
                                   )}
@@ -985,15 +1024,15 @@ export default function SmsTestingTool() {
                           <SelectContent>
                             {savedPhoneNumbers.map((phone) => (
                               <SelectItem key={phone.id} value={phone.number}>
-                                <div className="flex flex-col items-start py-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">{phone.number}</span>
-                                    <Badge variant="outline" className="text-xs">
+                                <div className="flex flex-col items-start py-1 max-w-full">
+                                  <div className="flex items-center gap-2 max-w-full">
+                                    <span className="font-medium truncate">{phone.number}</span>
+                                    <Badge variant="outline" className="text-xs flex-shrink-0">
                                       {phone.carrier}
                                     </Badge>
                                   </div>
                                   {phone.note && (
-                                    <div className="text-xs text-gray-500 mt-1">
+                                    <div className="text-xs text-gray-500 mt-1 max-w-full truncate">
                                       备注: {phone.note}
                                     </div>
                                   )}
@@ -1126,6 +1165,9 @@ export default function SmsTestingTool() {
           </div>
         </div>
       </div>
+      
+      {/* Configuration Modal */}
+      <ConfigurationModal />
     </div>
   )
 }
