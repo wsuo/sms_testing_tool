@@ -169,24 +169,36 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const recordId = searchParams.get('id')
+    const outId = searchParams.get('out_id')
     
-    if (!recordId) {
+    if (!recordId && !outId) {
       return NextResponse.json(
         { 
           success: false, 
-          error: '缺少必需参数: id' 
+          error: '缺少必需参数: id 或 out_id' 
         },
         { status: 400 }
       )
     }
     
-    const deleted = smsRecordDB.deleteRecord(parseInt(recordId, 10))
+    let deleted = false
+    
+    if (recordId) {
+      // 按ID删除
+      deleted = smsRecordDB.deleteRecord(parseInt(recordId, 10))
+    } else if (outId) {
+      // 按OutId删除 - 先查找记录ID
+      const record = smsRecordDB.findByOutId(outId)
+      if (record) {
+        deleted = smsRecordDB.deleteRecord(record.id!)
+      }
+    }
     
     if (!deleted) {
       return NextResponse.json(
         { 
           success: false, 
-          error: `未找到ID为 ${recordId} 的记录` 
+          error: `未找到要删除的记录` 
         },
         { status: 404 }
       )

@@ -46,18 +46,35 @@ function initializeTables() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `
+
+  // 创建手机号码表
+  const createPhoneNumbersTable = `
+    CREATE TABLE IF NOT EXISTS phone_numbers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      number TEXT NOT NULL UNIQUE,
+      carrier TEXT NOT NULL,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `
   
   // 创建索引以提升查询性能
   const createIndexes = [
     'CREATE INDEX IF NOT EXISTS idx_out_id ON sms_records (out_id)',
     'CREATE INDEX IF NOT EXISTS idx_phone_number ON sms_records (phone_number)', 
     'CREATE INDEX IF NOT EXISTS idx_status ON sms_records (status)',
-    'CREATE INDEX IF NOT EXISTS idx_created_at ON sms_records (created_at)'
+    'CREATE INDEX IF NOT EXISTS idx_created_at ON sms_records (created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_phone_numbers_number ON phone_numbers (number)',
+    'CREATE INDEX IF NOT EXISTS idx_phone_numbers_carrier ON phone_numbers (carrier)'
   ]
   
   try {
     db.exec(createSmsRecordsTable)
     console.log('SMS records table created/verified')
+    
+    db.exec(createPhoneNumbersTable)
+    console.log('Phone numbers table created/verified')
     
     // 执行数据库迁移
     runMigrations()
@@ -122,6 +139,16 @@ export interface SmsRecord {
   retry_count?: number
   last_retry_at?: string
   auto_refresh_enabled?: number
+  created_at?: string
+  updated_at?: string
+}
+
+// 手机号码类型定义
+export interface PhoneNumber {
+  id?: number
+  number: string
+  carrier: string
+  note?: string
   created_at?: string
   updated_at?: string
 }
@@ -270,5 +297,134 @@ export class SmsRecordDB {
   }
 }
 
+// 手机号码数据库操作类
+export class PhoneNumberDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入手机号码记录
+  insertPhoneNumber(phoneNumber: Omit<PhoneNumber, 'id' | 'created_at' | 'updated_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO phone_numbers 
+      (number, carrier, note)
+      VALUES (?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      phoneNumber.number,
+      phoneNumber.carrier,
+      phoneNumber.note || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 更新手机号码记录
+  updatePhoneNumber(id: number, updates: Partial<Pick<PhoneNumber, 'number' | 'carrier' | 'note'>>): boolean {
+    const updateFields: string[] = []
+    const values: any[] = []
+    
+    if (updates.number !== undefined) {
+      updateFields.push('number = ?')
+      values.push(updates.number)
+    }
+    
+    if (updates.carrier !== undefined) {
+      updateFields.push('carrier = ?')
+      values.push(updates.carrier)
+    }
+    
+    if (updates.note !== undefined) {
+      updateFields.push('note = ?')
+      values.push(updates.note)
+    }
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = CURRENT_TIMESTAMP')
+    values.push(id)
+    
+    const stmt = this.db.prepare(`
+      UPDATE phone_numbers 
+      SET ${updateFields.join(', ')}
+      WHERE id = ?
+    `)
+    
+    const result = stmt.run(...values)
+    return result.changes > 0
+  }
+  
+  // 根据ID查询记录
+  findById(id: number): PhoneNumber | null {
+    const stmt = this.db.prepare('SELECT * FROM phone_numbers WHERE id = ?')
+    return stmt.get(id) as PhoneNumber | null
+  }
+  
+  // 根据手机号查询记录
+  findByNumber(number: string): PhoneNumber | null {
+    const stmt = this.db.prepare('SELECT * FROM phone_numbers WHERE number = ?')
+    return stmt.get(number) as PhoneNumber | null
+  }
+  
+  // 查询所有记录
+  findAll(limit = 100, offset = 0): PhoneNumber[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM phone_numbers 
+      ORDER BY created_at DESC 
+      LIMIT ? OFFSET ?
+    `)
+    return stmt.all(limit, offset) as PhoneNumber[]
+  }
+  
+  // 根据运营商查询记录
+  findByCarrier(carrier: string): PhoneNumber[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM phone_numbers 
+      WHERE carrier = ? 
+      ORDER BY created_at DESC
+    `)
+    return stmt.all(carrier) as PhoneNumber[]
+  }
+  
+  // 检查手机号是否存在
+  exists(number: string, excludeId?: number): boolean {
+    let stmt
+    if (excludeId) {
+      stmt = this.db.prepare('SELECT COUNT(*) as count FROM phone_numbers WHERE number = ? AND id != ?')
+      const result = stmt.get(number, excludeId) as { count: number }
+      return result.count > 0
+    } else {
+      stmt = this.db.prepare('SELECT COUNT(*) as count FROM phone_numbers WHERE number = ?')
+      const result = stmt.get(number) as { count: number }
+      return result.count > 0
+    }
+  }
+  
+  // 删除记录
+  deletePhoneNumber(id: number): boolean {
+    const stmt = this.db.prepare('DELETE FROM phone_numbers WHERE id = ?')
+    const result = stmt.run(id)
+    return result.changes > 0
+  }
+  
+  // 统计记录数量
+  count(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM phone_numbers')
+    const result = stmt.get() as { count: number }
+    return result.count
+  }
+  
+  // 关闭数据库连接
+  close() {
+    if (this.db) {
+      this.db.close()
+    }
+  }
+}
+
 // 导出单例实例
 export const smsRecordDB = new SmsRecordDB()
+export const phoneNumberDB = new PhoneNumberDB()

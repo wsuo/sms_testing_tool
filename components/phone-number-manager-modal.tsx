@@ -12,10 +12,12 @@ import { Phone, Plus, Trash2, Edit3 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface PhoneNumber {
-  id: string
+  id: number
   number: string
   carrier: string
   note?: string
+  created_at?: string
+  updated_at?: string
 }
 
 interface PhoneNumberManagerModalProps {
@@ -33,7 +35,10 @@ export default function PhoneNumberManagerModal({
   const [newNumber, setNewNumber] = useState("")
   const [newCarrier, setNewCarrier] = useState("")
   const [newNote, setNewNote] = useState("")
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editNumber, setEditNumber] = useState("")
+  const [editCarrier, setEditCarrier] = useState("")
+  const [editNote, setEditNote] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
   // Load phone numbers when modal opens
@@ -47,8 +52,10 @@ export default function PhoneNumberManagerModal({
     try {
       const response = await fetch('/api/phone-numbers')
       if (response.ok) {
-        const data = await response.json()
-        setPhoneNumbers(data.data || [])
+        const result = await response.json()
+        if (result.success && result.data) {
+          setPhoneNumbers(result.data)
+        }
       }
     } catch (error) {
       console.error('Failed to load phone numbers:', error)
@@ -95,9 +102,10 @@ export default function PhoneNumberManagerModal({
         }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setPhoneNumbers(prev => [...prev, data.data])
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        setPhoneNumbers(prev => [result.data, ...prev])
         setNewNumber("")
         setNewCarrier("")
         setNewNote("")
@@ -109,8 +117,7 @@ export default function PhoneNumberManagerModal({
         
         onPhoneNumbersChange?.()
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.error || '添加失败')
+        throw new Error(result.error || '添加失败')
       }
     } catch (error) {
       toast({
@@ -123,14 +130,16 @@ export default function PhoneNumberManagerModal({
     }
   }
 
-  const deletePhoneNumber = async (id: string) => {
+  const deletePhoneNumber = async (id: number) => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/phone-numbers?id=${id}`, {
         method: 'DELETE',
       })
 
-      if (response.ok) {
+      const result = await response.json()
+
+      if (response.ok && result.success) {
         setPhoneNumbers(prev => prev.filter(phone => phone.id !== id))
         toast({
           title: "成功",
@@ -138,12 +147,92 @@ export default function PhoneNumberManagerModal({
         })
         onPhoneNumbersChange?.()
       } else {
-        throw new Error('删除失败')
+        throw new Error(result.error || '删除失败')
       }
     } catch (error) {
       toast({
         title: "错误",
         description: "删除手机号码失败",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const startEdit = (phone: PhoneNumber) => {
+    setEditingId(phone.id!)
+    setEditNumber(phone.number)
+    setEditCarrier(phone.carrier)
+    setEditNote(phone.note || "")
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditNumber("")
+    setEditCarrier("")
+    setEditNote("")
+  }
+
+  const saveEdit = async () => {
+    if (!editNumber.trim() || !editCarrier.trim()) {
+      toast({
+        title: "错误",
+        description: "请填写手机号码和运营商",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Simple phone number validation
+    const phoneRegex = /^1[3-9]\d{9}$/
+    if (!phoneRegex.test(editNumber.trim())) {
+      toast({
+        title: "错误", 
+        description: "请输入有效的手机号码",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/phone-numbers', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingId,
+          number: editNumber.trim(),
+          carrier: editCarrier.trim(),
+          note: editNote.trim() || undefined,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        setPhoneNumbers(prev => 
+          prev.map(phone => 
+            phone.id === editingId ? result.data : phone
+          )
+        )
+        cancelEdit()
+        
+        toast({
+          title: "成功",
+          description: "手机号码已更新",
+        })
+        
+        onPhoneNumbersChange?.()
+      } else {
+        throw new Error(result.error || '更新失败')
+      }
+    } catch (error) {
+      toast({
+        title: "错误",
+        description: error instanceof Error ? error.message : "更新手机号码失败",
         variant: "destructive",
       })
     } finally {
@@ -254,34 +343,101 @@ export default function PhoneNumberManagerModal({
                       key={phone.id}
                       className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
                     >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div>
-                          <div className="font-medium">{phone.number}</div>
-                          {phone.note && (
-                            <div className="text-sm text-gray-500">{phone.note}</div>
-                          )}
+                      {editingId === phone.id ? (
+                        // 编辑模式
+                        <div className="flex-1 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label>手机号码</Label>
+                              <Input
+                                value={editNumber}
+                                onChange={(e) => setEditNumber(e.target.value)}
+                                maxLength={11}
+                              />
+                            </div>
+                            <div>
+                              <Label>运营商</Label>
+                              <Select value={editCarrier} onValueChange={setEditCarrier}>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {carriers.map((carrier) => (
+                                    <SelectItem key={carrier.value} value={carrier.value}>
+                                      {carrier.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>备注</Label>
+                            <Input
+                              value={editNote}
+                              onChange={(e) => setEditNote(e.target.value)}
+                              placeholder="添加备注信息"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={saveEdit}
+                              disabled={isLoading}
+                            >
+                              保存
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={cancelEdit}
+                              disabled={isLoading}
+                            >
+                              取消
+                            </Button>
+                          </div>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {phone.carrier}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => selectAndClose(phone.number)}
-                        >
-                          选择
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deletePhoneNumber(phone.id)}
-                          disabled={isLoading}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      ) : (
+                        // 显示模式
+                        <>
+                          <div className="flex items-center gap-3 flex-1">
+                            <div>
+                              <div className="font-medium">{phone.number}</div>
+                              {phone.note && (
+                                <div className="text-sm text-gray-500">{phone.note}</div>
+                              )}
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {phone.carrier}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => selectAndClose(phone.number)}
+                            >
+                              选择
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEdit(phone)}
+                              disabled={isLoading}
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deletePhoneNumber(phone.id!)}
+                              disabled={isLoading}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

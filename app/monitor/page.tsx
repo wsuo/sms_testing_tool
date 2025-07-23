@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle } from "lucide-react"
+import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -218,6 +218,40 @@ export default function SmsMonitorPage() {
     document.body.removeChild(link)
   }
 
+  const deleteSmsRecord = async (recordId: number) => {
+    if (!confirm('确定要删除这条SMS记录吗？此操作不可逆。')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/sms-records?id=${recordId}`, {
+        method: 'DELETE'
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        // 从列表中移除已删除的记录
+        setRecords(prev => prev.filter(record => record.id !== recordId))
+        setFilteredRecords(prev => prev.filter(record => record.id !== recordId))
+        
+        toast({
+          title: "删除成功",
+          description: "SMS记录已删除",
+        })
+      } else {
+        throw new Error(result.error || '删除失败')
+      }
+    } catch (error) {
+      console.error('Failed to delete SMS record:', error)
+      toast({
+        title: "删除失败",
+        description: error instanceof Error ? error.message : "无法删除SMS记录",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -407,6 +441,14 @@ export default function SmsMonitorPage() {
                             {record.template_code}
                           </Badge>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteSmsRecord(record.id)}
+                          className="ml-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                     <div className="text-sm text-gray-600 space-y-1">
