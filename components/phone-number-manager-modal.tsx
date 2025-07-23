@@ -88,6 +88,17 @@ export default function PhoneNumberManagerModal({
       return
     }
 
+    // 前端唯一性校验
+    const existingPhone = phoneNumbers.find(phone => phone.number === newNumber.trim())
+    if (existingPhone) {
+      toast({
+        title: "错误",
+        description: `手机号码 ${newNumber.trim()} 已存在`,
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
     try {
       const response = await fetch('/api/phone-numbers', {
@@ -190,6 +201,19 @@ export default function PhoneNumberManagerModal({
       toast({
         title: "错误", 
         description: "请输入有效的手机号码",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // 前端唯一性校验 - 排除当前编辑的记录
+    const existingPhone = phoneNumbers.find(phone => 
+      phone.number === editNumber.trim() && phone.id !== editingId
+    )
+    if (existingPhone) {
+      toast({
+        title: "错误",
+        description: `手机号码 ${editNumber.trim()} 已存在`,
         variant: "destructive",
       })
       return

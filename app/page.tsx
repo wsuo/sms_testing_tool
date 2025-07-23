@@ -56,6 +56,11 @@ export default function SmsTestingTool() {
   // Carrier selection states
   const [selectedCarrier, setSelectedCarrier] = useState("")
   const [carrierPhoneNumbers, setCarrierPhoneNumbers] = useState<any[]>([])
+  
+  // Phone number auto-suggestion
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filteredSuggestions, setFilteredSuggestions] = useState<any[]>([])
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
 
   // Status monitoring
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
@@ -257,6 +262,59 @@ export default function SmsTestingTool() {
       }
     } catch (error) {
       console.error('Failed to restore user state:', error)
+    }
+  }
+
+  // 处理手机号码输入和自动推荐
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(value)
+    
+    if (value.length >= 3) {
+      // 过滤匹配的手机号码
+      const filtered = savedPhoneNumbers.filter(phone => 
+        phone.number.startsWith(value)
+      )
+      setFilteredSuggestions(filtered)
+      setShowSuggestions(filtered.length > 0)
+      setActiveSuggestionIndex(-1)
+    } else {
+      setShowSuggestions(false)
+      setFilteredSuggestions([])
+    }
+  }
+
+  // 选择推荐的手机号码
+  const selectSuggestion = (suggestion: any) => {
+    setPhoneNumber(suggestion.number)
+    setShowSuggestions(false)
+    setActiveSuggestionIndex(-1)
+  }
+
+  // 处理键盘导航
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setActiveSuggestionIndex(prev => 
+          prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setActiveSuggestionIndex(prev => prev > 0 ? prev - 1 : -1)
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (activeSuggestionIndex >= 0) {
+          selectSuggestion(filteredSuggestions[activeSuggestionIndex])
+        }
+        break
+      case 'Escape':
+        setShowSuggestions(false)
+        setActiveSuggestionIndex(-1)
+        break
     }
   }
 
@@ -929,12 +987,45 @@ export default function SmsTestingTool() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
-                  <Input
-                    placeholder="请输入手机号码"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="flex-1"
-                  />
+                  <div className="flex-1 relative">
+                    <Input
+                      placeholder="请输入手机号码"
+                      value={phoneNumber}
+                      onChange={(e) => handlePhoneNumberChange(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onBlur={() => {
+                        // 延迟关闭建议列表，以便点击建议项
+                        setTimeout(() => setShowSuggestions(false), 200)
+                      }}
+                      className="flex-1"
+                    />
+                    {/* 自动推荐下拉列表 */}
+                    {showSuggestions && filteredSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {filteredSuggestions.map((suggestion, index) => (
+                          <div
+                            key={suggestion.id}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                              index === activeSuggestionIndex ? 'bg-blue-100' : ''
+                            }`}
+                            onClick={() => selectSuggestion(suggestion)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{suggestion.number}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {suggestion.carrier}
+                              </Badge>
+                            </div>
+                            {suggestion.note && (
+                              <div className="text-xs text-gray-500 mt-1 truncate">
+                                备注: {suggestion.note}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <PhoneNumberManagerModal 
                     onPhoneNumbersChange={loadSavedPhoneNumbers}
                     onSelectNumber={setPhoneNumber}
