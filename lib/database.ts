@@ -302,6 +302,17 @@ export class SmsRecordDB {
     return stmt.all(phoneNumber, limit) as SmsRecord[]
   }
   
+  // 根据状态查询记录
+  findByStatus(status: string, limit = 100, offset = 0): SmsRecord[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM sms_records 
+      WHERE status = ? 
+      ORDER BY created_at DESC 
+      LIMIT ? OFFSET ?
+    `)
+    return stmt.all(status, limit, offset) as SmsRecord[]
+  }
+  
   // 查询未完成的记录（用于状态更新）
   findPendingRecords(): SmsRecord[] {
     const stmt = this.db.prepare(`
@@ -312,6 +323,27 @@ export class SmsRecordDB {
       ORDER BY created_at DESC
     `)
     return stmt.all() as SmsRecord[]
+  }
+  
+  // 统计记录总数
+  count(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM sms_records')
+    const result = stmt.get() as { count: number }
+    return result.count
+  }
+
+  // 根据状态统计记录数
+  countByStatus(status: string): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM sms_records WHERE status = ?')
+    const result = stmt.get(status) as { count: number }
+    return result.count
+  }
+
+  // 根据手机号统计记录数
+  countByPhoneNumber(phoneNumber: string): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM sms_records WHERE phone_number = ?')
+    const result = stmt.get(phoneNumber) as { count: number }
+    return result.count
   }
   
   // 删除记录

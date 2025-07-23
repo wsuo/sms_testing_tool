@@ -9,25 +9,42 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0', 10)
     const phoneNumber = searchParams.get('phoneNumber')
     const outId = searchParams.get('out_id')
+    const status = searchParams.get('status')
     
     let records: SmsRecord[]
+    let totalCount: number
     
     if (outId) {
       // 根据OutId查询单个记录
       const record = smsRecordDB.findByOutId(outId)
       records = record ? [record] : []
+      totalCount = records.length
     } else if (phoneNumber) {
       // 根据手机号查询
       records = smsRecordDB.findByPhoneNumber(phoneNumber, limit)
+      totalCount = smsRecordDB.countByPhoneNumber(phoneNumber)
+    } else if (status) {
+      // 根据状态查询
+      records = smsRecordDB.findByStatus(status, limit, offset)
+      totalCount = smsRecordDB.countByStatus(status)
     } else {
       // 查询所有记录
       records = smsRecordDB.findAll(limit, offset)
+      totalCount = smsRecordDB.count()
     }
+    
+    const totalPages = Math.ceil(totalCount / limit)
+    const currentPage = Math.floor(offset / limit) + 1
     
     return NextResponse.json({
       success: true,
       data: records,
-      total: records.length
+      total: totalCount,
+      totalPages,
+      currentPage,
+      pageSize: limit,
+      hasNext: currentPage < totalPages,
+      hasPrev: currentPage > 1
     })
     
   } catch (error) {

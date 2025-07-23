@@ -10,6 +10,7 @@ import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, 
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+import smsMonitorService, { SmsStatusUpdate } from "@/lib/sms-monitor-service"
 
 interface SmsRecord {
   id: number
@@ -55,7 +56,6 @@ export default function SmsMonitorPage() {
   const { toast } = useToast()
   
   const [records, setRecords] = useState<SmsRecord[]>([])
-  const [filteredRecords, setFilteredRecords] = useState<SmsRecord[]>([])
   const [stats, setStats] = useState<Stats>({
     total: 0,
     success: 0,
@@ -75,18 +75,109 @@ export default function SmsMonitorPage() {
   const [dateFilter, setDateFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalRecords, setTotalRecords] = useState(0)
   const itemsPerPage = 20
 
   // Load SMS records
-  const loadRecords = useCallback(async (page = 1) => {
+  const loadRecords = useCallback(async (page = 1, triggerCheck = false) => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/sms-records?limit=${itemsPerPage * 10}&offset=0`)
+      // 如果是手动刷新，先触发后台服务检查
+      if (triggerCheck) {
+        await smsMonitorService.triggerManualCheck()
+      }
+      
+      const offset = (page - 1) * itemsPerPage
+      const response = await fetch(`/api/sms-records?limit=${itemsPerPage}&offset=${offset}`)
+      
       if (response.ok) {
         const result = await response.json()
         if (result.success && result.data) {
           setRecords(result.data)
-          calculateStats(result.data)
+          setTotalRecords(result.total)
+          setTotalPages(result.totalPages)
+          setCurrentPage(result.currentPage)
+          
+          // 使用所有记录计算统计信息（需要获取全部记录）
+          // 为了统计准确性，我们需要获取所有记录来计算统计信息
+          const allRecordsResponse = await fetch(`/api/sms-records?limit=10000&offset=0`)
+          if (allRecordsResponse.ok) {
+            const allRecordsResult = await allRecordsResponse.json()
+            if (allRecordsResult.success && allRecordsResult.data) {
+              calculateStats(allRecordsResult.data)
+            }
+          }
+          
+          // 如果是主动刷新且有发送中的记录，主动查询阿里云状态
+          if (triggerCheck) {
+            const pendingRecords = result.data.filter((record: SmsRecord) => 
+              record.status === '发送中' || record.status === '发送中(已停止查询)'
+            )
+            
+            if (pendingRecords.length > 0) {
+              console.log(`发现 ${pendingRecords.length} 条发送中状态记录，主动查询阿里云状态`)
+              
+              // 并行查询所有发送中的SMS状态
+              const statusPromises = pendingRecords.map(async (record: SmsRecord) => {
+                try {
+                  const statusUpdate = await checkSmsStatus(record.out_id, record.phone_number)
+                  if (statusUpdate) {
+                    // 更新数据库
+                    await fetch('/api/sms-records', {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        out_id: record.out_id,
+                        status: statusUpdate.status,
+                        error_code: statusUpdate.errorCode,
+                        receive_date: statusUpdate.receiveDate
+                      })
+                    })
+                    
+                    return {
+                      outId: record.out_id,
+                      updates: statusUpdate
+                    }
+                  }
+                } catch (error) {
+                  console.error(`查询SMS状态失败 (OutId: ${record.out_id}):`, error)
+                }
+                return null
+              })
+              
+              const results = await Promise.all(statusPromises)
+              const successCount = results.filter(result => result !== null).length
+              
+              if (successCount > 0) {
+                // 重新加载当前页记录以获取更新后的状态
+                const updatedResponse = await fetch(`/api/sms-records?limit=${itemsPerPage}&offset=${offset}`)
+                if (updatedResponse.ok) {
+                  const updatedResult = await updatedResponse.json()
+                  if (updatedResult.success && updatedResult.data) {
+                    setRecords(updatedResult.data)
+                  }
+                }
+                
+                toast({
+                  title: "刷新完成",
+                  description: `已更新SMS状态，成功查询 ${successCount}/${pendingRecords.length} 条记录`,
+                })
+              } else {
+                toast({
+                  title: "刷新完成",
+                  description: "未获取到新的状态更新，可能阿里云仍在处理中",
+                  variant: "secondary",
+                })
+              }
+            } else {
+              toast({
+                title: "刷新完成",
+                description: "没有发送中的记录需要查询",
+              })
+            }
+          }
         }
       }
     } catch (error) {
@@ -100,6 +191,40 @@ export default function SmsMonitorPage() {
       setIsLoading(false)
     }
   }, [toast, itemsPerPage])
+
+  // 查询阿里云SMS状态
+  const checkSmsStatus = async (outId: string, phoneNumber: string) => {
+    try {
+      if (!phoneNumber) {
+        console.error("手机号码未配置")
+        return null
+      }
+
+      const response = await fetch('/api/sms-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          outId,
+          phoneNumber
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("API调用失败:", errorData)
+        throw new Error(errorData.error || '未知错误')
+      }
+
+      const data = await response.json()
+      return data
+
+    } catch (error) {
+      console.error("查询短信状态失败:", error)
+      return null
+    }
+  }
 
   // Calculate statistics
   const calculateStats = (data: SmsRecord[]) => {
@@ -163,61 +288,21 @@ export default function SmsMonitorPage() {
     })
   }
 
-  // Filter records
+  // Filter records - 暂时保留客户端筛选，后续可优化为服务端筛选
   useEffect(() => {
-    let filtered = [...records]
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(record => 
-        record.phone_number.includes(searchTerm) ||
-        record.out_id.includes(searchTerm) ||
-        (record.content && renderSmsContent(record.content, record.template_params).includes(searchTerm)) ||
-        (record.phone_note && record.phone_note.includes(searchTerm))
-      )
+    // 当筛选条件改变时重置到第一页并重新加载数据
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+      loadRecords(1)
+    } else {
+      loadRecords(currentPage)
     }
+  }, [searchTerm, statusFilter, carrierFilter, templateFilter, dateFilter, loadRecords])
 
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(record => record.status === statusFilter)
-    }
-
-    // Carrier filter
-    if (carrierFilter !== "all") {
-      filtered = filtered.filter(record => record.carrier === carrierFilter)
-    }
-
-    // Template filter
-    if (templateFilter !== "all") {
-      filtered = filtered.filter(record => record.template_name === templateFilter)
-    }
-
-    // Date filter
-    if (dateFilter !== "all") {
-      const now = new Date()
-      const filterDate = new Date()
-      
-      switch (dateFilter) {
-        case "today":
-          filterDate.setHours(0, 0, 0, 0)
-          break
-        case "week":
-          filterDate.setDate(now.getDate() - 7)
-          break
-        case "month":
-          filterDate.setMonth(now.getMonth() - 1)
-          break
-      }
-      
-      filtered = filtered.filter(record => 
-        new Date(record.created_at) >= filterDate
-      )
-    }
-
-    setFilteredRecords(filtered)
-    setTotalPages(Math.ceil(filtered.length / itemsPerPage))
-    setCurrentPage(1)
-  }, [records, searchTerm, statusFilter, carrierFilter, templateFilter, dateFilter, itemsPerPage])
+  // 当页码改变时加载对应页面数据
+  useEffect(() => {
+    loadRecords(currentPage)
+  }, [currentPage, loadRecords])
 
   // Get unique carriers and templates for filter options
   const getFilterOptions = () => {
@@ -250,14 +335,19 @@ export default function SmsMonitorPage() {
     }
   }
 
-  // Get paginated records
-  const paginatedRecords = filteredRecords.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
-
   useEffect(() => {
     loadRecords()
+    
+    // 设置SMS状态更新监听器
+    const unsubscribe = smsMonitorService.onStatusUpdate((updates: SmsStatusUpdate[]) => {
+      // 当后台服务更新状态时，重新加载记录以获取最新数据
+      loadRecords()
+    })
+    
+    // 清理函数
+    return () => {
+      unsubscribe()
+    }
   }, [loadRecords])
 
   const getStatusBadgeVariant = (status: string) => {
@@ -297,7 +387,7 @@ export default function SmsMonitorPage() {
   const exportData = () => {
     const csvContent = [
       ["发送ID", "手机号", "状态", "发送时间", "送达时间", "错误代码"].join(","),
-      ...filteredRecords.map(record => [
+      ...records.map(record => [
         record.out_id,
         record.phone_number,
         record.status,
@@ -397,13 +487,18 @@ export default function SmsMonitorPage() {
             </Link>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">短信发送监控</h1>
-              <p className="text-gray-600 mt-1">实时监控短信发送状态和统计数据</p>
+              <p className="text-gray-600 mt-1">实时监控短信发送状态和统计数据 (后台自动更新)</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => loadRecords()}>
+            <Button 
+              variant="outline" 
+              onClick={() => loadRecords(1, true)}
+              disabled={isLoading}
+              title="刷新记录并主动查询阿里云最新状态"
+            >
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              刷新
+              {isLoading ? "查询中..." : "强制刷新"}
             </Button>
             <Button variant="outline" onClick={exportData}>
               <Download className="w-4 h-4 mr-2" />
@@ -634,7 +729,7 @@ export default function SmsMonitorPage() {
               </Select>
               <div className="flex items-center text-sm text-gray-600">
                 <Filter className="w-4 h-4 mr-2" />
-                显示 {filteredRecords.length} 条记录
+                显示第 {currentPage} 页，共 {totalPages} 页 (总计 {totalRecords} 条记录)
               </div>
             </div>
           </CardContent>
@@ -651,13 +746,13 @@ export default function SmsMonitorPage() {
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400" />
                 <p className="text-gray-500 mt-2">加载中...</p>
               </div>
-            ) : paginatedRecords.length === 0 ? (
+            ) : records.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 暂无符合条件的记录
               </div>
             ) : (
               <div className="space-y-3">
-                {paginatedRecords.map((record) => (
+                {records.map((record) => (
                   <div key={record.id} className="border rounded-lg p-4 hover:bg-gray-50">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
@@ -702,6 +797,16 @@ export default function SmsMonitorPage() {
                       <p>发送时间: {formatDate(record.send_date || record.created_at)}</p>
                       {record.receive_date && (
                         <p>送达时间: {formatDate(record.receive_date)}</p>
+                      )}
+                      {record.error_code && record.error_code !== "DELIVERED" && record.status === "发送失败" && (
+                        <div className="bg-red-50 border border-red-200 rounded p-3 mt-2">
+                          <p className="text-red-800 font-medium text-sm mb-1">
+                            失败原因: {getErrorMessage(record.error_code)}
+                          </p>
+                          <p className="text-red-600 text-xs">
+                            错误代码: {record.error_code}
+                          </p>
+                        </div>
                       )}
                       {record.content && (
                         <p className="text-xs bg-gray-100 p-2 rounded mt-2">

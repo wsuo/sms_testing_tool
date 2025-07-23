@@ -11,8 +11,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import PhoneNumberManagerModal from "@/components/phone-number-manager-modal"
+import BulkSendModal from "@/components/bulk-send-modal"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
+import smsMonitorService, { SmsStatusUpdate } from "@/lib/sms-monitor-service"
 
 interface SmsTemplate {
   id: string
@@ -65,13 +67,16 @@ export default function SmsTestingTool() {
   // Status monitoring
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [autoRefresh, setAutoRefresh] = useState(false)
 
   // Configuration modal
   const [showConfigModal, setShowConfigModal] = useState(false)
   
+  // Bulk send modal
+  const [showBulkSendModal, setShowBulkSendModal] = useState(false)
+  
   // 401 error state
   const [show401Error, setShow401Error] = useState(false)
+  const [isInitialLoad, setIsInitialLoad] = useState(true) // 标记是否为初始加载
 
   // Refresh token utility function
   const refreshAccessToken = async (): Promise<{ success: boolean; newToken?: string }> => {
@@ -309,10 +314,12 @@ export default function SmsTestingTool() {
     if (savedAdminToken) {
       setAdminToken(savedAdminToken)
       setTokensConfigured(true)
-      // Validate tokens by trying to fetch templates
-      setTimeout(() => {
-        fetchTemplates(savedAdminToken)
-      }, 500)
+      // 立即加载模板，不延迟
+      fetchTemplates(savedAdminToken, true).finally(() => {
+        setIsInitialLoad(false) // 完成初始加载后设为false
+      })
+    } else {
+      setIsInitialLoad(false) // 没有token时也要设为false
     }
     if (savedRefreshToken) {
       setRefreshToken(savedRefreshToken)
@@ -324,23 +331,38 @@ export default function SmsTestingTool() {
     // Load SMS history from database
     loadSmsHistory()
     
+    // 加载待监控的SMS记录到后台服务
+    smsMonitorService.loadPendingMessages()
+    
     // Restore user state
     restoreUserState()
+    
+    // 设置SMS状态更新监听器
+    const unsubscribe = smsMonitorService.onStatusUpdate((updates: SmsStatusUpdate[]) => {
+      setSmsStatuses(prevStatuses => {
+        const updatedStatuses = [...prevStatuses]
+        
+        updates.forEach(update => {
+          const index = updatedStatuses.findIndex(sms => sms.outId === update.outId)
+          if (index !== -1) {
+            updatedStatuses[index] = {
+              ...updatedStatuses[index],
+              status: update.status,
+              errorCode: update.errorCode,
+              receiveDate: update.receiveDate
+            }
+          }
+        })
+        
+        return updatedStatuses
+      })
+    })
+    
+    // 清理函数
+    return () => {
+      unsubscribe()
+    }
   }, [])
-
-  // Auto-save tokens to localStorage when they change
-  useEffect(() => {
-    if (adminToken.trim()) {
-      localStorage.setItem("sms-admin-token", adminToken)
-    }
-  }, [adminToken])
-
-
-  useEffect(() => {
-    if (refreshToken.trim()) {
-      localStorage.setItem("sms-refresh-token", refreshToken)
-    }
-  }, [refreshToken])
 
   // 保存用户状态当状态变化时
   useEffect(() => {
@@ -372,6 +394,7 @@ export default function SmsTestingTool() {
     }
     setTokensConfigured(true)
     setShowConfigModal(false) // 关闭模态框
+    setShow401Error(false) // 清除401错误状态
 
     toast({
       title: "成功",
@@ -383,7 +406,7 @@ export default function SmsTestingTool() {
   }
 
   // Fetch SMS templates with improved error handling
-  const fetchTemplates = useCallback(async (tokenOverride?: string) => {
+  const fetchTemplates = useCallback(async (tokenOverride?: string, isInitial = false) => {
     try {
       const tokenToUse = tokenOverride || adminToken
       
@@ -398,16 +421,18 @@ export default function SmsTestingTool() {
         
         // Check if the response indicates authentication failure
         if (data.code === 401) {
-          // If still 401 after refresh attempt, show config modal only if no tokens saved
-          if (!localStorage.getItem("sms-admin-token")) {
-            setShowConfigModal(true)
-            toast({
-              title: "需要配置",
-              description: "请配置管理后台令牌以使用系统",
-              variant: "destructive",
-            })
-          } else {
-            setShow401Error(true)
+          // 初始加载时不显示401错误，只有用户主动操作时才显示
+          if (!isInitial) {
+            if (!localStorage.getItem("sms-admin-token")) {
+              setShowConfigModal(true)
+              toast({
+                title: "需要配置",
+                description: "请配置管理后台令牌以使用系统",
+                variant: "destructive",
+              })
+            } else {
+              setShow401Error(true)
+            }
           }
           return
         }
@@ -422,21 +447,24 @@ export default function SmsTestingTool() {
                               (data.data?.list ? data.data.list : [])
         
         setTemplates(templatesData)
+        // 初始加载成功时也显示提示，让用户知道模板已自动加载
         toast({
           title: "成功",
           description: `已加载 ${templatesData.length} 个短信模板`,
         })
       } else if (response.status === 401) {
-        // If still 401 after refresh attempt, show config modal only if no tokens saved
-        if (!localStorage.getItem("sms-admin-token")) {
-          setShowConfigModal(true)
-          toast({
-            title: "需要配置",
-            description: "请配置管理后台令牌以使用系统",
-            variant: "destructive",
-          })
-        } else {
-          setShow401Error(true)
+        // 初始加载时不显示401错误，只有用户主动操作时才显示
+        if (!isInitial) {
+          if (!localStorage.getItem("sms-admin-token")) {
+            setShowConfigModal(true)
+            toast({
+              title: "需要配置",
+              description: "请配置管理后台令牌以使用系统",
+              variant: "destructive",
+            })
+          } else {
+            setShow401Error(true)
+          }
         }
       } else {
         const errorData = await response.json().catch(() => ({}))
@@ -447,11 +475,14 @@ export default function SmsTestingTool() {
       console.error("获取短信模板失败:", error)
       // Ensure templates is empty array on error
       setTemplates([])
-      toast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "获取短信模板失败，请检查网络连接",
-        variant: "destructive",
-      })
+      // 初始加载时不显示错误toast
+      if (!isInitial) {
+        toast({
+          title: "错误",
+          description: error instanceof Error ? error.message : "获取短信模板失败，请检查网络连接",
+          variant: "destructive",
+        })
+      }
     }
   }, [adminToken, toast, callAdminApi])
 
@@ -619,7 +650,9 @@ export default function SmsTestingTool() {
         }
 
         setSmsStatuses((prev) => [newStatus, ...prev])
-        setAutoRefresh(true)
+        
+        // 添加到后台监控服务
+        smsMonitorService.addSmsForMonitoring(outId)
 
         toast({
           title: "成功",
@@ -700,111 +733,106 @@ export default function SmsTestingTool() {
     }
   }
 
-  // Refresh SMS statuses
+  // 手动刷新SMS状态
   const refreshStatuses = useCallback(async () => {
-    if (smsStatuses.length === 0) return
-
     setIsRefreshing(true)
-
-    const updatedStatuses = await Promise.all(
-      smsStatuses.map(async (sms) => {
-        if (sms.status === "已送达" || sms.status === "发送失败") {
-          return sms // Don't update completed statuses
-        }
-
-        // 检查数据库中的重试记录
-        try {
-          const dbResponse = await fetch(`/api/sms-records?out_id=${sms.outId}`)
-          if (dbResponse.ok) {
-            const dbResult = await dbResponse.json()
-            const dbRecord = dbResult.data?.[0]
-            
-            // 如果重试次数已达到上限，跳过查询
-            if (dbRecord && dbRecord.retry_count && dbRecord.retry_count >= 20) {
+    try {
+      // 1. 触发后台监控服务的手动检查
+      await smsMonitorService.triggerManualCheck()
+      
+      // 2. 主动查询所有"发送中"状态的SMS记录
+      const pendingStatuses = smsStatuses.filter(sms => 
+        sms.status === "发送中" || sms.status === "发送中(已停止查询)"
+      )
+      
+      if (pendingStatuses.length > 0) {
+        console.log(`发现 ${pendingStatuses.length} 条发送中状态记录，主动查询阿里云状态`)
+        
+        // 并行查询所有发送中的SMS状态
+        const statusPromises = pendingStatuses.map(async (sms) => {
+          try {
+            const statusUpdate = await checkSmsStatus(sms.outId, sms.phoneNumber)
+            if (statusUpdate) {
+              // 更新数据库
+              await fetch('/api/sms-records', {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  out_id: sms.outId,
+                  status: statusUpdate.status,
+                  error_code: statusUpdate.errorCode,
+                  receive_date: statusUpdate.receiveDate
+                })
+              })
               
-              // 如果还是发送中状态，添加说明
-              if (sms.status === "发送中") {
-                return { 
-                  ...sms, 
-                  status: "发送中(已停止查询)",
-                  note: "已重试20次，交由用户手动刷新" 
+              return {
+                outId: sms.outId,
+                updates: statusUpdate
+              }
+            }
+          } catch (error) {
+            console.error(`查询SMS状态失败 (OutId: ${sms.outId}):`, error)
+          }
+          return null
+        })
+        
+        const results = await Promise.all(statusPromises)
+        const successCount = results.filter(result => result !== null).length
+        
+        // 更新本地状态
+        setSmsStatuses(prevStatuses => {
+          const updatedStatuses = [...prevStatuses]
+          results.forEach(result => {
+            if (result) {
+              const index = updatedStatuses.findIndex(sms => sms.outId === result.outId)
+              if (index !== -1) {
+                updatedStatuses[index] = {
+                  ...updatedStatuses[index],
+                  status: result.updates.status,
+                  errorCode: result.updates.errorCode,
+                  receiveDate: result.updates.receiveDate
                 }
               }
-              return sms
             }
-            
-            // 更新重试计数
-            const newRetryCount = (dbRecord?.retry_count || 0) + 1
-            await fetch('/api/sms-records', {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                out_id: sms.outId,
-                retry_count: newRetryCount,
-                last_retry_at: new Date().toISOString()
-              })
-            })
-          }
-        } catch (dbError) {
-          console.error('Failed to check retry count:', dbError)
+          })
+          return updatedStatuses
+        })
+        
+        if (successCount > 0) {
+          toast({
+            title: "刷新完成",
+            description: `已更新SMS状态，成功查询 ${successCount}/${pendingStatuses.length} 条记录`,
+          })
+        } else {
+          toast({
+            title: "刷新完成",
+            description: "未获取到新的状态更新，可能阿里云仍在处理中",
+            variant: "secondary",
+          })
         }
-
-        const statusUpdate = await checkSmsStatus(sms.outId, sms.phoneNumber)
-        if (statusUpdate) {
-          // Update database with new status
-          try {
-            await fetch('/api/sms-records', {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                out_id: sms.outId,
-                status: statusUpdate.status,
-                error_code: statusUpdate.errorCode,
-                receive_date: statusUpdate.receiveDate
-              })
-            })
-          } catch (dbError) {
-            console.error('Failed to update SMS record in database:', dbError)
-            // 不阻断用户流程，只记录错误
-          }
-          
-          return { ...sms, ...statusUpdate }
-        }
-        return sms
-      }),
-    )
-
-    setSmsStatuses(updatedStatuses)
-    setIsRefreshing(false)
-  }, [smsStatuses])
-
-  // Auto-refresh effect
-  useEffect(() => {
-    if (!autoRefresh) return
-
-    const interval = setInterval(() => {
-      refreshStatuses()
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [autoRefresh, refreshStatuses])
-
-  // Stop auto-refresh when all messages are completed
-  useEffect(() => {
-    const allCompleted = smsStatuses.every((sms) => 
-      sms.status === "已送达" || 
-      sms.status === "发送失败" || 
-      sms.status === "发送中(已停止查询)"
-    )
-
-    if (allCompleted && smsStatuses.length > 0) {
-      setAutoRefresh(false)
+      } else {
+        toast({
+          title: "刷新完成",
+          description: "没有发送中的记录需要查询",
+        })
+      }
+      
+      // 3. 重新加载SMS历史记录以获取最新状态
+      await loadSmsHistory()
+      
+    } catch (error) {
+      console.error('手动刷新失败:', error)
+      toast({
+        title: "刷新失败",
+        description: "无法更新SMS状态",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRefreshing(false)
     }
-  }, [smsStatuses])
+  }, [smsStatuses, checkSmsStatus, loadSmsHistory, toast])
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -851,6 +879,29 @@ export default function SmsTestingTool() {
 
     return errorMap[errorCode] || `未知错误代码: ${errorCode}`
   }
+
+  // 计算后台监控状态
+  const getMonitoringStatus = () => {
+    const pendingCount = smsStatuses.filter(sms => 
+      sms.status === "发送中" || sms.status === "发送中(已停止查询)"
+    ).length
+    
+    if (pendingCount > 0) {
+      return {
+        isMonitoring: true,
+        text: `后台监控中 (${pendingCount}条)`,
+        variant: "default" as const
+      }
+    } else {
+      return {
+        isMonitoring: false,  
+        text: "监控空闲",
+        variant: "secondary" as const
+      }
+    }
+  }
+
+  const monitoringStatus = getMonitoringStatus()
 
   // Configuration Modal Component - 使用 useMemo 优化渲染性能
   const ConfigurationModal = useMemo(() => {
@@ -1249,16 +1300,31 @@ export default function SmsTestingTool() {
               </Card>
             )}
 
-            {/* Send Button */}
-            <Button
-              onClick={sendSms}
-              disabled={!selectedTemplate || !phoneNumber.trim() || isSending}
-              className="w-full"
-              size="lg"
-            >
-              <Send className="w-4 h-4 mr-2" />
-              {isSending ? "发送中..." : "发送短信"}
-            </Button>
+            {/* Send Buttons */}
+            <div className="space-y-3">
+              <Button
+                onClick={sendSms}
+                disabled={!selectedTemplate || !phoneNumber.trim() || isSending}
+                className="w-full"
+                size="lg"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                {isSending ? "发送中..." : "发送短信"}
+              </Button>
+              
+              {selectedTemplate && (
+                <Button
+                  onClick={() => setShowBulkSendModal(true)}
+                  disabled={isSending}
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  一键发送给所有号码
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Right Panel - Status Monitoring */}
@@ -1276,11 +1342,18 @@ export default function SmsTestingTool() {
                         查看详情
                       </Button>
                     </Link>
-                    <Button variant="outline" size="sm" onClick={refreshStatuses} disabled={isRefreshing}>
-                      <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={refreshStatuses} 
+                      disabled={isRefreshing}
+                      title="刷新状态并主动查询阿里云最新状态"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-1 ${isRefreshing ? "animate-spin" : ""}`} />
+                      {isRefreshing ? "查询中..." : "强制刷新"}
                     </Button>
-                    <Badge variant={autoRefresh ? "default" : "secondary"}>
-                      {autoRefresh ? "自动刷新中" : "手动刷新"}
+                    <Badge variant={monitoringStatus.variant}>
+                      {monitoringStatus.text}
                     </Badge>
                   </div>
                 </CardTitle>
@@ -1290,7 +1363,7 @@ export default function SmsTestingTool() {
                   <div className="text-center py-8 text-gray-500">暂无发送记录</div>
                 ) : (
                   <div className="space-y-4">
-                    {smsStatuses.slice(0, 3).map((sms) => (
+                    {smsStatuses.slice(0, 5).map((sms) => (
                       <div key={sms.outId} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">OutId: {sms.outId}</span>
@@ -1300,10 +1373,10 @@ export default function SmsTestingTool() {
                           <p>手机号码: {sms.phoneNumber}</p>
                           <p>发送时间: {sms.sendDate}</p>
                           {sms.receiveDate && <p>送达时间: {sms.receiveDate}</p>}
-                          {sms.errorCode && sms.errorCode !== "DELIVERED" && (
-                            <div className="text-red-600">
-                              <p className="font-medium">错误信息: {getErrorMessage(sms.errorCode)}</p>
-                              <p className="text-xs text-gray-500 mt-1">错误代码: {sms.errorCode}</p>
+                          {sms.errorCode && sms.errorCode !== "DELIVERED" && sms.status === "发送失败" && (
+                            <div className="bg-red-50 border border-red-200 rounded p-2 mt-2">
+                              <p className="text-red-800 font-medium text-sm">失败原因: {getErrorMessage(sms.errorCode)}</p>
+                              <p className="text-red-600 text-xs mt-1">错误代码: {sms.errorCode}</p>
                             </div>
                           )}
                         </div>
@@ -1328,11 +1401,13 @@ export default function SmsTestingTool() {
               <AlertDescription>
                 <strong>使用说明:</strong>
                 <ul className="mt-2 space-y-1 text-sm">
-                  <li>• 系统每3秒自动刷新发送状态</li>
+                  <li>• 系统后台自动监控SMS状态，无需手动刷新</li>
+                  <li>• <strong>强制刷新</strong>：主动查询阿里云最新状态，解决延迟反馈问题</li>
+                  <li>• <strong>一键发送</strong>：选择模板后可批量发送给所有号码，支持搜索和分组选择</li>
                   <li>• 可点击"查看详情"查看完整的发送记录和统计</li>
                   <li>• 点击"管理号码"可添加和管理常用手机号</li>
                   <li>• 令牌信息已本地保存，刷新页面不会丢失</li>
-                  <li>• 支持多个短信同时监控状态</li>
+                  <li>• 支持多个短信同时监控状态，切换页面不会中断监控</li>
                 </ul>
               </AlertDescription>
             </Alert>
@@ -1342,6 +1417,24 @@ export default function SmsTestingTool() {
       
       {/* Configuration Modal */}
       {ConfigurationModal}
+      
+      {/* Bulk Send Modal */}
+      <BulkSendModal
+        open={showBulkSendModal}
+        onOpenChange={setShowBulkSendModal}
+        selectedTemplate={selectedTemplate}
+        templateParams={templateParams}
+        onSendComplete={(results) => {
+          // 批量发送完成后，刷新SMS状态列表
+          loadSmsHistory()
+          // 添加发送成功的记录到后台监控服务
+          results.forEach(result => {
+            if (result.status === 'success') {
+              smsMonitorService.addSmsForMonitoring(result.outId)
+            }
+          })
+        }}
+      />
     </div>
   )
 }
