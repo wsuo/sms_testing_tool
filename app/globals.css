@@ -10,6 +10,54 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  
+  /* 彻底禁用文本省略号的通用类 */
+  .text-ellipsis-none {
+    text-overflow: unset !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+    max-width: none !important;
+  }
+  
+  /* 防止 SelectValue 组件使用省略号 - 更强的样式覆盖 */
+  .select-no-truncate {
+    overflow: visible !important;
+  }
+  
+  .select-no-truncate [data-radix-select-value] {
+    overflow: visible !important;
+    white-space: nowrap !important;
+    text-overflow: unset !important;
+    max-width: none !important;
+    width: 100% !important;
+    display: block !important;
+  }
+  
+  .select-no-truncate > span,
+  .select-no-truncate [data-radix-select-trigger] > span {
+    overflow: visible !important;
+    white-space: nowrap !important;
+    text-overflow: unset !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  
+  /* 覆盖所有可能的省略号样式 */
+  .select-no-truncate * {
+    text-overflow: unset !important;
+    overflow: visible !important;
+  }
+  
+  /* 特别针对选中值的样式 */
+  .select-no-truncate [data-radix-select-value]:not(:empty) {
+    overflow: visible !important;
+    white-space: nowrap !important;
+    text-overflow: unset !important;
+    max-width: none !important;
+    width: auto !important;
+    display: inline !important;
+  }
 }
 
 @layer base {

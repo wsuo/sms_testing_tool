@@ -32,6 +32,8 @@ function initializeTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       out_id TEXT NOT NULL,
       phone_number TEXT NOT NULL,
+      carrier TEXT, -- 运营商信息
+      phone_note TEXT, -- 手机号备注信息
       template_code TEXT,
       template_name TEXT, -- 模板中文名称
       template_params TEXT, -- JSON字符串存储模板参数
@@ -107,7 +109,9 @@ function runMigrations() {
       { name: 'retry_count', sql: 'ALTER TABLE sms_records ADD COLUMN retry_count INTEGER DEFAULT 0' },
       { name: 'last_retry_at', sql: 'ALTER TABLE sms_records ADD COLUMN last_retry_at DATETIME' },
       { name: 'auto_refresh_enabled', sql: 'ALTER TABLE sms_records ADD COLUMN auto_refresh_enabled INTEGER DEFAULT 1' },
-      { name: 'template_name', sql: 'ALTER TABLE sms_records ADD COLUMN template_name TEXT' }
+      { name: 'template_name', sql: 'ALTER TABLE sms_records ADD COLUMN template_name TEXT' },
+      { name: 'carrier', sql: 'ALTER TABLE sms_records ADD COLUMN carrier TEXT' },
+      { name: 'phone_note', sql: 'ALTER TABLE sms_records ADD COLUMN phone_note TEXT' }
     ]
     
     // 添加缺失的字段
@@ -131,6 +135,8 @@ export interface SmsRecord {
   id?: number
   out_id: string
   phone_number: string
+  carrier?: string
+  phone_note?: string
   template_code?: string
   template_name?: string
   template_params?: string
@@ -168,13 +174,15 @@ export class SmsRecordDB {
   insertRecord(record: Omit<SmsRecord, 'id' | 'created_at' | 'updated_at'>): number {
     const stmt = this.db.prepare(`
       INSERT INTO sms_records 
-      (out_id, phone_number, template_code, template_name, template_params, content, send_date, status, error_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (out_id, phone_number, carrier, phone_note, template_code, template_name, template_params, content, send_date, status, error_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     
     const result = stmt.run(
       record.out_id,
       record.phone_number,
+      record.carrier || null,
+      record.phone_note || null,
       record.template_code || null,
       record.template_name || null,
       record.template_params || null,
@@ -187,6 +195,36 @@ export class SmsRecordDB {
     return result.lastInsertRowid as number
   }
   
+  // 更新SMS记录的运营商和备注信息
+  updateCarrierInfo(outId: string, carrier?: string, phoneNote?: string): boolean {
+    const updateFields: string[] = []
+    const values: any[] = []
+    
+    if (carrier !== undefined) {
+      updateFields.push('carrier = ?')
+      values.push(carrier)
+    }
+    
+    if (phoneNote !== undefined) {
+      updateFields.push('phone_note = ?')
+      values.push(phoneNote)
+    }
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = CURRENT_TIMESTAMP')
+    values.push(outId)
+    
+    const stmt = this.db.prepare(`
+      UPDATE sms_records 
+      SET ${updateFields.join(', ')}
+      WHERE out_id = ?
+    `)
+    
+    const result = stmt.run(...values)
+    return result.changes > 0
+  }
+
   // 更新SMS状态
   updateStatus(outId: string, updates: Partial<Pick<SmsRecord, 'status' | 'error_code' | 'receive_date' | 'retry_count' | 'last_retry_at' | 'auto_refresh_enabled'>>): boolean {
     const updateFields: string[] = []

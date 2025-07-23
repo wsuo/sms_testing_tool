@@ -8,6 +8,16 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
     const carrier = searchParams.get('carrier')
+    const number = searchParams.get('number')
+    
+    // 如果查询特定手机号码
+    if (number) {
+      const phoneNumber = phoneNumberDB.findByNumber(number)
+      return NextResponse.json({
+        success: true,
+        data: phoneNumber
+      })
+    }
     
     let phoneNumbers: PhoneNumber[]
     

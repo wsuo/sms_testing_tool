@@ -75,6 +75,8 @@ export async function POST(request: NextRequest) {
     const recordId = smsRecordDB.insertRecord({
       out_id: body.out_id,
       phone_number: body.phone_number,
+      carrier: body.carrier,
+      phone_note: body.phone_note,
       template_code: body.template_code,
       template_name: body.template_name,
       template_params: body.template_params ? JSON.stringify(body.template_params) : undefined,

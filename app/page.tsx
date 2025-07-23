@@ -553,8 +553,40 @@ export default function SmsTestingTool() {
         
         const outId = data.data ? String(data.data) : `${Date.now()}` // Convert to string for consistency
 
-        // Save to database
+        // Save to database - query phone number details first
         try {
+          // Query phone number details
+          let carrier = '';
+          let phoneNote = '';
+          
+          try {
+            const phoneResponse = await fetch(`/api/phone-numbers?number=${encodeURIComponent(phoneNumber)}`);
+            if (phoneResponse.ok) {
+              const phoneData = await phoneResponse.json();
+              if (phoneData.success && phoneData.data) {
+                carrier = phoneData.data.carrier || '';
+                phoneNote = phoneData.data.note || '';
+              }
+            }
+          } catch (phoneError) {
+            console.error('Failed to query phone number details:', phoneError);
+            // Continue without carrier/note info
+          }
+          
+          // 渲染真实内容，替换占位符
+          const renderContent = (template: string, params: Record<string, string>) => {
+            let rendered = template;
+            Object.keys(params).forEach(key => {
+              const placeholder = `\${${key}}`;
+              rendered = rendered.replaceAll(placeholder, params[key] || key);
+            });
+            return rendered;
+          };
+          
+          const actualContent = selectedTemplate?.content ? 
+            renderContent(selectedTemplate.content, templateParams) : 
+            selectedTemplate?.content;
+          
           await fetch('/api/sms-records', {
             method: 'POST',
             headers: {
@@ -563,10 +595,12 @@ export default function SmsTestingTool() {
             body: JSON.stringify({
               out_id: outId,
               phone_number: phoneNumber,
+              carrier: carrier,
+              phone_note: phoneNote,
               template_code: selectedTemplate?.code,
               template_name: selectedTemplate?.name,
               template_params: templateParams,
-              content: selectedTemplate?.content,
+              content: actualContent, // 保存渲染后的真实内容
               send_date: new Date().toLocaleString("zh-CN"),
               status: "发送中"
             })
@@ -1064,13 +1098,13 @@ export default function SmsTestingTool() {
                 {savedPhoneNumbers.length > 0 && (
                   <div className="space-y-3">
                     <div className="text-sm text-gray-600">或从已保存的号码中选择：</div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex gap-2 items-end">
                       {/* 运营商选择 */}
-                      <div>
+                      <div className="min-w-0 flex-shrink-0">
                         <Label className="text-xs text-gray-500 mb-1 block">选择运营商</Label>
                         <div className="flex gap-1">
                           <Select value={selectedCarrier} onValueChange={handleCarrierSelect}>
-                            <SelectTrigger className="h-9">
+                            <SelectTrigger className="h-9 w-auto min-w-[120px]">
                               <SelectValue placeholder="选择运营商" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1103,15 +1137,32 @@ export default function SmsTestingTool() {
                       </div>
                       
                       {/* 手机号码选择 */}
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <Label className="text-xs text-gray-500 mb-1 block">选择号码</Label>
                         <Select 
                           value={phoneNumber} 
                           onValueChange={setPhoneNumber}
                           disabled={!selectedCarrier}
                         >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder={selectedCarrier ? "选择号码" : "请先选择运营商"} />
+                          <SelectTrigger className="h-9 select-no-truncate w-full overflow-visible">
+                            <div className="w-full overflow-visible">
+                              {phoneNumber ? (
+                                <div className="text-left w-full overflow-visible">
+                                  <div className="font-medium overflow-visible text-ellipsis-none whitespace-nowrap">
+                                    {phoneNumber}
+                                  </div>
+                                  {carrierPhoneNumbers.find(p => p.number === phoneNumber)?.note && (
+                                    <div className="text-xs text-gray-500 overflow-visible text-ellipsis-none whitespace-nowrap">
+                                      备注: {carrierPhoneNumbers.find(p => p.number === phoneNumber)?.note}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">
+                                  {selectedCarrier ? "选择号码" : "请先选择运营商"}
+                                </span>
+                              )}
+                            </div>
                           </SelectTrigger>
                           <SelectContent className="w-full">
                             {carrierPhoneNumbers.map((phone) => (

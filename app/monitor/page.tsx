@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react"
+import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2, MessageSquare } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -15,8 +15,11 @@ interface SmsRecord {
   id: number
   out_id: string
   phone_number: string
+  carrier?: string
+  phone_note?: string
   template_code?: string
   template_name?: string  // 添加模板名称字段
+  template_params?: string // 添加模板参数字段
   content?: string
   send_date?: string
   receive_date?: string
@@ -33,6 +36,18 @@ interface Stats {
   pending: number
   todayTotal: number
   successRate: number
+  carrierStats: Record<string, {
+    total: number
+    success: number
+    failed: number
+    successRate: number
+  }>
+  templateStats: Record<string, {
+    total: number
+    success: number
+    failed: number
+    successRate: number
+  }>
 }
 
 export default function SmsMonitorPage() {
@@ -47,12 +62,16 @@ export default function SmsMonitorPage() {
     failed: 0,
     pending: 0,
     todayTotal: 0,
-    successRate: 0
+    successRate: 0,
+    carrierStats: {},
+    templateStats: {}
   })
   
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [carrierFilter, setCarrierFilter] = useState("all")
+  const [templateFilter, setTemplateFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -96,13 +115,51 @@ export default function SmsMonitorPage() {
     const todayTotal = todayRecords.length
     const successRate = total > 0 ? (success / total * 100) : 0
 
+    // Calculate carrier statistics
+    const carrierStats: Record<string, {total: number, success: number, failed: number, successRate: number}> = {}
+    data.forEach(record => {
+      const carrier = record.carrier || '未知运营商'
+      if (!carrierStats[carrier]) {
+        carrierStats[carrier] = { total: 0, success: 0, failed: 0, successRate: 0 }
+      }
+      carrierStats[carrier].total++
+      if (record.status === '已送达') carrierStats[carrier].success++
+      if (record.status === '发送失败') carrierStats[carrier].failed++
+    })
+    
+    // Calculate success rates for carriers
+    Object.keys(carrierStats).forEach(carrier => {
+      const stats = carrierStats[carrier]
+      stats.successRate = stats.total > 0 ? (stats.success / stats.total * 100) : 0
+    })
+
+    // Calculate template statistics
+    const templateStats: Record<string, {total: number, success: number, failed: number, successRate: number}> = {}
+    data.forEach(record => {
+      const template = record.template_name || '未知模板'
+      if (!templateStats[template]) {
+        templateStats[template] = { total: 0, success: 0, failed: 0, successRate: 0 }
+      }
+      templateStats[template].total++
+      if (record.status === '已送达') templateStats[template].success++
+      if (record.status === '发送失败') templateStats[template].failed++
+    })
+    
+    // Calculate success rates for templates
+    Object.keys(templateStats).forEach(template => {
+      const stats = templateStats[template]
+      stats.successRate = stats.total > 0 ? (stats.success / stats.total * 100) : 0
+    })
+
     setStats({
       total,
       success,
       failed,
       pending,
       todayTotal,
-      successRate: Number(successRate.toFixed(1))
+      successRate: Number(successRate.toFixed(1)),
+      carrierStats,
+      templateStats
     })
   }
 
@@ -115,13 +172,24 @@ export default function SmsMonitorPage() {
       filtered = filtered.filter(record => 
         record.phone_number.includes(searchTerm) ||
         record.out_id.includes(searchTerm) ||
-        (record.content && record.content.includes(searchTerm))
+        (record.content && renderSmsContent(record.content, record.template_params).includes(searchTerm)) ||
+        (record.phone_note && record.phone_note.includes(searchTerm))
       )
     }
 
     // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter(record => record.status === statusFilter)
+    }
+
+    // Carrier filter
+    if (carrierFilter !== "all") {
+      filtered = filtered.filter(record => record.carrier === carrierFilter)
+    }
+
+    // Template filter
+    if (templateFilter !== "all") {
+      filtered = filtered.filter(record => record.template_name === templateFilter)
     }
 
     // Date filter
@@ -149,7 +217,38 @@ export default function SmsMonitorPage() {
     setFilteredRecords(filtered)
     setTotalPages(Math.ceil(filtered.length / itemsPerPage))
     setCurrentPage(1)
-  }, [records, searchTerm, statusFilter, dateFilter, itemsPerPage])
+  }, [records, searchTerm, statusFilter, carrierFilter, templateFilter, dateFilter, itemsPerPage])
+
+  // Get unique carriers and templates for filter options
+  const getFilterOptions = () => {
+    const carriers = [...new Set(records.filter(r => r.carrier).map(r => r.carrier!))]
+    const templates = [...new Set(records.filter(r => r.template_name).map(r => r.template_name!))]
+    return { carriers, templates }
+  }
+
+  const { carriers, templates } = getFilterOptions()
+
+  // 渲染SMS内容，替换占位符为真实数据
+  const renderSmsContent = (content?: string, templateParams?: string) => {
+    if (!content || !templateParams) return content || ''
+    
+    try {
+      const params = JSON.parse(templateParams)
+      let renderedContent = content
+      
+      // 替换所有 ${paramName} 格式的占位符
+      Object.keys(params).forEach(key => {
+        const placeholder = `\${${key}}`
+        renderedContent = renderedContent.replaceAll(placeholder, params[key] || key)
+      })
+      
+      return renderedContent
+    } catch (error) {
+      // 如果JSON解析失败，返回原内容
+      console.error('Failed to parse template params:', error)
+      return content
+    }
+  }
 
   // Get paginated records
   const paginatedRecords = filteredRecords.slice(
@@ -388,13 +487,95 @@ export default function SmsMonitorPage() {
           </Card>
         </div>
 
+        {/* Carrier Statistics */}
+        {Object.keys(stats.carrierStats).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                运营商统计
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Object.entries(stats.carrierStats).map(([carrier, carrierStats]) => (
+                  <div key={carrier} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900">{carrier}</h4>
+                      <Badge variant="outline" className="text-xs">
+                        {carrierStats.successRate.toFixed(1)}%
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">总计:</span>
+                        <span className="font-medium">{carrierStats.total}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-600">成功:</span>
+                        <span className="font-medium text-green-600">{carrierStats.success}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-red-600">失败:</span>
+                        <span className="font-medium text-red-600">{carrierStats.failed}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Template Statistics */}
+        {Object.keys(stats.templateStats).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                模板统计
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(stats.templateStats).map(([template, templateStats]) => (
+                  <div key={template} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 truncate" title={template}>
+                        {template}
+                      </h4>
+                      <Badge variant="outline" className="text-xs">
+                        {templateStats.successRate.toFixed(1)}%
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">总计:</span>
+                        <span className="font-medium">{templateStats.total}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-600">成功:</span>
+                        <span className="font-medium text-green-600">{templateStats.success}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-red-600">失败:</span>
+                        <span className="font-medium text-red-600">{templateStats.failed}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filters */}
         <Card>
           <CardHeader>
             <CardTitle>筛选条件</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -416,6 +597,28 @@ export default function SmsMonitorPage() {
                   <SelectItem value="发送失败">发送失败</SelectItem>
                   <SelectItem value="发送中">发送中</SelectItem>
                   <SelectItem value="发送中(已停止查询)">发送中(已停止查询)</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={carrierFilter} onValueChange={setCarrierFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="按运营商筛选" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部运营商</SelectItem>
+                  {carriers.map(carrier => (
+                    <SelectItem key={carrier} value={carrier}>{carrier}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={templateFilter} onValueChange={setTemplateFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="按模板筛选" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部模板</SelectItem>
+                  {templates.map(template => (
+                    <SelectItem key={template} value={template}>{template}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select value={dateFilter} onValueChange={setDateFilter}>
@@ -461,7 +664,19 @@ export default function SmsMonitorPage() {
                         {getStatusIcon(record.status)}
                         <div>
                           <div className="font-medium">OutId: {record.out_id}</div>
-                          <div className="text-sm text-gray-600">手机号: {record.phone_number}</div>
+                          <div className="text-sm text-gray-600 flex items-center gap-2">
+                            <span>手机号: {record.phone_number}</span>
+                            {record.carrier && (
+                              <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                                {record.carrier}
+                              </Badge>
+                            )}
+                          </div>
+                          {record.phone_note && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              备注: {record.phone_note}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -490,7 +705,7 @@ export default function SmsMonitorPage() {
                       )}
                       {record.content && (
                         <p className="text-xs bg-gray-100 p-2 rounded mt-2">
-                          内容: {record.content}
+                          内容: {renderSmsContent(record.content, record.template_params)}
                         </p>
                       )}
                     </div>
