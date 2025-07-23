@@ -16,6 +16,7 @@ interface SmsRecord {
   out_id: string
   phone_number: string
   template_code?: string
+  template_name?: string  // 添加模板名称字段
   content?: string
   send_date?: string
   receive_date?: string
@@ -467,9 +468,9 @@ export default function SmsMonitorPage() {
                         <Badge variant={getStatusBadgeVariant(record.status)}>
                           {record.status}
                         </Badge>
-                        {record.template_code && (
+                        {record.template_name && (
                           <Badge variant="outline" className="text-xs">
-                            {record.template_code}
+                            {record.template_name}
                           </Badge>
                         )}
                         <Button
@@ -486,12 +487,6 @@ export default function SmsMonitorPage() {
                       <p>发送时间: {formatDate(record.send_date || record.created_at)}</p>
                       {record.receive_date && (
                         <p>送达时间: {formatDate(record.receive_date)}</p>
-                      )}
-                      {record.error_code && record.error_code !== "DELIVERED" && (
-                        <div className="text-red-600">
-                          <p className="font-medium">错误信息: {getErrorMessage(record.error_code)}</p>
-                          <p className="text-xs text-gray-500 mt-1">错误代码: {record.error_code}</p>
-                        </div>
                       )}
                       {record.content && (
                         <p className="text-xs bg-gray-100 p-2 rounded mt-2">

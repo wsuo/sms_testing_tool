@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -69,6 +69,9 @@ export default function SmsTestingTool() {
 
   // Configuration modal
   const [showConfigModal, setShowConfigModal] = useState(false)
+  
+  // 401 error state
+  const [show401Error, setShow401Error] = useState(false)
 
   // Refresh token utility function
   const refreshAccessToken = async (): Promise<{ success: boolean; newToken?: string }> => {
@@ -113,13 +116,6 @@ export default function SmsTestingTool() {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       }
-      
-      console.log("Making API request:", {
-        url,
-        token,
-        headers
-      })
-      
       return await fetch(url, {
         ...options,
         headers,
@@ -131,40 +127,27 @@ export default function SmsTestingTool() {
     // First attempt with current token
     let response = await makeRequest(tokenToUse)
     
-    console.log("API response status:", response.status)
-    
     // Check if response body contains 401 error
     if (response.ok) {
       const responseClone = response.clone()
       try {
         const data = await responseClone.json()
         if (data.code === 401) {
-          console.log("API returned 401 in response body, attempting token refresh...")
           const refreshResult = await refreshAccessToken()
           if (refreshResult.success && refreshResult.newToken) {
-            console.log("Token refreshed successfully, retrying request...")
             response = await makeRequest(refreshResult.newToken)
-            console.log("Retry response status:", response.status)
-          } else {
-            console.log("Token refresh failed")
           }
         }
       } catch (e) {
         // If parsing fails, continue with original response
-        console.log("Failed to parse response for 401 check:", e)
       }
     }
 
     // If HTTP 401, try to refresh and retry
     if (response.status === 401) {
-      console.log("Got HTTP 401, attempting token refresh...")
       const refreshResult = await refreshAccessToken()
       if (refreshResult.success && refreshResult.newToken) {
-        console.log("Token refreshed successfully, retrying request...")
         response = await makeRequest(refreshResult.newToken)
-        console.log("Retry response status:", response.status)
-      } else {
-        console.log("Token refresh failed")
       }
     }
 
@@ -189,7 +172,6 @@ export default function SmsTestingTool() {
           }))
           
           setSmsStatuses(historyStatuses)
-          console.log(`Loaded ${historyStatuses.length} SMS records from database`)
         }
       }
     } catch (error) {
@@ -323,11 +305,6 @@ export default function SmsTestingTool() {
     const savedAdminToken = localStorage.getItem("sms-admin-token")
     const savedRefreshToken = localStorage.getItem("sms-refresh-token")
 
-    console.log("Loading saved tokens:", {
-      hasAdminToken: !!savedAdminToken,
-      hasRefreshToken: !!savedRefreshToken,
-    })
-
     // Load saved tokens if available
     if (savedAdminToken) {
       setAdminToken(savedAdminToken)
@@ -409,10 +386,8 @@ export default function SmsTestingTool() {
   const fetchTemplates = useCallback(async (tokenOverride?: string) => {
     try {
       const tokenToUse = tokenOverride || adminToken
-      console.log("Fetching templates with token:", tokenToUse)
       
       if (!tokenToUse) {
-        console.log("No token available for fetching templates")
         return
       }
       
@@ -420,18 +395,20 @@ export default function SmsTestingTool() {
 
       if (response.ok) {
         const data = await response.json()
-        console.log("Template API response:", data) // Debug log
         
         // Check if the response indicates authentication failure
         if (data.code === 401) {
-          console.log("API returned 401 in response body, handling as authentication failure")
-          // If still 401 after refresh attempt, show config modal
-          setShowConfigModal(true)
-          toast({
-            title: "认证失败",
-            description: "管理后台令牌已过期，请重新配置令牌",
-            variant: "destructive",
-          })
+          // If still 401 after refresh attempt, show config modal only if no tokens saved
+          if (!localStorage.getItem("sms-admin-token")) {
+            setShowConfigModal(true)
+            toast({
+              title: "需要配置",
+              description: "请配置管理后台令牌以使用系统",
+              variant: "destructive",
+            })
+          } else {
+            setShow401Error(true)
+          }
           return
         }
         
@@ -450,13 +427,17 @@ export default function SmsTestingTool() {
           description: `已加载 ${templatesData.length} 个短信模板`,
         })
       } else if (response.status === 401) {
-        // If still 401 after refresh attempt, show config modal
-        setShowConfigModal(true)
-        toast({
-          title: "认证失败",
-          description: "管理后台令牌已过期，请重新配置令牌",
-          variant: "destructive",
-        })
+        // If still 401 after refresh attempt, show config modal only if no tokens saved
+        if (!localStorage.getItem("sms-admin-token")) {
+          setShowConfigModal(true)
+          toast({
+            title: "需要配置",
+            description: "请配置管理后台令牌以使用系统",
+            variant: "destructive",
+          })
+        } else {
+          setShow401Error(true)
+        }
       } else {
         const errorData = await response.json().catch(() => ({}))
         console.error("API error response:", errorData)
@@ -484,7 +465,6 @@ export default function SmsTestingTool() {
         
         // Check for authentication error in response body
         if (data.code === 401) {
-          console.log("Template details API returned 401")
           return null
         }
         
@@ -554,12 +534,16 @@ export default function SmsTestingTool() {
         
         // Check for authentication error in response body
         if (data.code === 401) {
-          setShowConfigModal(true)
-          toast({
-            title: "认证失败",
-            description: "管理后台令牌已过期，请重新配置令牌",
-            variant: "destructive",
-          })
+          if (!localStorage.getItem("sms-admin-token")) {
+            setShowConfigModal(true)
+            toast({
+              title: "需要配置",
+              description: "请配置管理后台令牌以使用系统",
+              variant: "destructive",
+            })
+          } else {
+            setShow401Error(true)
+          }
           return
         }
         
@@ -580,6 +564,7 @@ export default function SmsTestingTool() {
               out_id: outId,
               phone_number: phoneNumber,
               template_code: selectedTemplate?.code,
+              template_name: selectedTemplate?.name,
               template_params: templateParams,
               content: selectedTemplate?.content,
               send_date: new Date().toLocaleString("zh-CN"),
@@ -608,12 +593,16 @@ export default function SmsTestingTool() {
         })
       } else if (response.status === 401) {
         // If still 401 after refresh attempt
-        setShowConfigModal(true)
-        toast({
-          title: "认证失败",
-          description: "管理后台令牌已过期，请重新配置令牌",
-          variant: "destructive",
-        })
+        if (!localStorage.getItem("sms-admin-token")) {
+          setShowConfigModal(true)
+          toast({
+            title: "需要配置",
+            description: "请配置管理后台令牌以使用系统",
+            variant: "destructive",
+          })
+        } else {
+          setShow401Error(true)
+        }
       } else {
         throw new Error("发送失败")
       }
@@ -638,11 +627,6 @@ export default function SmsTestingTool() {
         console.error("手机号码未配置")
         return null
       }
-
-      console.log('Sending request with:', {
-        outId,
-        phoneNumber: phoneToUse
-      })
 
       const response = await fetch('/api/sms-status', {
         method: 'POST',
@@ -703,7 +687,6 @@ export default function SmsTestingTool() {
             
             // 如果重试次数已达到上限，跳过查询
             if (dbRecord && dbRecord.retry_count && dbRecord.retry_count >= 20) {
-              console.log(`SMS ${sms.outId} 已达到重试上限，跳过查询 (重试次数: ${dbRecord.retry_count})`)
               
               // 如果还是发送中状态，添加说明
               if (sms.status === "发送中") {
@@ -729,8 +712,6 @@ export default function SmsTestingTool() {
                 last_retry_at: new Date().toISOString()
               })
             })
-            
-            console.log(`SMS ${sms.outId} 重试次数: ${newRetryCount}/20`)
           }
         } catch (dbError) {
           console.error('Failed to check retry count:', dbError)
@@ -788,7 +769,6 @@ export default function SmsTestingTool() {
 
     if (allCompleted && smsStatuses.length > 0) {
       setAutoRefresh(false)
-      console.log("所有SMS状态已完成或停止查询，停止自动刷新")
     }
   }, [smsStatuses])
 
@@ -838,94 +818,142 @@ export default function SmsTestingTool() {
     return errorMap[errorCode] || `未知错误代码: ${errorCode}`
   }
 
-  // Configuration Modal Component
-  const ConfigurationModal = () => (
-    <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center">
-            <Settings className="w-5 h-5 mr-2" />
-            Token配置
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <Alert>
-            <AlertDescription>
-              <strong>获取令牌说明：</strong>
-              <ul className="mt-2 space-y-1 text-sm">
-                <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
-                <li>• 阿里云AccessKey已在服务器环境变量中配置</li>
-                <li>• 令牌过期时需要重新获取并配置</li>
-              </ul>
-            </AlertDescription>
-          </Alert>
-          <div>
-            <Label htmlFor="modal-admin-token">管理后台令牌</Label>
-            <div className="relative">
-              <Input
-                id="modal-admin-token"
-                type={showAdminToken ? "text" : "password"}
-                placeholder="请输入管理后台API令牌"
-                value={adminToken}
-                onChange={(e) => setAdminToken(e.target.value)}
-                className="pr-10"
-                autoFocus={false}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setShowAdminToken(!showAdminToken)
-                }}
-              >
-                {showAdminToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
+  // Configuration Modal Component - 使用 useMemo 优化渲染性能
+  const ConfigurationModal = useMemo(() => {
+    const handleEyeToggle = (field: 'admin' | 'refresh') => {
+      if (field === 'admin') {
+        setShowAdminToken(prev => !prev)
+      } else {
+        setShowRefreshToken(prev => !prev)
+      }
+    }
+
+    const handleAdminTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setAdminToken(e.target.value)
+    }
+
+    const handleRefreshTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setRefreshToken(e.target.value)
+    }
+
+    return (
+      <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
+        <DialogContent className="max-w-md" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <Settings className="w-5 h-5 mr-2" />
+              Token配置
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Alert>
+              <AlertDescription>
+                <strong>获取令牌说明：</strong>
+                <ul className="mt-2 space-y-1 text-sm">
+                  <li>• 管理后台令牌：登录后台管理系统获取API Token</li>
+                  <li>• 阿里云AccessKey已在服务器环境变量中配置</li>
+                  <li>• 令牌过期时需要重新获取并配置</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+            <div>
+              <Label htmlFor="modal-admin-token">管理后台令牌</Label>
+              <div className="relative">
+                <Input
+                  id="modal-admin-token"
+                  type={showAdminToken ? "text" : "password"}
+                  placeholder="请输入管理后台API令牌"
+                  value={adminToken}
+                  onChange={handleAdminTokenChange}
+                  className="pr-10"
+                  autoComplete="off"
+                />
+                <div
+                  className="absolute right-0 top-0 h-full px-3 flex items-center cursor-pointer text-gray-400 hover:text-gray-600 select-none"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleEyeToggle('admin')
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                >
+                  {showAdminToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </div>
+              </div>
             </div>
-          </div>
-          <div>
-            <Label htmlFor="modal-refresh-token">管理后台刷新令牌 (可选)</Label>
-            <div className="relative">
-              <Input
-                id="modal-refresh-token"
-                type={showRefreshToken ? "text" : "password"}
-                placeholder="请输入管理后台刷新令牌"
-                value={refreshToken}
-                onChange={(e) => setRefreshToken(e.target.value)}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setShowRefreshToken(!showRefreshToken)
-                }}
-              >
-                {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
+            <div>
+              <Label htmlFor="modal-refresh-token">管理后台刷新令牌 (可选)</Label>
+              <div className="relative">
+                <Input
+                  id="modal-refresh-token"
+                  type={showRefreshToken ? "text" : "password"}
+                  placeholder="请输入管理后台刷新令牌"
+                  value={refreshToken}
+                  onChange={handleRefreshTokenChange}
+                  className="pr-10"
+                  autoComplete="off"
+                />
+                <div
+                  className="absolute right-0 top-0 h-full px-3 flex items-center cursor-pointer text-gray-400 hover:text-gray-600 select-none"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleEyeToggle('refresh')
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                >
+                  {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                提供刷新令牌可以自动更新过期的访问令牌
+              </p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              提供刷新令牌可以自动更新过期的访问令牌
-            </p>
+            <Button onClick={saveTokens} className="w-full">
+              保存配置
+            </Button>
           </div>
-          <Button onClick={saveTokens} className="w-full">
-            保存配置
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
+        </DialogContent>
+      </Dialog>
+    )
+  }, [showConfigModal, showAdminToken, showRefreshToken, adminToken, refreshToken, saveTokens])
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* 401 Error Alert */}
+        {show401Error && (
+          <Alert variant="destructive">
+            <AlertDescription className="flex items-center justify-between">
+              <div>
+                <strong>认证失败：</strong> 管理后台令牌已过期或无效，请重新配置令牌以继续使用系统功能。
+              </div>
+              <div className="flex gap-2 ml-4">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowConfigModal(true)}
+                >
+                  配置Token
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShow401Error(false)}
+                >
+                  ×
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">短信测试工具</h1>
@@ -1088,10 +1116,10 @@ export default function SmsTestingTool() {
                           <SelectContent className="w-full">
                             {carrierPhoneNumbers.map((phone) => (
                               <SelectItem key={phone.id} value={phone.number}>
-                                <div className="w-full overflow-hidden">
-                                  <div className="font-medium truncate">{phone.number}</div>
+                                <div className="w-full text-left">
+                                  <div className="font-medium text-left">{phone.number}</div>
                                   {phone.note && (
-                                    <div className="text-xs text-gray-500 truncate">
+                                    <div className="text-xs text-gray-500 text-left">
                                       备注: {phone.note}
                                     </div>
                                   )}
@@ -1119,15 +1147,15 @@ export default function SmsTestingTool() {
                           <SelectContent>
                             {savedPhoneNumbers.map((phone) => (
                               <SelectItem key={phone.id} value={phone.number}>
-                                <div className="flex flex-col items-start py-1 max-w-full">
+                                <div className="flex flex-col items-start py-1 max-w-full text-left">
                                   <div className="flex items-center gap-2 max-w-full">
-                                    <span className="font-medium truncate">{phone.number}</span>
+                                    <span className="font-medium text-left">{phone.number}</span>
                                     <Badge variant="outline" className="text-xs flex-shrink-0">
                                       {phone.carrier}
                                     </Badge>
                                   </div>
                                   {phone.note && (
-                                    <div className="text-xs text-gray-500 mt-1 max-w-full truncate">
+                                    <div className="text-xs text-gray-500 mt-1 max-w-full text-left">
                                       备注: {phone.note}
                                     </div>
                                   )}
@@ -1262,7 +1290,7 @@ export default function SmsTestingTool() {
       </div>
       
       {/* Configuration Modal */}
-      <ConfigurationModal />
+      {ConfigurationModal}
     </div>
   )
 }

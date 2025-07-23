@@ -33,6 +33,7 @@ function initializeTables() {
       out_id TEXT NOT NULL,
       phone_number TEXT NOT NULL,
       template_code TEXT,
+      template_name TEXT, -- 模板中文名称
       template_params TEXT, -- JSON字符串存储模板参数
       content TEXT,
       send_date TEXT,
@@ -105,7 +106,8 @@ function runMigrations() {
     const requiredColumns = [
       { name: 'retry_count', sql: 'ALTER TABLE sms_records ADD COLUMN retry_count INTEGER DEFAULT 0' },
       { name: 'last_retry_at', sql: 'ALTER TABLE sms_records ADD COLUMN last_retry_at DATETIME' },
-      { name: 'auto_refresh_enabled', sql: 'ALTER TABLE sms_records ADD COLUMN auto_refresh_enabled INTEGER DEFAULT 1' }
+      { name: 'auto_refresh_enabled', sql: 'ALTER TABLE sms_records ADD COLUMN auto_refresh_enabled INTEGER DEFAULT 1' },
+      { name: 'template_name', sql: 'ALTER TABLE sms_records ADD COLUMN template_name TEXT' }
     ]
     
     // 添加缺失的字段
@@ -130,6 +132,7 @@ export interface SmsRecord {
   out_id: string
   phone_number: string
   template_code?: string
+  template_name?: string
   template_params?: string
   content?: string
   send_date?: string
@@ -165,14 +168,15 @@ export class SmsRecordDB {
   insertRecord(record: Omit<SmsRecord, 'id' | 'created_at' | 'updated_at'>): number {
     const stmt = this.db.prepare(`
       INSERT INTO sms_records 
-      (out_id, phone_number, template_code, template_params, content, send_date, status, error_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (out_id, phone_number, template_code, template_name, template_params, content, send_date, status, error_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     
     const result = stmt.run(
       record.out_id,
       record.phone_number,
       record.template_code || null,
+      record.template_name || null,
       record.template_params || null,
       record.content || null,
       record.send_date || null,

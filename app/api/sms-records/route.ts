@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
       out_id: body.out_id,
       phone_number: body.phone_number,
       template_code: body.template_code,
+      template_name: body.template_name,
       template_params: body.template_params ? JSON.stringify(body.template_params) : undefined,
       content: body.content,
       send_date: body.send_date || new Date().toLocaleString('zh-CN'),
