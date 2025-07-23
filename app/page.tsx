@@ -802,32 +802,37 @@ export default function SmsTestingTool() {
             </AlertDescription>
           </Alert>
           <div>
-            <Label htmlFor="admin-token">管理后台令牌</Label>
+            <Label htmlFor="modal-admin-token">管理后台令牌</Label>
             <div className="relative">
               <Input
-                id="admin-token"
+                id="modal-admin-token"
                 type={showAdminToken ? "text" : "password"}
                 placeholder="请输入管理后台API令牌"
                 value={adminToken}
                 onChange={(e) => setAdminToken(e.target.value)}
                 className="pr-10"
+                autoFocus={false}
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={() => setShowAdminToken(!showAdminToken)}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setShowAdminToken(!showAdminToken)
+                }}
               >
                 {showAdminToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
           </div>
           <div>
-            <Label htmlFor="refresh-token">管理后台刷新令牌 (可选)</Label>
+            <Label htmlFor="modal-refresh-token">管理后台刷新令牌 (可选)</Label>
             <div className="relative">
               <Input
-                id="refresh-token"
+                id="modal-refresh-token"
                 type={showRefreshToken ? "text" : "password"}
                 placeholder="请输入管理后台刷新令牌"
                 value={refreshToken}
@@ -839,7 +844,11 @@ export default function SmsTestingTool() {
                 variant="ghost"
                 size="sm"
                 className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={() => setShowRefreshToken(!showRefreshToken)}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setShowRefreshToken(!showRefreshToken)
+                }}
               >
                 {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
@@ -985,18 +994,13 @@ export default function SmsTestingTool() {
                           <SelectTrigger className="h-9">
                             <SelectValue placeholder={selectedCarrier ? "选择号码" : "请先选择运营商"} />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="w-full">
                             {carrierPhoneNumbers.map((phone) => (
                               <SelectItem key={phone.id} value={phone.number}>
-                                <div className="flex flex-col items-start py-1 max-w-full">
-                                  <div className="flex items-center gap-2 max-w-full">
-                                    <span className="font-medium truncate">{phone.number}</span>
-                                    <Badge variant="outline" className="text-xs flex-shrink-0">
-                                      {phone.carrier}
-                                    </Badge>
-                                  </div>
+                                <div className="w-full overflow-hidden">
+                                  <div className="font-medium truncate">{phone.number}</div>
                                   {phone.note && (
-                                    <div className="text-xs text-gray-500 mt-1 max-w-full truncate">
+                                    <div className="text-xs text-gray-500 truncate">
                                       备注: {phone.note}
                                     </div>
                                   )}
