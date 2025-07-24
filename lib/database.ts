@@ -312,6 +312,136 @@ export class SmsRecordDB {
     `)
     return stmt.all(status, limit, offset) as SmsRecord[]
   }
+
+  // 复合条件查询记录
+  findWithFilters(filters: {
+    searchTerm?: string
+    status?: string
+    carrier?: string
+    templateName?: string
+    dateRange?: 'today' | 'week' | 'month'
+    limit?: number
+    offset?: number
+  }): SmsRecord[] {
+    const conditions: string[] = []
+    const params: any[] = []
+    
+    // 搜索条件（手机号或OutId）
+    if (filters.searchTerm && filters.searchTerm.trim()) {
+      conditions.push('(phone_number LIKE ? OR out_id LIKE ?)')
+      const searchPattern = `%${filters.searchTerm.trim()}%`
+      params.push(searchPattern, searchPattern)
+    }
+    
+    // 状态筛选
+    if (filters.status && filters.status !== 'all') {
+      conditions.push('status = ?')
+      params.push(filters.status)
+    }
+    
+    // 运营商筛选
+    if (filters.carrier && filters.carrier !== 'all') {
+      conditions.push('carrier = ?')
+      params.push(filters.carrier)
+    }
+    
+    // 模板筛选
+    if (filters.templateName && filters.templateName !== 'all') {
+      conditions.push('template_name = ?')
+      params.push(filters.templateName)
+    }
+    
+    // 日期筛选
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      switch (filters.dateRange) {
+        case 'today':
+          conditions.push("date(created_at) = date('now')")
+          break
+        case 'week':
+          conditions.push("created_at >= datetime('now', '-7 days')")
+          break
+        case 'month':
+          conditions.push("created_at >= datetime('now', '-30 days')")
+          break
+      }
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    const limit = filters.limit || 100
+    const offset = filters.offset || 0
+    
+    const query = `
+      SELECT * FROM sms_records 
+      ${whereClause}
+      ORDER BY created_at DESC 
+      LIMIT ? OFFSET ?
+    `
+    
+    params.push(limit, offset)
+    
+    const stmt = this.db.prepare(query)
+    return stmt.all(...params) as SmsRecord[]
+  }
+
+  // 复合条件统计记录数
+  countWithFilters(filters: {
+    searchTerm?: string
+    status?: string
+    carrier?: string
+    templateName?: string
+    dateRange?: 'today' | 'week' | 'month'
+  }): number {
+    const conditions: string[] = []
+    const params: any[] = []
+    
+    // 搜索条件（手机号或OutId）
+    if (filters.searchTerm && filters.searchTerm.trim()) {
+      conditions.push('(phone_number LIKE ? OR out_id LIKE ?)')
+      const searchPattern = `%${filters.searchTerm.trim()}%`
+      params.push(searchPattern, searchPattern)
+    }
+    
+    // 状态筛选
+    if (filters.status && filters.status !== 'all') {
+      conditions.push('status = ?')
+      params.push(filters.status)
+    }
+    
+    // 运营商筛选
+    if (filters.carrier && filters.carrier !== 'all') {
+      conditions.push('carrier = ?')
+      params.push(filters.carrier)
+    }
+    
+    // 模板筛选
+    if (filters.templateName && filters.templateName !== 'all') {
+      conditions.push('template_name = ?')
+      params.push(filters.templateName)
+    }
+    
+    // 日期筛选
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      switch (filters.dateRange) {
+        case 'today':
+          conditions.push("date(created_at) = date('now')")
+          break
+        case 'week':
+          conditions.push("created_at >= datetime('now', '-7 days')")
+          break
+        case 'month':
+          conditions.push("created_at >= datetime('now', '-30 days')")
+          break
+      }
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    
+    const query = `SELECT COUNT(*) as count FROM sms_records ${whereClause}`
+    
+    const stmt = this.db.prepare(query)
+    const result = stmt.get(...params) as { count: number }
+    return result.count
+  }
   
   // 查询未完成的记录（用于状态更新）
   findPendingRecords(): SmsRecord[] {

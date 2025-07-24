@@ -7,13 +7,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '100', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
+    
+    // 原有参数（保持向后兼容）
     const phoneNumber = searchParams.get('phoneNumber')
     const outId = searchParams.get('out_id')
     const status = searchParams.get('status')
     
+    // 新增筛选参数
+    const searchTerm = searchParams.get('searchTerm')
+    const statusFilter = searchParams.get('statusFilter')
+    const carrierFilter = searchParams.get('carrierFilter')
+    const templateFilter = searchParams.get('templateFilter')
+    const dateFilter = searchParams.get('dateFilter')
+    
     let records: SmsRecord[]
     let totalCount: number
     
+    // 向后兼容的特定查询
     if (outId) {
       // 根据OutId查询单个记录
       const record = smsRecordDB.findByOutId(outId)
@@ -27,6 +37,26 @@ export async function GET(request: NextRequest) {
       // 根据状态查询
       records = smsRecordDB.findByStatus(status, limit, offset)
       totalCount = smsRecordDB.countByStatus(status)
+    } else if (searchTerm || statusFilter || carrierFilter || templateFilter || dateFilter) {
+      // 使用新的复合筛选查询
+      const filters = {
+        searchTerm: searchTerm || undefined,
+        status: statusFilter || undefined,
+        carrier: carrierFilter || undefined,
+        templateName: templateFilter || undefined,
+        dateRange: (dateFilter as 'today' | 'week' | 'month') || undefined,
+        limit,
+        offset
+      }
+      
+      records = smsRecordDB.findWithFilters(filters)
+      totalCount = smsRecordDB.countWithFilters({
+        searchTerm: filters.searchTerm,
+        status: filters.status,
+        carrier: filters.carrier,
+        templateName: filters.templateName,
+        dateRange: filters.dateRange
+      })
     } else {
       // 查询所有记录
       records = smsRecordDB.findAll(limit, offset)

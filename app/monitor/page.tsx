@@ -88,7 +88,31 @@ export default function SmsMonitorPage() {
       }
       
       const offset = (page - 1) * itemsPerPage
-      const response = await fetch(`/api/sms-records?limit=${itemsPerPage}&offset=${offset}`)
+      
+      // 构建查询参数
+      const queryParams = new URLSearchParams({
+        limit: itemsPerPage.toString(),
+        offset: offset.toString()
+      })
+      
+      // 添加筛选条件到查询参数
+      if (searchTerm && searchTerm.trim()) {
+        queryParams.append('searchTerm', searchTerm.trim())
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        queryParams.append('statusFilter', statusFilter)
+      }
+      if (carrierFilter && carrierFilter !== 'all') {
+        queryParams.append('carrierFilter', carrierFilter)
+      }
+      if (templateFilter && templateFilter !== 'all') {
+        queryParams.append('templateFilter', templateFilter)
+      }
+      if (dateFilter && dateFilter !== 'all') {
+        queryParams.append('dateFilter', dateFilter)
+      }
+      
+      const response = await fetch(`/api/sms-records?${queryParams.toString()}`)
       
       if (response.ok) {
         const result = await response.json()
@@ -98,8 +122,7 @@ export default function SmsMonitorPage() {
           setTotalPages(result.totalPages)
           setCurrentPage(result.currentPage)
           
-          // 使用所有记录计算统计信息（需要获取全部记录）
-          // 为了统计准确性，我们需要获取所有记录来计算统计信息
+          // 获取所有记录用于统计信息（不应用筛选条件）
           const allRecordsResponse = await fetch(`/api/sms-records?limit=10000&offset=0`)
           if (allRecordsResponse.ok) {
             const allRecordsResult = await allRecordsResponse.json()
@@ -151,8 +174,8 @@ export default function SmsMonitorPage() {
               const successCount = results.filter(result => result !== null).length
               
               if (successCount > 0) {
-                // 重新加载当前页记录以获取更新后的状态
-                const updatedResponse = await fetch(`/api/sms-records?limit=${itemsPerPage}&offset=${offset}`)
+                // 重新加载当前页记录以获取更新后的状态（保持筛选条件）
+                const updatedResponse = await fetch(`/api/sms-records?${queryParams.toString()}`)
                 if (updatedResponse.ok) {
                   const updatedResult = await updatedResponse.json()
                   if (updatedResult.success && updatedResult.data) {
@@ -190,7 +213,7 @@ export default function SmsMonitorPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [toast, itemsPerPage])
+  }, [toast, itemsPerPage, searchTerm, statusFilter, carrierFilter, templateFilter, dateFilter])
 
   // 查询阿里云SMS状态
   const checkSmsStatus = async (outId: string, phoneNumber: string) => {
@@ -454,12 +477,14 @@ export default function SmsMonitorPage() {
       if (response.ok && result.success) {
         // 从列表中移除已删除的记录
         setRecords(prev => prev.filter(record => record.id !== recordId))
-        setFilteredRecords(prev => prev.filter(record => record.id !== recordId))
         
         toast({
           title: "删除成功",
           description: "SMS记录已删除",
         })
+        
+        // 重新加载当前页以更新分页信息
+        loadRecords(currentPage)
       } else {
         throw new Error(result.error || '删除失败')
       }
