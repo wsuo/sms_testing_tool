@@ -555,6 +555,22 @@ export default function SmsMonitorPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* 全局时间筛选 */}
+            <div className="flex items-center gap-2 mr-4">
+              <label className="text-sm font-medium text-gray-700">统计时间范围:</label>
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="时间范围" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部时间</SelectItem>
+                  <SelectItem value="today">今天</SelectItem>
+                  <SelectItem value="2days">最近2天</SelectItem>
+                  <SelectItem value="week">最近7天</SelectItem>
+                  <SelectItem value="month">最近30天</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button 
               variant="outline" 
               onClick={() => loadRecords(1, true)}
@@ -570,21 +586,6 @@ export default function SmsMonitorPage() {
             </Button>
           </div>
         </div>
-
-        {/* Statistics Title */}
-        {dateFilter !== 'all' && (
-          <div className="flex items-center justify-center">
-            <Badge variant="outline" className="text-sm px-4 py-2">
-              <Clock className="w-4 h-4 mr-2" />
-              当前统计范围: {
-                dateFilter === 'today' ? '今天' : 
-                dateFilter === '2days' ? '最近2天' :
-                dateFilter === 'week' ? '最近7天' : 
-                dateFilter === 'month' ? '最近30天' : '筛选中'
-              } 的数据
-            </Badge>
-          </div>
-        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -759,84 +760,81 @@ export default function SmsMonitorPage() {
           </Card>
         )}
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>筛选条件</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="搜索手机号或OutId..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="按状态筛选" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="已送达">已送达</SelectItem>
-                  <SelectItem value="发送失败">发送失败</SelectItem>
-                  <SelectItem value="发送中">发送中</SelectItem>
-                  <SelectItem value="发送中(已停止查询)">发送中(已停止查询)</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={carrierFilter} onValueChange={setCarrierFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="按运营商筛选" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部运营商</SelectItem>
-                  {carriers.map(carrier => (
-                    <SelectItem key={carrier} value={carrier}>{carrier}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={templateFilter} onValueChange={setTemplateFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="按模板筛选" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部模板</SelectItem>
-                  {templates.map(template => (
-                    <SelectItem key={template} value={template}>{template}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="按时间筛选" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部时间</SelectItem>
-                  <SelectItem value="today">今天</SelectItem>
-                  <SelectItem value="2days">最近2天</SelectItem>
-                  <SelectItem value="week">最近7天</SelectItem>
-                  <SelectItem value="month">最近30天</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex items-center text-sm text-gray-600">
-                <Filter className="w-4 h-4 mr-2" />
-                显示第 {currentPage} 页，共 {totalPages} 页 (总计 {totalRecords} 条记录)
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Records Table */}
         <Card>
           <CardHeader>
             <CardTitle>发送记录</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Filters */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Filter className="w-4 h-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">筛选条件</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="搜索手机号或OutId..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="按状态筛选" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部状态</SelectItem>
+                    <SelectItem value="已送达">已送达</SelectItem>
+                    <SelectItem value="发送失败">发送失败</SelectItem>
+                    <SelectItem value="发送中">发送中</SelectItem>
+                    <SelectItem value="发送中(已停止查询)">发送中(已停止查询)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={carrierFilter} onValueChange={setCarrierFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="按运营商筛选" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部运营商</SelectItem>
+                    {carriers.map(carrier => (
+                      <SelectItem key={carrier} value={carrier}>{carrier}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={templateFilter} onValueChange={setTemplateFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="按模板筛选" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部模板</SelectItem>
+                    {templates.map(template => (
+                      <SelectItem key={template} value={template}>{template}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="flex items-center text-sm text-gray-600">
+                  <Filter className="w-4 h-4 mr-2" />
+                  显示第 {currentPage} 页，共 {totalPages} 页 (总计 {totalRecords} 条记录)
+                </div>
+                {dateFilter !== 'all' && (
+                  <Badge variant="outline" className="text-xs">
+                    <Clock className="w-3 h-3 mr-1" />
+                    {dateFilter === 'today' ? '今天' : 
+                     dateFilter === '2days' ? '最近2天' :
+                     dateFilter === 'week' ? '最近7天' : 
+                     dateFilter === 'month' ? '最近30天' : '筛选中'} 的数据
+                  </Badge>
+                )}
+              </div>
+            </div>
             {isLoading ? (
               <div className="text-center py-8">
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400" />
