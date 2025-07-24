@@ -81,15 +81,23 @@ export default function SmsTestingTool() {
   // Refresh token utility function
   const refreshAccessToken = async (): Promise<{ success: boolean; newToken?: string }> => {
     console.log("🔄 开始token刷新流程...")
-    console.log("🔍 当前refreshToken状态:", refreshToken ? `存在 (长度: ${refreshToken.length})` : "不存在")
     
-    if (!refreshToken) {
+    // 优先使用localStorage中的refreshToken，避免React state异步更新问题
+    const currentRefreshToken = refreshToken || localStorage.getItem("sms-refresh-token")
+    
+    console.log("🔍 当前refreshToken状态:", {
+      fromState: refreshToken ? `存在 (长度: ${refreshToken.length})` : "不存在",
+      fromLocalStorage: localStorage.getItem("sms-refresh-token") ? `存在 (长度: ${localStorage.getItem("sms-refresh-token")!.length})` : "不存在",
+      using: currentRefreshToken ? `使用 (长度: ${currentRefreshToken.length})` : "无可用token"
+    })
+    
+    if (!currentRefreshToken) {
       console.log("❌ 刷新失败：refreshToken为空")
       return { success: false }
     }
 
     try {
-      const refreshUrl = `/admin-api/system/auth/refresh-token?refreshToken=${refreshToken}`
+      const refreshUrl = `/admin-api/system/auth/refresh-token?refreshToken=${currentRefreshToken}`
       console.log("📡 发起刷新请求:", refreshUrl)
       
       const response = await fetch(refreshUrl, {
@@ -372,7 +380,7 @@ export default function SmsTestingTool() {
       setAdminToken(savedAdminToken)
       setTokensConfigured(true)
       
-      // 立即加载模板，不延迟
+      // 立即加载模板，不延迟（refreshAccessToken现在会直接读localStorage）
       console.log("正在自动加载SMS模板...")
       fetchTemplates(savedAdminToken, true).finally(() => {
         setIsInitialLoad(false) // 完成初始加载后设为false
