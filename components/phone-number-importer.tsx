@@ -30,6 +30,7 @@ export default function PhoneNumberImporter({ onImportComplete }: PhoneNumberImp
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [importResult, setImportResult] = useState<ImportProgress | null>(null)
   const [error, setError] = useState<string>('')
+  const [uploadProgress, setUploadProgress] = useState<number>(0)
 
   // 处理文件选择
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,15 +75,28 @@ export default function PhoneNumberImporter({ onImportComplete }: PhoneNumberImp
     setIsUploading(true)
     setError('')
     setImportResult(null)
+    setUploadProgress(0)
 
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
 
+      // 模拟上传进度
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return prev
+          return prev + Math.random() * 10
+        })
+      }, 300)
+
       const response = await fetch('/api/phone-numbers/import', {
         method: 'POST',
         body: formData
       })
+
+      // 清除进度模拟器
+      clearInterval(progressInterval)
+      setUploadProgress(100)
 
       const result = await response.json()
 
@@ -113,6 +127,7 @@ export default function PhoneNumberImporter({ onImportComplete }: PhoneNumberImp
       })
     } finally {
       setIsUploading(false)
+      setUploadProgress(0)
     }
   }
 
@@ -121,6 +136,7 @@ export default function PhoneNumberImporter({ onImportComplete }: PhoneNumberImp
     setSelectedFile(null)
     setImportResult(null)
     setError('')
+    setUploadProgress(0)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -235,9 +251,12 @@ export default function PhoneNumberImporter({ onImportComplete }: PhoneNumberImp
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>正在处理...</span>
-              <span>请稍候，系统正在查询运营商信息</span>
+              <span>{uploadProgress.toFixed(0)}%</span>
             </div>
-            <Progress value={30} className="w-full" />
+            <Progress value={uploadProgress} className="w-full" />
+            <div className="text-xs text-gray-500 text-center">
+              正在查询运营商信息，请稍候...
+            </div>
           </div>
         )}
 

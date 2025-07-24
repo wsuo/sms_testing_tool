@@ -987,7 +987,7 @@ export default function SmsMonitorPage() {
                     </div>
                     <div className="text-sm text-gray-600 space-y-1">
                       <p>发送时间: {formatDate(record.send_date || record.created_at)}</p>
-                      {record.retry_count && record.retry_count > 0 && (
+                      {record.retry_count && Number(record.retry_count) > 0 && (
                         <p className="text-orange-600 font-medium">
                           重发次数: {record.retry_count} 次
                           {record.last_retry_at && (
