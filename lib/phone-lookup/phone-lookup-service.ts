@@ -136,10 +136,33 @@ export class PhoneLookupService {
           console.log(`${provider.name}查询成功:`, result.data)
           return result
         } else {
-          console.warn(`${provider.name}查询失败: ${result.error}`)
+          // 检查是否是反爬虫或其他严重错误
+          const isAntiSpamError = result.error && (
+            result.error.includes('reCAPTCHA') ||
+            result.error.includes('验证失败') ||
+            result.error.includes('反爬虫') ||
+            result.error.includes('暂时不可用')
+          )
+          
+          if (isAntiSpamError) {
+            console.warn(`${provider.name}遇到反爬虫限制，跳过该provider: ${result.error}`)
+          } else {
+            console.warn(`${provider.name}查询失败: ${result.error}`)
+          }
         }
       } catch (error) {
-        console.error(`${provider.name}查询异常:`, error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        
+        // 检查是否是反爬虫错误
+        const isAntiSpamError = errorMessage.includes('反爬虫') || 
+                               errorMessage.includes('reCAPTCHA') ||
+                               errorMessage.includes('验证失败')
+        
+        if (isAntiSpamError) {
+          console.warn(`${provider.name}遇到反爬虫限制，跳过该provider: ${errorMessage}`)
+        } else {
+          console.error(`${provider.name}查询异常:`, error)
+        }
       }
     }
 
@@ -327,8 +350,22 @@ export class PhoneLookupService {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
         
+        // 检查是否是不应该重试的错误类型
+        const errorMessage = lastError.message.toLowerCase()
+        const shouldNotRetry = 
+          errorMessage.includes('反爬虫') ||
+          errorMessage.includes('recaptcha') ||
+          errorMessage.includes('验证失败') ||
+          errorMessage.includes('token无效') ||
+          errorMessage.includes('token已过期')
+        
+        if (shouldNotRetry) {
+          console.warn(`检测到不可重试错误: ${lastError.message}，跳过重试`)
+          throw lastError
+        }
+        
         if (attempt < maxAttempts) {
-          console.warn(`操作失败，${delay}ms后重试 (${attempt}/${maxAttempts})`)
+          console.warn(`操作失败，${delay}ms后重试 (${attempt}/${maxAttempts}): ${lastError.message}`)
           await this.delay(delay)
         }
       }

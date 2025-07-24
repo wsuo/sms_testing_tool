@@ -35,12 +35,21 @@ export class ToolLuProvider implements IPhoneProvider {
    */
   async isAvailable(): Promise<boolean> {
     try {
+      // 使用HEAD请求检查网站是否可访问，避免触发反爬虫
       const response = await fetch('https://tool.lu/mobile/', {
         method: 'HEAD',
         signal: AbortSignal.timeout(5000)
       })
+      
+      // 如果返回403，说明被反爬虫机制阻止
+      if (response.status === 403) {
+        console.warn('Tool.lu服务返回403，可能被反爬虫机制阻止')
+        return false
+      }
+      
       return response.ok
-    } catch {
+    } catch (error) {
+      console.warn('Tool.lu服务不可用:', error instanceof Error ? error.message : '未知错误')
       return false
     }
   }
@@ -90,6 +99,15 @@ export class ToolLuProvider implements IPhoneProvider {
         }
       } catch (error) {
         console.error(`Tool.lu查询失败 (尝试 ${attempt}/${this.MAX_RETRIES}):`, error)
+        
+        // 如果是403错误（反爬虫），立即停止重试
+        if (error instanceof Error && error.message.includes('反爬虫机制阻止')) {
+          return {
+            success: false,
+            error: 'Tool.lu服务暂时不可用（反爬虫限制）',
+            provider: this.name
+          }
+        }
         
         // 如果是最后一次尝试，返回错误
         if (attempt === this.MAX_RETRIES) {
@@ -235,11 +253,13 @@ export class ToolLuProvider implements IPhoneProvider {
       clearTimeout(timeout)
 
       if (!response.ok) {
-        // 403错误可能是cookie失效，清除缓存
+        // 403错误可能是cookie失效或反爬虫，清除缓存但不要重试
         if (response.status === 403) {
           console.warn(`手机号码 ${phoneNumber} 查询被拒绝 (403)，清除cookie缓存`)
           this.cookieCache = null
           this.cookieExpiry = 0
+          // 对于403错误，直接抛出错误，不要重试
+          throw new Error(`反爬虫机制阻止: HTTP ${response.status}`)
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }

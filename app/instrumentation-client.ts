@@ -47,9 +47,6 @@ try {
       }),
     ],
 
-    // Add transport options for debugging
-    transport: Sentry.makeBrowserTransport,
-    
     // Add more debugging options
     _experiments: {
       
@@ -58,7 +55,7 @@ try {
   
   console.log('✅ Sentry 客户端初始化成功')
   console.log('🔗 DSN:', "https://bbfef629619156e66eb300d8908d9886@o4509721309216768.ingest.us.sentry.io/4509721382944768")
-  console.log('🎯 当前客户端:', Sentry.getCurrentHub().getClient())
+  console.log('🎯 Sentry已初始化')
   
 } catch (error) {
   console.error('❌ Sentry 客户端初始化失败:', error)

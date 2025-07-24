@@ -46,17 +46,20 @@ export class ChahabaoProvider implements IPhoneProvider {
    * 检查提供商是否可用
    */
   async isAvailable(): Promise<boolean> {
+    // 如果没有token，直接返回不可用
     if (!this.token) {
+      console.log('Chahaoba provider不可用：缺少token')
       return false
     }
 
-    try {
-      // 测试一个简单的请求来验证token是否有效
-      const testResult = await this.batchLookup(['13800000000'])
-      return testResult.success || testResult.failureCount < testResult.totalCount
-    } catch {
+    // 简单的token格式验证，避免发送真实请求触发反爬虫
+    if (this.token.length < 10) {
+      console.log('Chahaoba provider不可用：token格式无效')
       return false
     }
+
+    console.log('Chahaoba provider标记为可用（基于token存在性检查）')
+    return true
   }
 
   /**
@@ -273,12 +276,37 @@ export class ChahabaoProvider implements IPhoneProvider {
   private parseResponse(data: any, requestedNumbers: string[]): Map<string, PhoneResult> {
     const results = new Map<string, PhoneResult>()
 
-    if (!data.success || !Array.isArray(data.results)) {
+    // 检查API返回的错误类型
+    if (!data.success) {
+      let errorMessage = data.error || '查询服务返回错误'
+      
+      // 识别特定的错误类型
+      if (typeof data.error === 'string') {
+        if (data.error.includes('reCAPTCHA') || data.error.includes('验证失败')) {
+          errorMessage = 'reCAPTCHA验证失败，服务暂时不可用'
+          console.warn('Chahaoba服务触发反爬虫验证，暂时不可用')
+        } else if (data.error.includes('token') || data.error.includes('令牌')) {
+          errorMessage = 'Token无效或已过期'
+        }
+      }
+      
       // 如果整个请求失败，为所有号码创建错误结果
       for (const phone of requestedNumbers) {
         results.set(phone, {
           success: false,
-          error: '查询服务返回错误',
+          error: errorMessage,
+          provider: this.name
+        })
+      }
+      return results
+    }
+
+    if (!Array.isArray(data.results)) {
+      // 如果整个请求失败，为所有号码创建错误结果
+      for (const phone of requestedNumbers) {
+        results.set(phone, {
+          success: false,
+          error: '查询服务返回数据格式错误',
           provider: this.name
         })
       }
