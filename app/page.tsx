@@ -80,21 +80,40 @@ export default function SmsTestingTool() {
 
   // Refresh token utility function
   const refreshAccessToken = async (): Promise<{ success: boolean; newToken?: string }> => {
+    console.log("🔄 开始token刷新流程...")
+    console.log("🔍 当前refreshToken状态:", refreshToken ? `存在 (长度: ${refreshToken.length})` : "不存在")
+    
     if (!refreshToken) {
+      console.log("❌ 刷新失败：refreshToken为空")
       return { success: false }
     }
 
     try {
-      const response = await fetch(`/admin-api/system/auth/refresh-token?refreshToken=${refreshToken}`, {
+      const refreshUrl = `/admin-api/system/auth/refresh-token?refreshToken=${refreshToken}`
+      console.log("📡 发起刷新请求:", refreshUrl)
+      
+      const response = await fetch(refreshUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
       })
 
+      console.log("📥 刷新响应状态:", response.status, response.statusText)
+      
       if (response.ok) {
         const data = await response.json()
+        console.log("📄 刷新响应数据:", {
+          code: data.code,
+          hasData: !!data.data,
+          hasAccessToken: !!(data.data?.accessToken),
+          hasRefreshToken: !!(data.data?.refreshToken),
+          msg: data.msg
+        })
+        
         if (data.code === 0 && data.data) {
+          console.log("✅ Token刷新成功!")
+          
           // Update tokens
           setAdminToken(data.data.accessToken)
           setRefreshToken(data.data.refreshToken)
@@ -103,13 +122,29 @@ export default function SmsTestingTool() {
           localStorage.setItem("sms-admin-token", data.data.accessToken)
           localStorage.setItem("sms-refresh-token", data.data.refreshToken)
           
+          console.log("💾 新token已保存到localStorage")
           return { success: true, newToken: data.data.accessToken }
+        } else {
+          console.log("❌ 刷新失败：响应code不为0或无data", {
+            code: data.code,
+            msg: data.msg,
+            hasData: !!data.data
+          })
+        }
+      } else {
+        console.log("❌ 刷新请求失败:", response.status, response.statusText)
+        try {
+          const errorData = await response.json()
+          console.log("❌ 错误详情:", errorData)
+        } catch (e) {
+          console.log("❌ 无法解析错误响应")
         }
       }
     } catch (error) {
-      console.error("Token refresh failed:", error)
+      console.error("❌ Token刷新异常:", error)
     }
     
+    console.log("❌ Token刷新流程结束：失败")
     return { success: false }
   }
 
@@ -319,11 +354,21 @@ export default function SmsTestingTool() {
 
   // Load tokens from localStorage on mount with validation
   useEffect(() => {
+    console.log("🚀 开始初始化token...")
+    
     const savedAdminToken = localStorage.getItem("sms-admin-token")
     const savedRefreshToken = localStorage.getItem("sms-refresh-token")
 
+    console.log("💾 从localStorage读取token:", {
+      hasAdminToken: !!savedAdminToken,
+      adminTokenLength: savedAdminToken?.length || 0,
+      hasRefreshToken: !!savedRefreshToken,
+      refreshTokenLength: savedRefreshToken?.length || 0
+    })
+
     // Load saved tokens if available
     if (savedAdminToken) {
+      console.log("🔑 设置admin token到state")
       setAdminToken(savedAdminToken)
       setTokensConfigured(true)
       
@@ -337,6 +382,7 @@ export default function SmsTestingTool() {
       console.log("未找到保存的token，需要手动配置")
     }
     if (savedRefreshToken) {
+      console.log("🔄 设置refresh token到state")
       setRefreshToken(savedRefreshToken)
     }
     
@@ -394,7 +440,16 @@ export default function SmsTestingTool() {
 
   // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
+    console.log("💾 开始保存token配置...")
+    console.log("🔍 当前token状态:", {
+      adminTokenLength: adminToken.trim().length,
+      refreshTokenLength: refreshToken.trim().length,
+      hasAdminToken: !!adminToken.trim(),
+      hasRefreshToken: !!refreshToken.trim()
+    })
+    
     if (!adminToken.trim()) {
+      console.log("❌ 保存失败：adminToken为空")
       toast({
         title: "错误",
         description: "请填写管理后台令牌",
@@ -403,43 +458,73 @@ export default function SmsTestingTool() {
       return
     }
 
+    console.log("💾 保存token到localStorage...")
     localStorage.setItem("sms-admin-token", adminToken)
     if (refreshToken.trim()) {
       localStorage.setItem("sms-refresh-token", refreshToken)
+      console.log("💾 refresh token也已保存")
+    } else {
+      console.log("⚠️ refresh token为空，未保存")
     }
+    
     setTokensConfigured(true)
     setShowConfigModal(false) // 关闭模态框
     setShow401Error(false) // 清除401错误状态
 
+    console.log("✅ Token配置保存完成")
     toast({
       title: "成功",
       description: "令牌配置已保存",
     })
 
     // Load templates after tokens are configured
+    console.log("🔄 保存后立即加载模板...")
     fetchTemplates()
   }
 
   // Fetch SMS templates with improved error handling
   const fetchTemplates = useCallback(async (tokenOverride?: string, isInitial = false) => {
+    console.log("📋 开始获取SMS模板...")
+    console.log("🔍 fetchTemplates参数:", {
+      hasTokenOverride: !!tokenOverride,
+      tokenOverrideLength: tokenOverride?.length || 0,
+      isInitial,
+      currentAdminTokenLength: adminToken.length
+    })
+    
     try {
       const tokenToUse = tokenOverride || adminToken
       
       if (!tokenToUse) {
+        console.log("❌ 无可用token，退出获取模板")
         return
       }
       
+      console.log("🔑 使用token长度:", tokenToUse.length)
+      console.log("📡 调用callAdminApi获取模板...")
+      
       const response = await callAdminApi("/admin-api/system/sms-template/page?pageNo=1&pageSize=10&channelId=8", {}, tokenToUse)
+
+      console.log("📥 获取模板响应状态:", response.status, response.statusText)
 
       if (response.ok) {
         const data = await response.json()
+        console.log("📄 模板响应数据:", {
+          code: data.code,
+          hasData: !!data.data,
+          dataType: Array.isArray(data.data) ? 'array' : typeof data.data,
+          dataLength: Array.isArray(data.data) ? data.data.length : (data.data?.list?.length || 0),
+          msg: data.msg
+        })
         
         // Check if the response indicates authentication failure
         if (data.code === 401) {
+          console.log("🚫 响应中检测到401错误")
           // 注意：callAdminApi已经处理了token刷新，如果这里仍然是401，说明token无法刷新
           // 初始加载时不显示401错误，只有用户主动操作时才显示
           if (!isInitial) {
             if (!localStorage.getItem("sms-admin-token")) {
+              console.log("🔧 打开配置模态框（无localStorage token）")
               setShowConfigModal(true)
               toast({
                 title: "需要配置",
@@ -447,8 +532,11 @@ export default function SmsTestingTool() {
                 variant: "destructive",
               })
             } else {
+              console.log("⚠️ 显示401错误提示")
               setShow401Error(true)
             }
+          } else {
+            console.log("🔇 初始加载，静默处理401错误")
           }
           return
         }
@@ -462,19 +550,26 @@ export default function SmsTestingTool() {
         const templatesData = Array.isArray(data.data) ? data.data : 
                               (data.data?.list ? data.data.list : [])
         
+        console.log("✅ 模板数据处理完成，数量:", templatesData.length)
         setTemplates(templatesData)
+        
         // 只在非初始加载或模板数量大于0时显示成功提示
         if (!isInitial || templatesData.length > 0) {
+          console.log("🎉 显示成功提示")
           toast({
             title: "成功",
             description: `已加载 ${templatesData.length} 个短信模板`,
           })
+        } else {
+          console.log("🔇 初始加载且无模板，不显示提示")
         }
       } else if (response.status === 401) {
+        console.log("🚫 HTTP状态401错误")
         // HTTP 401状态码表示callAdminApi的token刷新也失败了
         // 初始加载时不显示401错误，只有用户主动操作时才显示
         if (!isInitial) {
           if (!localStorage.getItem("sms-admin-token")) {
+            console.log("🔧 打开配置模态框（HTTP 401 + 无localStorage token）")
             setShowConfigModal(true)
             toast({
               title: "需要配置",
@@ -482,27 +577,31 @@ export default function SmsTestingTool() {
               variant: "destructive",
             })
           } else {
+            console.log("⚠️ 显示401错误提示（HTTP 401）")
             setShow401Error(true)
           }
+        } else {
+          console.log("🔇 初始加载，静默处理HTTP 401错误")
         }
       } else {
         const errorData = await response.json().catch(() => ({}))
-        console.error("API error response:", errorData)
+        console.error("❌ API错误响应:", errorData)
         throw new Error(errorData.msg || "获取模板失败")
       }
     } catch (error) {
-      console.error("获取短信模板失败:", error)
+      console.error("❌ 获取短信模板失败:", error)
       // Ensure templates is empty array on error
       setTemplates([])
       // 初始加载时不显示错误toast，但在控制台记录错误
       if (!isInitial) {
+        console.log("💬 显示错误toast")
         toast({
           title: "错误",
           description: error instanceof Error ? error.message : "获取短信模板失败，请检查网络连接",
           variant: "destructive",
         })
       } else {
-        console.warn("初始加载模板失败，用户可手动刷新:", error)
+        console.warn("⚠️ 初始加载模板失败，用户可手动刷新:", error)
       }
     }
   }, [adminToken, toast, callAdminApi])
