@@ -682,8 +682,8 @@ export default function SmsTestingTool() {
 
         setSmsStatuses((prev) => [newStatus, ...prev])
         
-        // 添加到后台监控服务
-        smsMonitorService.addSmsForMonitoring(outId)
+        // 添加到后台监控服务 - 新SMS具有最高优先级
+        smsMonitorService.addSmsForMonitoring(outId, phoneNumber.trim(), 1)
 
         toast({
           title: "成功",
@@ -1479,7 +1479,8 @@ export default function SmsTestingTool() {
           // 添加发送成功的记录到后台监控服务
           results.forEach(result => {
             if (result.status === 'success') {
-              smsMonitorService.addSmsForMonitoring(result.outId)
+              // 传递手机号码和优先级，批量SMS使用稍低优先级
+              smsMonitorService.addSmsForMonitoring(result.outId, result.phone, 2)
             }
           })
         }}
