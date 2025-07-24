@@ -484,6 +484,65 @@ export class SmsRecordDB {
     `)
     return stmt.all() as SmsRecord[]
   }
+
+  // 查询可重发的记录
+  findResendableRecords(limit = 100, offset = 0): SmsRecord[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM sms_records 
+      WHERE status IN ('发送失败', '发送中(已停止查询)') 
+      OR (status = '发送中' AND created_at < datetime('now', '-10 minutes'))
+      ORDER BY created_at DESC 
+      LIMIT ? OFFSET ?
+    `)
+    return stmt.all(limit, offset) as SmsRecord[]
+  }
+
+  // 检查记录是否可以重发
+  canResend(outId: string): { canResend: boolean; reason?: string } {
+    const record = this.findByOutId(outId)
+    
+    if (!record) {
+      return { canResend: false, reason: '记录不存在' }
+    }
+
+    // 已送达的记录不允许重发
+    if (record.status === '已送达') {
+      return { canResend: false, reason: '已送达的记录不允许重发' }
+    }
+
+    // 检查重发间隔（最少5分钟）
+    if (record.last_retry_at) {
+      const lastRetryTime = new Date(record.last_retry_at).getTime()
+      const now = Date.now()
+      const intervalMinutes = (now - lastRetryTime) / (1000 * 60)
+      
+      if (intervalMinutes < 5) {
+        return { canResend: false, reason: `请等待 ${Math.ceil(5 - intervalMinutes)} 分钟后再重发` }
+      }
+    }
+
+    // 可以重发的状态
+    const resendableStatuses = ['发送失败', '发送中(已停止查询)', '发送中']
+    if (!resendableStatuses.includes(record.status)) {
+      return { canResend: false, reason: `当前状态 "${record.status}" 不允许重发` }
+    }
+
+    return { canResend: true }
+  }
+
+  // 增加重试计数并更新时间
+  incrementRetryCount(outId: string): boolean {
+    const stmt = this.db.prepare(`
+      UPDATE sms_records 
+      SET retry_count = COALESCE(retry_count, 0) + 1,
+          last_retry_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE out_id = ?
+    `)
+    
+    const result = stmt.run(outId)
+    return result.changes > 0
+  }
   
   // 统计记录总数
   count(): number {

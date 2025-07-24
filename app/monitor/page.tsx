@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2, MessageSquare } from "lucide-react"
+import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2, MessageSquare, RotateCcw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -77,6 +77,9 @@ export default function SmsMonitorPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalRecords, setTotalRecords] = useState(0)
   const itemsPerPage = 20
+
+  // Resend functionality
+  const [resendingOutIds, setResendingOutIds] = useState<Set<string>>(new Set())
 
   // Load SMS records
   const loadRecords = useCallback(async (page = 1, triggerCheck = false) => {

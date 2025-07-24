@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import carrierLookupService from '@/lib/carrier-lookup-service'
+import { phoneLookupService } from '@/lib/phone-lookup'
 
 // POST - 查询手机号码的运营商信息
 export async function POST(request: NextRequest) {
@@ -22,34 +22,46 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // 调用运营商查询服务
-    const lookupResult = await carrierLookupService.lookupCarrier(phoneNumber.trim())
+    // 使用新的电话号码查询服务
+    const result = await phoneLookupService.lookup(phoneNumber.trim())
 
-    if (!lookupResult.success) {
+    if (!result.success) {
       return NextResponse.json({
         success: false,
-        error: lookupResult.error || '查询运营商信息失败'
+        error: result.error || '查询运营商信息失败'
       }, { status: 500 })
     }
 
-    // 生成智能备注
-    const { carrier, province, city } = lookupResult.data!
-    let note = ''
-    if (carrier && province && city) {
-      note = `${carrier} - ${province}${city === province ? '' : city}`
-    } else if (carrier && province) {
-      note = `${carrier} - ${province}`
-    } else if (carrier) {
-      note = carrier
+    // 转换为API响应格式
+    const { data } = result
+    if (!data) {
+      return NextResponse.json({
+        success: false,
+        error: '未返回查询结果'
+      }, { status: 500 })
+    }
+
+    // 生成智能备注（如果没有的话）
+    let note = data.note
+    if (!note) {
+      const { carrier, province, city } = data
+      if (carrier && province && city) {
+        note = `${carrier} - ${province}${city === province ? '' : city}`
+      } else if (carrier && province) {
+        note = `${carrier} - ${province}`
+      } else if (carrier) {
+        note = carrier
+      }
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        carrier: lookupResult.data.carrier,
-        province: lookupResult.data.province,
-        city: lookupResult.data.city,
-        note: note
+        carrier: data.carrier,
+        province: data.province,
+        city: data.city,
+        note: note || '',
+        provider: result.provider // 添加provider信息用于调试
       }
     })
   } catch (error) {

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff } from "lucide-react"
+import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff, RotateCcw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import PhoneNumberManagerModal from "@/components/phone-number-manager-modal"
 import BulkSendModal from "@/components/bulk-send-modal"
@@ -69,6 +69,9 @@ export default function SmsTestingTool() {
   // Status monitoring
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Resend functionality
+  const [resendingOutIds, setResendingOutIds] = useState<Set<string>>(new Set())
 
   // Configuration modal
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -903,6 +906,81 @@ export default function SmsTestingTool() {
     }
   }, [smsStatuses, checkSmsStatus, loadSmsHistory, toast])
 
+  // 重发SMS
+  const resendSms = async (outId: string) => {
+    // 检查是否正在重发
+    if (resendingOutIds.has(outId)) {
+      return
+    }
+
+    // 添加到重发状态
+    setResendingOutIds(prev => new Set(prev).add(outId))
+
+    try {
+      const response = await fetch('/api/sms-records/resend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          out_id: outId,
+          admin_token: adminToken
+        })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        toast({
+          title: "重发成功",
+          description: `短信重发成功，新OutId: ${result.data.new_out_id}`,
+        })
+
+        // 添加新记录到状态监控
+        if (result.data.new_record) {
+          const newStatus: SmsStatus = {
+            outId: result.data.new_out_id,
+            status: "发送中",
+            sendDate: new Date().toLocaleString("zh-CN"),
+            phoneNumber: result.data.new_record.phone_number,
+          }
+
+          setSmsStatuses((prev) => [newStatus, ...prev])
+          
+          // 添加到后台监控服务
+          smsMonitorService.addSmsForMonitoring(result.data.new_out_id, result.data.new_record.phone_number.trim(), 1)
+        }
+
+        // 重新加载SMS历史记录以获取最新状态
+        await loadSmsHistory()
+
+      } else {
+        throw new Error(result.error || '重发失败')
+      }
+
+    } catch (error) {
+      console.error('重发SMS失败:', error)
+      toast({
+        title: "重发失败",
+        description: error instanceof Error ? error.message : "重发SMS失败，请稍后重试",
+        variant: "destructive",
+      })
+    } finally {
+      // 从重发状态中移除
+      setResendingOutIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(outId)
+        return newSet
+      })
+    }
+  }
+
+  // 检查记录是否可以重发
+  const canResend = (status: string) => {
+    const resendableStatuses = ['发送失败', '发送中(已停止查询)']
+    return resendableStatuses.includes(status)
+  }
+
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case "已送达":
@@ -1578,7 +1656,22 @@ export default function SmsTestingTool() {
                       <div key={sms.outId} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">OutId: {sms.outId}</span>
-                          <Badge variant={getStatusBadgeVariant(sms.status)}>{sms.status}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={getStatusBadgeVariant(sms.status)}>{sms.status}</Badge>
+                            {canResend(sms.status) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => resendSms(sms.outId)}
+                                disabled={resendingOutIds.has(sms.outId)}
+                                className="h-6 px-2"
+                                title="重发短信"
+                              >
+                                <RotateCcw className={`w-3 h-3 ${resendingOutIds.has(sms.outId) ? 'animate-spin' : ''}`} />
+                                {resendingOutIds.has(sms.outId) ? '重发中' : '重发'}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         <div className="text-sm text-gray-600 space-y-1">
                           <p>手机号码: {sms.phoneNumber}</p>
@@ -1615,6 +1708,7 @@ export default function SmsTestingTool() {
                   <li>• 系统后台自动监控SMS状态，无需手动刷新</li>
                   <li>• <strong>强制刷新</strong>：主动查询阿里云最新状态，解决延迟反馈问题</li>
                   <li>• <strong>一键发送</strong>：选择模板后可批量发送给所有号码，支持搜索和分组选择</li>
+                  <li>• <strong>重发功能</strong>：失败的短信可点击"重发"按钮重新发送，会生成新的OutId</li>
                   <li>• 可点击"查看详情"查看完整的发送记录和统计</li>
                   <li>• 点击"管理号码"可添加和管理常用手机号</li>
                   <li>• 令牌信息已本地保存，刷新页面不会丢失</li>

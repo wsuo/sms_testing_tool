@@ -140,7 +140,7 @@ export default function PhoneNumberManager({ onPhoneNumbersChange, showCard = tr
     }
   }, [currentPage])
 
-  // 自动识别手机号码信息 - 客户端直接调用
+  // 自动识别手机号码信息 - 使用新的查询服务
   const handleLookupPhoneNumber = async () => {
     if (!newNumber.trim()) {
       toast({
@@ -164,7 +164,7 @@ export default function PhoneNumberManager({ onPhoneNumbersChange, showCard = tr
 
     setIsLookingUp(true)
     try {
-      // 先尝试客户端直接查询
+      // 先尝试客户端直接查询（保持原有逻辑）
       console.log('尝试客户端直接查询...')
       const directResult = await fetch('https://tool.lu/mobile/ajax.html', {
         method: 'POST',
@@ -219,8 +219,8 @@ export default function PhoneNumberManager({ onPhoneNumbersChange, showCard = tr
         }
       }
       
-      // 客户端查询失败，回退到服务器端查询
-      console.log('客户端查询失败，回退到服务器端查询')
+      // 客户端查询失败，使用新的服务端查询服务
+      console.log('客户端查询失败，使用服务端统一查询服务')
       const response = await fetch('/api/phone-numbers/lookup', {
         method: 'POST',
         headers: {
@@ -235,19 +235,33 @@ export default function PhoneNumberManager({ onPhoneNumbersChange, showCard = tr
 
       if (response.ok && result.success) {
         // 自动填充表单
-        setNewCarrier(result.data.carrier as Carrier)
-        setNewProvince(result.data.province || '')
-        setNewCity(result.data.city || '')
-        setNewNote(result.data.note || '')
+        const { data } = result
+        setNewCarrier(data.carrier as Carrier)
+        setNewProvince(data.province || '')
+        setNewCity(data.city || '')
+        setNewNote(data.note || '')
         
-        // 根据省份城市是否为"未知"来判断是否使用了离线方案
-        const isOfflineResult = result.data.province === '未知' || result.data.city === '未知'
+        // 根据provider和数据质量判断查询类型
+        const isOfflineResult = data.provider?.includes('offline') || 
+                               data.province === '未知' || 
+                               data.city === '未知'
+        
+        const isCachedResult = data.provider?.includes('cached')
+        
+        let titleSuffix = ''
+        if (isCachedResult) {
+          titleSuffix = '（缓存）'
+        } else if (isOfflineResult) {
+          titleSuffix = '（离线）'
+        } else {
+          titleSuffix = '（在线）'
+        }
         
         toast({
-          title: isOfflineResult ? "识别成功（离线）" : "识别成功",
+          title: `识别成功${titleSuffix}`,
           description: isOfflineResult 
-            ? `已识别运营商：${result.data.carrier}（使用离线数据库）`
-            : `已自动识别：${result.data.carrier} - ${result.data.province}${result.data.city}`,
+            ? `已识别运营商：${data.carrier}（使用本地数据库）`
+            : `已自动识别：${data.carrier} - ${data.province}${data.city}`,
         })
       } else {
         toast({
