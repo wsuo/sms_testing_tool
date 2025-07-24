@@ -107,13 +107,7 @@ export async function POST(request: NextRequest) {
 
     const newOutId = sendResult.data ? String(sendResult.data) : `resend-${Date.now()}`
 
-    // 增加原记录的重试计数
-    const incrementSuccess = smsRecordDB.incrementRetryCount(out_id)
-    if (!incrementSuccess) {
-      console.warn('更新重试计数失败，但重发成功')
-    }
-
-    // 创建新的重发记录
+    // 创建新的重发记录（新记录的重试次数初始为0）
     try {
       const newRecordId = smsRecordDB.insertRecord({
         out_id: newOutId,
@@ -127,14 +121,21 @@ export async function POST(request: NextRequest) {
         send_date: new Date().toLocaleString('zh-CN'),
         status: '发送中',
         error_code: undefined,
-        retry_count: (originalRecord.retry_count || 0) + 1
+        retry_count: 0  // 新记录的重试次数初始为0
       })
+
+      // 增加原记录的重试计数（记录用户进行了一次重发操作）
+      const incrementSuccess = smsRecordDB.incrementRetryCount(out_id)
+      if (!incrementSuccess) {
+        console.warn('更新原记录重试计数失败，但重发成功')
+      }
 
       console.log('重发记录创建成功:', {
         originalOutId: out_id,
         newOutId: newOutId,
         newRecordId: newRecordId,
-        retryCount: (originalRecord.retry_count || 0) + 1
+        originalRetryCount: (originalRecord.retry_count || 0) + 1,
+        newRecordRetryCount: 0
       })
 
     } catch (dbError) {
@@ -152,7 +153,8 @@ export async function POST(request: NextRequest) {
         original_record: updatedOriginalRecord,
         new_record: newRecord,
         new_out_id: newOutId,
-        retry_count: (originalRecord.retry_count || 0) + 1
+        original_retry_count: (originalRecord.retry_count || 0) + 1,
+        new_record_retry_count: 0
       },
       message: `重发成功，新OutId: ${newOutId}`
     })
