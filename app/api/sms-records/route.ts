@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         status: statusFilter || undefined,
         carrier: carrierFilter || undefined,
         templateName: templateFilter || undefined,
-        dateRange: (dateFilter as 'today' | 'week' | 'month') || undefined,
+        dateRange: (dateFilter as 'today' | '2days' | 'week' | 'month') || undefined,
         limit,
         offset
       }

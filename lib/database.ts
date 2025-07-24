@@ -56,6 +56,8 @@ function initializeTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       number TEXT NOT NULL UNIQUE,
       carrier TEXT NOT NULL,
+      province TEXT,
+      city TEXT,
       note TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -98,14 +100,14 @@ function runMigrations() {
   if (!db) return
   
   try {
-    // 检查是否存在新字段，如果不存在则添加
-    const checkColumns = db.prepare("PRAGMA table_info(sms_records)").all() as any[]
-    const existingColumns = checkColumns.map(col => col.name)
+    // 检查sms_records表是否存在新字段，如果不存在则添加
+    const checkSmsColumns = db.prepare("PRAGMA table_info(sms_records)").all() as any[]
+    const existingSmsColumns = checkSmsColumns.map(col => col.name)
     
-    console.log('Existing columns:', existingColumns)
+    console.log('Existing sms_records columns:', existingSmsColumns)
     
-    // 需要添加的新字段
-    const requiredColumns = [
+    // 需要添加的SMS记录新字段
+    const requiredSmsColumns = [
       { name: 'retry_count', sql: 'ALTER TABLE sms_records ADD COLUMN retry_count INTEGER DEFAULT 0' },
       { name: 'last_retry_at', sql: 'ALTER TABLE sms_records ADD COLUMN last_retry_at DATETIME' },
       { name: 'auto_refresh_enabled', sql: 'ALTER TABLE sms_records ADD COLUMN auto_refresh_enabled INTEGER DEFAULT 1' },
@@ -114,10 +116,30 @@ function runMigrations() {
       { name: 'phone_note', sql: 'ALTER TABLE sms_records ADD COLUMN phone_note TEXT' }
     ]
     
-    // 添加缺失的字段
-    for (const column of requiredColumns) {
-      if (!existingColumns.includes(column.name)) {
-        console.log(`Adding missing column: ${column.name}`)
+    // 添加SMS记录表缺失的字段
+    for (const column of requiredSmsColumns) {
+      if (!existingSmsColumns.includes(column.name)) {
+        console.log(`Adding missing sms_records column: ${column.name}`)
+        db.exec(column.sql)
+      }
+    }
+
+    // 检查phone_numbers表是否存在新字段，如果不存在则添加
+    const checkPhoneColumns = db.prepare("PRAGMA table_info(phone_numbers)").all() as any[]
+    const existingPhoneColumns = checkPhoneColumns.map(col => col.name)
+    
+    console.log('Existing phone_numbers columns:', existingPhoneColumns)
+    
+    // 需要添加的手机号码新字段
+    const requiredPhoneColumns = [
+      { name: 'province', sql: 'ALTER TABLE phone_numbers ADD COLUMN province TEXT' },
+      { name: 'city', sql: 'ALTER TABLE phone_numbers ADD COLUMN city TEXT' }
+    ]
+    
+    // 添加手机号码表缺失的字段
+    for (const column of requiredPhoneColumns) {
+      if (!existingPhoneColumns.includes(column.name)) {
+        console.log(`Adding missing phone_numbers column: ${column.name}`)
         db.exec(column.sql)
       }
     }
@@ -157,6 +179,8 @@ export interface PhoneNumber {
   id?: number
   number: string
   carrier: string
+  province?: string  // 省份
+  city?: string      // 城市
   note?: string
   created_at?: string
   updated_at?: string
@@ -319,7 +343,7 @@ export class SmsRecordDB {
     status?: string
     carrier?: string
     templateName?: string
-    dateRange?: 'today' | 'week' | 'month'
+    dateRange?: 'today' | '2days' | 'week' | 'month'
     limit?: number
     offset?: number
   }): SmsRecord[] {
@@ -357,6 +381,9 @@ export class SmsRecordDB {
         case 'today':
           conditions.push("date(created_at) = date('now')")
           break
+        case '2days':
+          conditions.push("created_at >= datetime('now', '-2 days')")
+          break
         case 'week':
           conditions.push("created_at >= datetime('now', '-7 days')")
           break
@@ -389,7 +416,7 @@ export class SmsRecordDB {
     status?: string
     carrier?: string
     templateName?: string
-    dateRange?: 'today' | 'week' | 'month'
+    dateRange?: 'today' | '2days' | 'week' | 'month'
   }): number {
     const conditions: string[] = []
     const params: any[] = []
@@ -424,6 +451,9 @@ export class SmsRecordDB {
       switch (filters.dateRange) {
         case 'today':
           conditions.push("date(created_at) = date('now')")
+          break
+        case '2days':
+          conditions.push("created_at >= datetime('now', '-2 days')")
           break
         case 'week':
           conditions.push("created_at >= datetime('now', '-7 days')")
@@ -513,13 +543,15 @@ export class PhoneNumberDB {
   insertPhoneNumber(phoneNumber: Omit<PhoneNumber, 'id' | 'created_at' | 'updated_at'>): number {
     const stmt = this.db.prepare(`
       INSERT INTO phone_numbers 
-      (number, carrier, note)
-      VALUES (?, ?, ?)
+      (number, carrier, province, city, note)
+      VALUES (?, ?, ?, ?, ?)
     `)
     
     const result = stmt.run(
       phoneNumber.number,
       phoneNumber.carrier,
+      phoneNumber.province || null,
+      phoneNumber.city || null,
       phoneNumber.note || null
     )
     
@@ -527,7 +559,7 @@ export class PhoneNumberDB {
   }
   
   // 更新手机号码记录
-  updatePhoneNumber(id: number, updates: Partial<Pick<PhoneNumber, 'number' | 'carrier' | 'note'>>): boolean {
+  updatePhoneNumber(id: number, updates: Partial<Pick<PhoneNumber, 'number' | 'carrier' | 'province' | 'city' | 'note'>>): boolean {
     const updateFields: string[] = []
     const values: any[] = []
     
@@ -539,6 +571,16 @@ export class PhoneNumberDB {
     if (updates.carrier !== undefined) {
       updateFields.push('carrier = ?')
       values.push(updates.carrier)
+    }
+    
+    if (updates.province !== undefined) {
+      updateFields.push('province = ?')
+      values.push(updates.province)
+    }
+    
+    if (updates.city !== undefined) {
+      updateFields.push('city = ?')
+      values.push(updates.city)
     }
     
     if (updates.note !== undefined) {
@@ -618,6 +660,76 @@ export class PhoneNumberDB {
   count(): number {
     const stmt = this.db.prepare('SELECT COUNT(*) as count FROM phone_numbers')
     const result = stmt.get() as { count: number }
+    return result.count
+  }
+  
+  // 复合条件查询手机号码
+  findWithFilters(filters: {
+    searchTerm?: string
+    carrier?: string
+    limit?: number
+    offset?: number
+  }): PhoneNumber[] {
+    const conditions: string[] = []
+    const params: any[] = []
+    
+    // 搜索条件（手机号码、省份、城市或备注）
+    if (filters.searchTerm && filters.searchTerm.trim()) {
+      conditions.push('(number LIKE ? OR province LIKE ? OR city LIKE ? OR note LIKE ?)')
+      const searchPattern = `%${filters.searchTerm.trim()}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    // 运营商筛选
+    if (filters.carrier && filters.carrier !== 'all') {
+      conditions.push('carrier = ?')
+      params.push(filters.carrier)
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    const limit = filters.limit || 100
+    const offset = filters.offset || 0
+    
+    const query = `
+      SELECT * FROM phone_numbers 
+      ${whereClause}
+      ORDER BY created_at DESC 
+      LIMIT ? OFFSET ?
+    `
+    
+    params.push(limit, offset)
+    
+    const stmt = this.db.prepare(query)
+    return stmt.all(...params) as PhoneNumber[]
+  }
+
+  // 复合条件统计手机号码数量
+  countWithFilters(filters: {
+    searchTerm?: string
+    carrier?: string
+  }): number {
+    const conditions: string[] = []
+    const params: any[] = []
+    
+    // 搜索条件（手机号码、省份、城市或备注）
+    if (filters.searchTerm && filters.searchTerm.trim()) {
+      conditions.push('(number LIKE ? OR province LIKE ? OR city LIKE ? OR note LIKE ?)')
+      const searchPattern = `%${filters.searchTerm.trim()}%`
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern)
+    }
+    
+    // 运营商筛选
+    if (filters.carrier && filters.carrier !== 'all') {
+      conditions.push('carrier = ?')
+      params.push(filters.carrier)
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    
+    const query = `SELECT COUNT(*) as count FROM phone_numbers ${whereClause}`
+    
+    const stmt = this.db.prepare(query)
+    const result = stmt.get(...params) as { count: number }
     return result.count
   }
   

@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { phoneNumberDB, PhoneNumber } from '@/lib/database'
+import carrierLookupService from '@/lib/carrier-lookup-service'
 
 // GET - 获取手机号码列表
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const limit = parseInt(searchParams.get('limit') || '100', 10)
+    const limit = parseInt(searchParams.get('limit') || '20', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
+    
+    // 原有参数（保持向后兼容）
     const carrier = searchParams.get('carrier')
     const number = searchParams.get('number')
+    
+    // 新增筛选参数
+    const searchTerm = searchParams.get('searchTerm')
     
     // 如果查询特定手机号码
     if (number) {
@@ -20,19 +26,40 @@ export async function GET(request: NextRequest) {
     }
     
     let phoneNumbers: PhoneNumber[]
+    let totalCount: number
     
-    if (carrier) {
-      // 根据运营商查询
-      phoneNumbers = phoneNumberDB.findByCarrier(carrier)
+    // 使用新的复合筛选查询
+    if (searchTerm || (carrier && carrier !== 'all')) {
+      const filters = {
+        searchTerm: searchTerm || undefined,
+        carrier: carrier || undefined,
+        limit,
+        offset
+      }
+      
+      phoneNumbers = phoneNumberDB.findWithFilters(filters)
+      totalCount = phoneNumberDB.countWithFilters({
+        searchTerm: filters.searchTerm,
+        carrier: filters.carrier
+      })
     } else {
       // 查询所有记录
       phoneNumbers = phoneNumberDB.findAll(limit, offset)
+      totalCount = phoneNumberDB.count()
     }
+    
+    const totalPages = Math.ceil(totalCount / limit)
+    const currentPage = Math.floor(offset / limit) + 1
     
     return NextResponse.json({
       success: true,
       data: phoneNumbers,
-      total: phoneNumbers.length
+      total: totalCount,
+      totalPages,
+      currentPage,
+      pageSize: limit,
+      hasNext: currentPage < totalPages,
+      hasPrev: currentPage > 1
     })
     
   } catch (error) {
@@ -48,29 +75,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - 添加新的手机号码
+// POST - 添加新的手机号码（自动查询运营商信息）
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { number, carrier, note } = body
+    const { number, carrier, province, city, note, autoLookup = true } = body
     
     // 验证必需字段
-    if (!number || !carrier) {
+    if (!number) {
       return NextResponse.json(
         { 
           success: false, 
-          error: '手机号码和运营商不能为空' 
-        },
-        { status: 400 }
-      )
-    }
-    
-    // 验证运营商类型
-    if (!['中国移动', '中国电信', '中国联通', '其他'].includes(carrier)) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: '无效的运营商类型' 
+          error: '手机号码不能为空' 
         },
         { status: 400 }
       )
@@ -98,11 +114,58 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    let finalCarrier = carrier
+    let finalProvince = province
+    let finalCity = city
+    let finalNote = note
+    
+    // 如果启用自动查询并且缺少运营商信息，则自动查询
+    if (autoLookup && (!carrier || !province || !city)) {
+      try {
+        console.log(`正在查询手机号码 ${number} 的运营商信息...`)
+        const lookupResult = await carrierLookupService.lookupCarrier(number)
+        
+        if (lookupResult.success && lookupResult.data) {
+          finalCarrier = finalCarrier || lookupResult.data.carrier
+          finalProvince = finalProvince || lookupResult.data.province
+          finalCity = finalCity || lookupResult.data.city
+          
+          // 如果没有提供备注，自动生成备注（省份+城市）
+          if (!finalNote && finalProvince && finalCity) {
+            finalNote = `${finalProvince} ${finalCity}`
+          }
+          
+          console.log(`查询成功: ${finalCarrier} ${finalProvince} ${finalCity}`)
+        } else {
+          console.warn(`查询运营商信息失败: ${lookupResult.error}`)
+          // 查询失败时使用默认值或传入的值
+          finalCarrier = finalCarrier || '其他'
+        }
+      } catch (error) {
+        console.error('运营商查询异常:', error)
+        // 查询异常时使用默认值或传入的值
+        finalCarrier = finalCarrier || '其他'
+      }
+    }
+    
+    // 验证运营商类型
+    if (finalCarrier && !['中国移动', '中国电信', '中国联通', '其他'].includes(finalCarrier)) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: '无效的运营商类型' 
+        },
+        { status: 400 }
+      )
+    }
+    
     // 创建记录
     const phoneNumberId = phoneNumberDB.insertPhoneNumber({
       number,
-      carrier,
-      note: note || undefined
+      carrier: finalCarrier || '其他',
+      province: finalProvince,
+      city: finalCity,
+      note: finalNote
     })
     
     // 返回创建的记录
@@ -110,7 +173,8 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      data: createdPhoneNumber
+      data: createdPhoneNumber,
+      message: autoLookup ? '手机号码添加成功，已自动查询运营商信息' : '手机号码添加成功'
     }, { status: 201 })
     
   } catch (error) {
@@ -130,7 +194,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, number, carrier, note } = body
+    const { id, number, carrier, province, city, note } = body
     
     if (!id) {
       return NextResponse.json(
@@ -188,10 +252,12 @@ export async function PUT(request: NextRequest) {
     }
     
     // 准备更新数据
-    const updates: Partial<Pick<PhoneNumber, 'number' | 'carrier' | 'note'>> = {}
+    const updates: Partial<Pick<PhoneNumber, 'number' | 'carrier' | 'province' | 'city' | 'note'>> = {}
     
     if (number !== undefined) updates.number = number
     if (carrier !== undefined) updates.carrier = carrier
+    if (province !== undefined) updates.province = province
+    if (city !== undefined) updates.city = city
     if (note !== undefined) updates.note = note
     
     // 执行更新

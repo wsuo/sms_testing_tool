@@ -122,12 +122,12 @@ export default function SmsMonitorPage() {
           setTotalPages(result.totalPages)
           setCurrentPage(result.currentPage)
           
-          // 获取所有记录用于统计信息（不应用筛选条件）
+          // 获取所有记录用于统计信息（应用时间筛选条件）
           const allRecordsResponse = await fetch(`/api/sms-records?limit=10000&offset=0`)
           if (allRecordsResponse.ok) {
             const allRecordsResult = await allRecordsResponse.json()
             if (allRecordsResult.success && allRecordsResult.data) {
-              calculateStats(allRecordsResult.data)
+              calculateStats(allRecordsResult.data, dateFilter)
             }
           }
           
@@ -249,23 +249,62 @@ export default function SmsMonitorPage() {
     }
   }
 
-  // Calculate statistics
-  const calculateStats = (data: SmsRecord[]) => {
+  // Calculate statistics with time filter
+  const calculateStats = (allData: SmsRecord[], timeFilter: string = 'all') => {
+    // Filter data based on time filter
+    const getTimeFilteredData = (data: SmsRecord[], filter: string) => {
+      if (filter === 'all') return data
+      
+      const now = new Date()
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      
+      switch (filter) {
+        case 'today':
+          return data.filter(record => 
+            new Date(record.created_at) >= startOfToday
+          )
+        case '2days':
+          const twoDaysAgo = new Date(startOfToday)
+          twoDaysAgo.setDate(twoDaysAgo.getDate() - 1)
+          return data.filter(record => 
+            new Date(record.created_at) >= twoDaysAgo
+          )
+        case 'week':
+          const weekAgo = new Date(startOfToday)
+          weekAgo.setDate(weekAgo.getDate() - 6)
+          return data.filter(record => 
+            new Date(record.created_at) >= weekAgo
+          )
+        case 'month':
+          const monthAgo = new Date(startOfToday)
+          monthAgo.setDate(monthAgo.getDate() - 29)
+          return data.filter(record => 
+            new Date(record.created_at) >= monthAgo
+          )
+        default:
+          return data
+      }
+    }
+    
+    // Get filtered data for statistics
+    const filteredData = getTimeFilteredData(allData, timeFilter)
+    
+    // Calculate today's records (always from today regardless of filter)
     const today = new Date().toDateString()
-    const todayRecords = data.filter(record => 
+    const todayRecords = allData.filter(record => 
       new Date(record.created_at).toDateString() === today
     )
     
-    const total = data.length
-    const success = data.filter(r => r.status === "已送达").length
-    const failed = data.filter(r => r.status === "发送失败").length
-    const pending = data.filter(r => r.status === "发送中" || r.status === "发送中(已停止查询)").length
+    const total = filteredData.length
+    const success = filteredData.filter(r => r.status === "已送达").length
+    const failed = filteredData.filter(r => r.status === "发送失败").length
+    const pending = filteredData.filter(r => r.status === "发送中" || r.status === "发送中(已停止查询)").length
     const todayTotal = todayRecords.length
     const successRate = total > 0 ? (success / total * 100) : 0
 
-    // Calculate carrier statistics
+    // Calculate carrier statistics based on filtered data
     const carrierStats: Record<string, {total: number, success: number, failed: number, successRate: number}> = {}
-    data.forEach(record => {
+    filteredData.forEach(record => {
       const carrier = record.carrier || '未知运营商'
       if (!carrierStats[carrier]) {
         carrierStats[carrier] = { total: 0, success: 0, failed: 0, successRate: 0 }
@@ -281,9 +320,9 @@ export default function SmsMonitorPage() {
       stats.successRate = stats.total > 0 ? (stats.success / stats.total * 100) : 0
     })
 
-    // Calculate template statistics
+    // Calculate template statistics based on filtered data
     const templateStats: Record<string, {total: number, success: number, failed: number, successRate: number}> = {}
-    data.forEach(record => {
+    filteredData.forEach(record => {
       const template = record.template_name || '未知模板'
       if (!templateStats[template]) {
         templateStats[template] = { total: 0, success: 0, failed: 0, successRate: 0 }
@@ -532,6 +571,21 @@ export default function SmsMonitorPage() {
           </div>
         </div>
 
+        {/* Statistics Title */}
+        {dateFilter !== 'all' && (
+          <div className="flex items-center justify-center">
+            <Badge variant="outline" className="text-sm px-4 py-2">
+              <Clock className="w-4 h-4 mr-2" />
+              当前统计范围: {
+                dateFilter === 'today' ? '今天' : 
+                dateFilter === '2days' ? '最近2天' :
+                dateFilter === 'week' ? '最近7天' : 
+                dateFilter === 'month' ? '最近30天' : '筛选中'
+              } 的数据
+            </Badge>
+          </div>
+        )}
+
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <Card>
@@ -614,6 +668,14 @@ export default function SmsMonitorPage() {
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
                 运营商统计
+                {dateFilter !== 'all' && (
+                  <Badge variant="outline" className="text-xs">
+                    {dateFilter === 'today' ? '今天' : 
+                     dateFilter === '2days' ? '最近2天' :
+                     dateFilter === 'week' ? '最近7天' : 
+                     dateFilter === 'month' ? '最近30天' : '筛选中'}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -654,6 +716,14 @@ export default function SmsMonitorPage() {
               <CardTitle className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5" />
                 模板统计
+                {dateFilter !== 'all' && (
+                  <Badge variant="outline" className="text-xs">
+                    {dateFilter === 'today' ? '今天' : 
+                     dateFilter === '2days' ? '最近2天' :
+                     dateFilter === 'week' ? '最近7天' : 
+                     dateFilter === 'month' ? '最近30天' : '筛选中'}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -748,6 +818,7 @@ export default function SmsMonitorPage() {
                 <SelectContent>
                   <SelectItem value="all">全部时间</SelectItem>
                   <SelectItem value="today">今天</SelectItem>
+                  <SelectItem value="2days">最近2天</SelectItem>
                   <SelectItem value="week">最近7天</SelectItem>
                   <SelectItem value="month">最近30天</SelectItem>
                 </SelectContent>
