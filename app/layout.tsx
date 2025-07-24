@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import './instrumentation-client' // 导入 Sentry 客户端配置
+import { Toaster } from '@/components/ui/toaster'
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -14,7 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster />
+      </body>
     </html>
   )
 }
