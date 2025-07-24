@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { phoneNumberDB, PhoneNumber } from '@/lib/database'
-import carrierLookupService from '@/lib/carrier-lookup-service'
+import { phoneLookupService } from '@/lib/phone-lookup'
 
 // GET - 获取手机号码列表
 export async function GET(request: NextRequest) {
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     if (autoLookup && (!carrier || !province || !city)) {
       try {
         console.log(`正在查询手机号码 ${number} 的运营商信息...`)
-        const lookupResult = await carrierLookupService.lookupCarrier(number)
+        const lookupResult = await phoneLookupService.lookup(number)
         
         if (lookupResult.success && lookupResult.data) {
           finalCarrier = finalCarrier || lookupResult.data.carrier

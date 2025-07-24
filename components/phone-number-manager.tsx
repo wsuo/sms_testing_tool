@@ -164,63 +164,8 @@ export default function PhoneNumberManager({ onPhoneNumbersChange, showCard = tr
 
     setIsLookingUp(true)
     try {
-      // 先尝试客户端直接查询（保持原有逻辑）
-      console.log('尝试客户端直接查询...')
-      const directResult = await fetch('https://tool.lu/mobile/ajax.html', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json, text/javascript, */*; q=0.01',
-          'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'x-requested-with': 'XMLHttpRequest',
-        },
-        body: `mobile=${newNumber.trim()}&operate=query`
-      })
-
-      if (directResult.ok) {
-        const directData = await directResult.json()
-        console.log('客户端查询结果:', directData)
-        
-        if (directData.status && directData.text) {
-          // 处理在线查询结果
-          const carrierMap: Record<string, any> = {
-            '移动': '中国移动',
-            '联通': '中国联通', 
-            '电信': '中国电信',
-            '中国移动': '中国移动',
-            '中国联通': '中国联通',
-            '中国电信': '中国电信',
-          }
-          
-          const carrier = carrierMap[directData.text.corp] || '其他'
-          const province = directData.text.province || ''
-          const city = directData.text.city || ''
-          let note = ''
-          
-          if (carrier && province && city) {
-            note = `${carrier} - ${province}${city === province ? '' : city}`
-          } else if (carrier && province) {
-            note = `${carrier} - ${province}`
-          } else if (carrier) {
-            note = carrier
-          }
-
-          // 自动填充表单
-          setNewCarrier(carrier as Carrier)
-          setNewProvince(province)
-          setNewCity(city)
-          setNewNote(note)
-          
-          toast({
-            title: "识别成功（在线）",
-            description: `已自动识别：${carrier} - ${province}${city}`,
-          })
-          return
-        }
-      }
-      
-      // 客户端查询失败，使用新的服务端查询服务
-      console.log('客户端查询失败，使用服务端统一查询服务')
+      // 使用新的服务端统一查询服务
+      console.log('使用服务端统一查询服务查询手机号码:', newNumber.trim())
       const response = await fetch('/api/phone-numbers/lookup', {
         method: 'POST',
         headers: {
@@ -249,10 +194,19 @@ export default function PhoneNumberManager({ onPhoneNumbersChange, showCard = tr
         const isCachedResult = data.provider?.includes('cached')
         
         let titleSuffix = ''
-        if (isCachedResult) {
-          titleSuffix = '（缓存）'
-        } else if (isOfflineResult) {
+        let providerName = ''
+        
+        if (data.provider?.includes('chahaoba')) {
+          providerName = 'chahaoba.com'
+          titleSuffix = '（在线）'
+        } else if (data.provider?.includes('tool.lu')) {
+          providerName = 'tool.lu'
+          titleSuffix = '（在线）'
+        } else if (data.provider?.includes('offline')) {
+          providerName = '本地数据库'
           titleSuffix = '（离线）'
+        } else if (isCachedResult) {
+          titleSuffix = '（缓存）'
         } else {
           titleSuffix = '（在线）'
         }
@@ -260,8 +214,8 @@ export default function PhoneNumberManager({ onPhoneNumbersChange, showCard = tr
         toast({
           title: `识别成功${titleSuffix}`,
           description: isOfflineResult 
-            ? `已识别运营商：${data.carrier}（使用本地数据库）`
-            : `已自动识别：${data.carrier} - ${data.province}${data.city}`,
+            ? `已识别运营商：${data.carrier}（使用${providerName}）`
+            : `已自动识别：${data.carrier} - ${data.province}${data.city}（${providerName}）`,
         })
       } else {
         toast({

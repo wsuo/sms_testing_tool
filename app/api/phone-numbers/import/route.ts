@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { phoneNumberDB } from '@/lib/database'
-import carrierLookupService from '@/lib/carrier-lookup-service'
+import { phoneLookupService } from '@/lib/phone-lookup'
 
 interface ImportProgress {
   processed: number
@@ -141,12 +141,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<ImportRes
       const batch = newPhoneNumbers.slice(i, i + batchSize)
       
       // 批量查询运营商信息
-      const lookupResults = await carrierLookupService.batchLookupCarriers(batch)
+      const lookupResults = await phoneLookupService.batchLookup(batch)
       
       // 处理每个号码
       for (const phoneNumber of batch) {
         try {
-          const lookupResult = lookupResults.get(phoneNumber)
+          const lookupResult = lookupResults.results.get(phoneNumber)
           
           let carrier = '其他'
           let province = ''

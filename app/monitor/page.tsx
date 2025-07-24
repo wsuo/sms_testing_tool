@@ -26,6 +26,8 @@ interface SmsRecord {
   receive_date?: string
   status: string
   error_code?: string
+  retry_count?: number  // 重试次数
+  last_retry_at?: string  // 最后重试时间
   created_at: string
   updated_at?: string
 }
@@ -540,6 +542,86 @@ export default function SmsMonitorPage() {
     }
   }
 
+  // 重发SMS
+  const resendSms = async (outId: string) => {
+    // 检查是否正在重发
+    if (resendingOutIds.has(outId)) {
+      return
+    }
+
+    // 获取管理后台令牌
+    const adminToken = localStorage.getItem("sms-admin-token")
+    if (!adminToken) {
+      toast({
+        title: "重发失败",
+        description: "未找到管理后台令牌，请在主页面配置",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // 添加到重发状态
+    setResendingOutIds(prev => new Set(prev).add(outId))
+
+    try {
+      const response = await fetch('/api/sms-records/resend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          out_id: outId,
+          admin_token: adminToken
+        })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        toast({
+          title: "重发成功",
+          description: `短信重发成功，新OutId: ${result.data.new_out_id}`,
+        })
+
+        // 添加新记录到后台监控服务
+        if (result.data.new_record) {
+          smsMonitorService.addSmsForMonitoring(
+            result.data.new_out_id, 
+            result.data.new_record.phone_number.trim(), 
+            1
+          )
+        }
+
+        // 重新加载当前页记录
+        await loadRecords(currentPage)
+
+      } else {
+        throw new Error(result.error || '重发失败')
+      }
+
+    } catch (error) {
+      console.error('重发SMS失败:', error)
+      toast({
+        title: "重发失败",
+        description: error instanceof Error ? error.message : "重发SMS失败，请稍后重试",
+        variant: "destructive",
+      })
+    } finally {
+      // 从重发状态中移除
+      setResendingOutIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(outId)
+        return newSet
+      })
+    }
+  }
+
+  // 检查记录是否可以重发
+  const canResend = (status: string) => {
+    const resendableStatuses = ['发送失败', '发送中(已停止查询)']
+    return resendableStatuses.includes(status)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -880,11 +962,24 @@ export default function SmsMonitorPage() {
                             {record.template_name}
                           </Badge>
                         )}
+                        {canResend(record.status) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => resendSms(record.out_id)}
+                            disabled={resendingOutIds.has(record.out_id)}
+                            className="ml-2"
+                            title="重发短信"
+                          >
+                            <RotateCcw className={`w-4 h-4 ${resendingOutIds.has(record.out_id) ? 'animate-spin' : ''}`} />
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => deleteSmsRecord(record.id)}
                           className="ml-2"
+                          title="删除记录"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -892,6 +987,16 @@ export default function SmsMonitorPage() {
                     </div>
                     <div className="text-sm text-gray-600 space-y-1">
                       <p>发送时间: {formatDate(record.send_date || record.created_at)}</p>
+                      {record.retry_count && record.retry_count > 0 && (
+                        <p className="text-orange-600 font-medium">
+                          重发次数: {record.retry_count} 次
+                          {record.last_retry_at && (
+                            <span className="text-gray-500 font-normal ml-2">
+                              (最后重发: {formatDate(record.last_retry_at)})
+                            </span>
+                          )}
+                        </p>
+                      )}
                       {record.receive_date && (
                         <p>送达时间: {formatDate(record.receive_date)}</p>
                       )}
