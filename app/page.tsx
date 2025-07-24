@@ -138,9 +138,15 @@ export default function SmsTestingTool() {
       try {
         const data = await responseClone.json()
         if (data.code === 401) {
+          console.log("检测到401错误，尝试刷新token...")
           const refreshResult = await refreshAccessToken()
           if (refreshResult.success && refreshResult.newToken) {
+            console.log("Token刷新成功，重新请求...")
+            // 同步状态到React state
+            setAdminToken(refreshResult.newToken)
             response = await makeRequest(refreshResult.newToken)
+          } else {
+            console.log("Token刷新失败")
           }
         }
       } catch (e) {
@@ -150,9 +156,15 @@ export default function SmsTestingTool() {
 
     // If HTTP 401, try to refresh and retry
     if (response.status === 401) {
+      console.log("检测到HTTP 401，尝试刷新token...")
       const refreshResult = await refreshAccessToken()
       if (refreshResult.success && refreshResult.newToken) {
+        console.log("Token刷新成功，重新请求...")
+        // 同步状态到React state
+        setAdminToken(refreshResult.newToken)
         response = await makeRequest(refreshResult.newToken)
+      } else {
+        console.log("Token刷新失败")
       }
     }
 
@@ -314,12 +326,15 @@ export default function SmsTestingTool() {
     if (savedAdminToken) {
       setAdminToken(savedAdminToken)
       setTokensConfigured(true)
+      
       // 立即加载模板，不延迟
+      console.log("正在自动加载SMS模板...")
       fetchTemplates(savedAdminToken, true).finally(() => {
         setIsInitialLoad(false) // 完成初始加载后设为false
       })
     } else {
       setIsInitialLoad(false) // 没有token时也要设为false
+      console.log("未找到保存的token，需要手动配置")
     }
     if (savedRefreshToken) {
       setRefreshToken(savedRefreshToken)
@@ -421,6 +436,7 @@ export default function SmsTestingTool() {
         
         // Check if the response indicates authentication failure
         if (data.code === 401) {
+          // 注意：callAdminApi已经处理了token刷新，如果这里仍然是401，说明token无法刷新
           // 初始加载时不显示401错误，只有用户主动操作时才显示
           if (!isInitial) {
             if (!localStorage.getItem("sms-admin-token")) {
@@ -447,12 +463,15 @@ export default function SmsTestingTool() {
                               (data.data?.list ? data.data.list : [])
         
         setTemplates(templatesData)
-        // 初始加载成功时也显示提示，让用户知道模板已自动加载
-        toast({
-          title: "成功",
-          description: `已加载 ${templatesData.length} 个短信模板`,
-        })
+        // 只在非初始加载或模板数量大于0时显示成功提示
+        if (!isInitial || templatesData.length > 0) {
+          toast({
+            title: "成功",
+            description: `已加载 ${templatesData.length} 个短信模板`,
+          })
+        }
       } else if (response.status === 401) {
+        // HTTP 401状态码表示callAdminApi的token刷新也失败了
         // 初始加载时不显示401错误，只有用户主动操作时才显示
         if (!isInitial) {
           if (!localStorage.getItem("sms-admin-token")) {
@@ -475,13 +494,15 @@ export default function SmsTestingTool() {
       console.error("获取短信模板失败:", error)
       // Ensure templates is empty array on error
       setTemplates([])
-      // 初始加载时不显示错误toast
+      // 初始加载时不显示错误toast，但在控制台记录错误
       if (!isInitial) {
         toast({
           title: "错误",
           description: error instanceof Error ? error.message : "获取短信模板失败，请检查网络连接",
           variant: "destructive",
         })
+      } else {
+        console.warn("初始加载模板失败，用户可手动刷新:", error)
       }
     }
   }, [adminToken, toast, callAdminApi])
