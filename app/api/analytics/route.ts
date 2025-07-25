@@ -115,6 +115,73 @@ export async function GET(request: NextRequest) {
       ...stats
     })).sort((a, b) => a.date.localeCompare(b.date))
     
+    // 失败原因统计
+    const failedRecords = allRecords.filter(r => r.status === '发送失败' && r.error_code)
+    const errorCodeMap = new Map<string, number>()
+    
+    failedRecords.forEach(record => {
+      const errorCode = record.error_code || 'UNKNOWN'
+      errorCodeMap.set(errorCode, (errorCodeMap.get(errorCode) || 0) + 1)
+    })
+    
+    const failureReasons = Array.from(errorCodeMap.entries()).map(([errorCode, count]) => ({
+      errorCode,
+      count,
+      percentage: failedCount > 0 ? (count / failedCount) * 100 : 0
+    })).sort((a, b) => b.count - a.count)
+    
+    // 按运营商统计失败原因
+    const carrierFailureMap = new Map<string, Map<string, number>>()
+    failedRecords.forEach(record => {
+      const carrier = record.carrier || '未知运营商'
+      const errorCode = record.error_code || 'UNKNOWN'
+      
+      if (!carrierFailureMap.has(carrier)) {
+        carrierFailureMap.set(carrier, new Map())
+      }
+      const errorMap = carrierFailureMap.get(carrier)!
+      errorMap.set(errorCode, (errorMap.get(errorCode) || 0) + 1)
+    })
+    
+    const carrierFailureStats = Array.from(carrierFailureMap.entries()).map(([carrier, errorMap]) => {
+      const failures = Array.from(errorMap.entries()).map(([errorCode, count]) => ({
+        errorCode,
+        count
+      })).sort((a, b) => b.count - a.count)
+      
+      return {
+        carrier,
+        totalFailures: failures.reduce((sum, f) => sum + f.count, 0),
+        failures
+      }
+    }).sort((a, b) => b.totalFailures - a.totalFailures)
+    
+    // 按模板统计失败原因
+    const templateFailureMap = new Map<string, Map<string, number>>()
+    failedRecords.forEach(record => {
+      const template = record.template_name || '未知模板'
+      const errorCode = record.error_code || 'UNKNOWN'
+      
+      if (!templateFailureMap.has(template)) {
+        templateFailureMap.set(template, new Map())
+      }
+      const errorMap = templateFailureMap.get(template)!
+      errorMap.set(errorCode, (errorMap.get(errorCode) || 0) + 1)
+    })
+    
+    const templateFailureStats = Array.from(templateFailureMap.entries()).map(([template, errorMap]) => {
+      const failures = Array.from(errorMap.entries()).map(([errorCode, count]) => ({
+        errorCode,
+        count
+      })).sort((a, b) => b.count - a.count)
+      
+      return {
+        template,
+        totalFailures: failures.reduce((sum, f) => sum + f.count, 0),
+        failures
+      }
+    }).sort((a, b) => b.totalFailures - a.totalFailures)
+    
     const analyticsData = {
       totalSms,
       successRate,
@@ -123,7 +190,10 @@ export async function GET(request: NextRequest) {
       templateStats,
       statusBreakdown,
       hourlyStats,
-      dailyStats
+      dailyStats,
+      failureReasons,
+      carrierFailureStats,
+      templateFailureStats
     }
     
     return NextResponse.json({

@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { BarChart, TrendingUp, PieChart, Users, MessageSquare, Clock, Calendar, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+import { FailureAnalysis } from "@/components/analytics/failure-analysis"
 
 interface AnalyticsData {
   totalSms: number
@@ -19,6 +20,17 @@ interface AnalyticsData {
   dailyStats: { date: string; sent: number; success: number; failed: number }[]
   hourlyStats: { hour: number; count: number }[]
   statusBreakdown: { status: string; count: number; percentage: number }[]
+  failureReasons: { errorCode: string; count: number; percentage: number }[]
+  carrierFailureStats: { 
+    carrier: string; 
+    totalFailures: number; 
+    failures: { errorCode: string; count: number }[] 
+  }[]
+  templateFailureStats: { 
+    template: string; 
+    totalFailures: number; 
+    failures: { errorCode: string; count: number }[] 
+  }[]
 }
 
 export default function AnalyticsPage() {
@@ -336,6 +348,14 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* 失败原因分析 */}
+        <FailureAnalysis 
+          failureReasons={analyticsData.failureReasons}
+          carrierFailureStats={analyticsData.carrierFailureStats}
+          templateFailureStats={analyticsData.templateFailureStats}
+          totalFailures={analyticsData.statusBreakdown.find(s => s.status === '发送失败')?.count || 0}
+        />
       </div>
     </div>
   )
