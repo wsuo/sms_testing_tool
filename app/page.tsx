@@ -201,7 +201,7 @@ export default function SmsTestingTool() {
   const loadSmsHistory = async () => {
     try {
       setIsLoadingSmsHistory(true)
-      const response = await fetch('/api/sms-records?limit=50')
+      const response = await fetch('/api/sms-records?limit=5')
       if (response.ok) {
         const result = await response.json()
         if (result.success && result.data) {
@@ -1833,7 +1833,12 @@ export default function SmsTestingTool() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {smsStatuses.length === 0 ? (
+                {isLoadingSmsHistory ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-500">加载监控记录中...</p>
+                  </div>
+                ) : smsStatuses.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">暂无发送记录</div>
                 ) : (
                   <div className="space-y-4">
