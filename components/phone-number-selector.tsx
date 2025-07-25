@@ -103,11 +103,19 @@ export default function PhoneNumberSelector({
     return phoneNumbers.filter(phone => selectedIds.has(phone.id))
   }, [phoneNumbers, selectedIds])
 
-  // 更新父组件
+  // 更新父组件 - 避免不必要的回调调用
   useEffect(() => {
     const numbers = selectedPhoneNumbers.map(phone => phone.number)
-    onSelectionChange(numbers)
-  }, [selectedPhoneNumbers]) // 移除onSelectionChange依赖避免无限循环
+    
+    // 比较数组内容，避免不必要的更新
+    const currentNumbers = [...selectedNumbers].sort()
+    const newNumbers = [...numbers].sort()
+    
+    if (currentNumbers.length !== newNumbers.length || 
+        !currentNumbers.every((num, idx) => num === newNumbers[idx])) {
+      onSelectionChange(numbers)
+    }
+  }, [selectedPhoneNumbers, selectedNumbers]) // 添加selectedNumbers依赖进行比较
 
   // 全选/取消全选
   const handleSelectAll = (checked: boolean) => {
@@ -274,9 +282,12 @@ export default function PhoneNumberSelector({
                       <div className="flex items-center gap-2">
                         <Checkbox
                           checked={isCarrierSelected(carrier)}
-                          ref={checkbox => {
+                          ref={(checkbox) => {
                             if (checkbox && isCarrierPartiallySelected(carrier)) {
-                              checkbox.indeterminate = true
+                              const inputElement = checkbox.querySelector('input[type="checkbox"]') as HTMLInputElement
+                              if (inputElement) {
+                                inputElement.indeterminate = true
+                              }
                             }
                           }}
                           onCheckedChange={(checked) => toggleCarrierSelection(carrier, !!checked)}

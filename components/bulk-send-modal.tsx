@@ -102,6 +102,23 @@ export default function BulkSendModal({
           sent: i
         }))
 
+        // 获取手机号详细信息 - 移到外层作用域
+        let carrier = ''
+        let phoneNote = ''
+        
+        try {
+          const phoneResponse = await fetch(`/api/phone-numbers?number=${encodeURIComponent(phoneNumber)}`)
+          if (phoneResponse.ok) {
+            const phoneData = await phoneResponse.json()
+            if (phoneData.success && phoneData.data) {
+              carrier = phoneData.data.carrier || ''
+              phoneNote = phoneData.data.note || ''
+            }
+          }
+        } catch (phoneError) {
+          console.error('Failed to query phone number details:', phoneError)
+        }
+
         try {
           // 调用发送SMS API
           const response = await fetch("/admin-api/system/sms-template/send-sms", {
@@ -126,23 +143,6 @@ export default function BulkSendModal({
             
             // 保存到数据库
             try {
-              // 获取手机号详细信息
-              let carrier = ''
-              let phoneNote = ''
-              
-              try {
-                const phoneResponse = await fetch(`/api/phone-numbers?number=${encodeURIComponent(phoneNumber)}`)
-                if (phoneResponse.ok) {
-                  const phoneData = await phoneResponse.json()
-                  if (phoneData.success && phoneData.data) {
-                    carrier = phoneData.data.carrier || ''
-                    phoneNote = phoneData.data.note || ''
-                  }
-                }
-              } catch (phoneError) {
-                console.error('Failed to query phone number details:', phoneError)
-              }
-              
               // 渲染真实内容
               const renderContent = (template: string, params: Record<string, string>) => {
                 let rendered = template
@@ -318,7 +318,7 @@ export default function BulkSendModal({
             {selectedTemplate && (
               <>
                 模板: {selectedTemplate.name} | 
-                已选择 {selectedNumbers.length} 个手机号
+                已选择 {selectedNumbers.length} 个手机号码
               </>
             )}
           </div>

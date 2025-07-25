@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
     
-    // 限制每页最大数量为50，避免性能问题
-    const actualLimit = Math.min(limit, 50)
+    // 限制每页最大数量，但允许更大的限制用于组件内部使用
+    // 如果请求1000条或更多，说明是组件内部调用，允许更大限制
+    const actualLimit = limit >= 1000 ? limit : Math.min(limit, 50)
     
     let phoneNumbers
     let totalCount
