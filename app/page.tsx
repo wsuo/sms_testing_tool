@@ -55,16 +55,23 @@ export default function SmsTestingTool() {
   // Phone number and sending
   const [phoneNumber, setPhoneNumber] = useState("")
   const [isSending, setIsSending] = useState(false)
-  const [savedPhoneNumbers, setSavedPhoneNumbers] = useState<any[]>([])
   
   // Carrier selection states
   const [selectedCarrier, setSelectedCarrier] = useState("")
-  const [carrierPhoneNumbers, setCarrierPhoneNumbers] = useState<any[]>([])
+  const [availableCarriers, setAvailableCarriers] = useState<string[]>([])
   
-  // Phone number auto-suggestion
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [filteredSuggestions, setFilteredSuggestions] = useState<any[]>([])
-  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
+  // Phone number search and pagination states
+  const [phoneSearchTerm, setPhoneSearchTerm] = useState("")
+  const [phoneNumbers, setPhoneNumbers] = useState<any[]>([])
+  const [phoneNumbersLoading, setPhoneNumbersLoading] = useState(false)
+  const [phonePagination, setPhonePagination] = useState({
+    total: 0,
+    totalPages: 0,
+    currentPage: 1,
+    pageSize: 20,
+    hasNext: false,
+    hasPrev: false
+  })
 
   // Status monitoring
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
@@ -83,12 +90,12 @@ export default function SmsTestingTool() {
   const [show401Error, setShow401Error] = useState(false)
   // Loading states for better UX
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true)
-  const [isLoadingPhoneNumbers, setIsLoadingPhoneNumbers] = useState(true)
+  const [isLoadingCarriers, setIsLoadingCarriers] = useState(true)
   const [isLoadingSmsHistory, setIsLoadingSmsHistory] = useState(true)
   const [isInitialLoad, setIsInitialLoad] = useState(true) // 标记是否为初始加载
   
   // 计算整体加载状态
-  const isPageLoading = isInitialLoad && (isLoadingTemplates || isLoadingPhoneNumbers || isLoadingSmsHistory)
+  const isPageLoading = isInitialLoad && (isLoadingTemplates || isLoadingCarriers || isLoadingSmsHistory)
 
   // Refresh token utility function
   const refreshAccessToken = async (): Promise<{ success: boolean; newToken?: string }> => {
@@ -216,22 +223,59 @@ export default function SmsTestingTool() {
     }
   }
 
-  // Load saved phone numbers
-  const loadSavedPhoneNumbers = async () => {
+  // Load carriers
+  const loadCarriers = async () => {
     try {
-      setIsLoadingPhoneNumbers(true)
-      const response = await fetch('/api/phone-numbers?limit=10000')
+      setIsLoadingCarriers(true)
+      const response = await fetch('/api/phone-numbers/carriers')
       if (response.ok) {
         const data = await response.json()
-        setSavedPhoneNumbers(data.data)
+        setAvailableCarriers(data.data || [])
       }
     } catch (error) {
-      console.error('Failed to load saved phone numbers:', error)
-      Sentry.captureException(error, {
-        tags: { operation: 'load_phone_numbers' }
-      })
+      console.error("Failed to load carriers:", error)
     } finally {
-      setIsLoadingPhoneNumbers(false)
+      setIsLoadingCarriers(false)
+    }
+  }
+
+  // Search phone numbers with server-side search and pagination
+  const searchPhoneNumbers = async (searchTerm: string = '', carrier: string = '', page: number = 1) => {
+    try {
+      setPhoneNumbersLoading(true)
+      const offset = (page - 1) * 20
+      
+      const params = new URLSearchParams({
+        limit: '20',
+        offset: offset.toString()
+      })
+      
+      if (searchTerm.trim()) {
+        params.append('q', searchTerm.trim())
+      }
+      
+      if (carrier && carrier !== 'all') {
+        params.append('carrier', carrier)
+      }
+      
+      const response = await fetch(`/api/phone-numbers/search?${params.toString()}`)
+      if (response.ok) {
+        const data = await response.json()
+        setPhoneNumbers(data.data || [])
+        setPhonePagination(data.pagination || {
+          total: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 20,
+          hasNext: false,
+          hasPrev: false
+        })
+      }
+    } catch (error) {
+      console.error("Failed to search phone numbers:", error)
+      setPhoneNumbers([])
+    } finally {
+      setPhoneNumbersLoading(false)
     }
   }
 
@@ -253,6 +297,21 @@ export default function SmsTestingTool() {
   const getUniqueCarriers = () => {
     const carriers = [...new Set(savedPhoneNumbers.map(phone => phone.carrier))]
     return carriers.filter(carrier => carrier) // 过滤掉空值
+  }
+  
+  // Filter phone numbers for search
+  const getFilteredPhoneNumbers = () => {
+    if (!phoneSearchTerm.trim()) {
+      return savedPhoneNumbers.slice(0, 20) // 默认显示前20条
+    }
+    
+    const filtered = savedPhoneNumbers.filter(phone => 
+      phone.number.includes(phoneSearchTerm) ||
+      phone.carrier?.includes(phoneSearchTerm) ||
+      phone.note?.includes(phoneSearchTerm)
+    )
+    
+    return filtered.slice(0, 20) // 搜索结果也限制20条
   }
 
   // 保存用户状态到localStorage
@@ -420,6 +479,16 @@ export default function SmsTestingTool() {
     }
   }, [savedPhoneNumbers, selectedCarrier])
 
+  // Clear phone number when search term changes and selected number not in results
+  useEffect(() => {
+    if (phoneSearchTerm.trim() && phoneNumber) {
+      const isInResults = getFilteredPhoneNumbers().some(phone => phone.number === phoneNumber)
+      if (!isInResults) {
+        setPhoneNumber("")
+      }
+    }
+  }, [phoneSearchTerm, phoneNumber, savedPhoneNumbers])
+
   // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
     if (!adminToken.trim()) {
@@ -521,7 +590,7 @@ export default function SmsTestingTool() {
       console.error("获取短信模板失败:", error)
       Sentry.captureException(error, {
         tags: { operation: 'fetch_templates' },
-        extra: { isInitial, hasToken: !!tokenToUse }
+        extra: { isInitial, hasToken: !!(tokenOverride || adminToken) }
       })
       setTemplates([])
       if (!isInitial) {
@@ -878,7 +947,6 @@ export default function SmsTestingTool() {
           toast({
             title: "刷新完成",
             description: "未获取到新的状态更新，可能阿里云仍在处理中",
-            variant: "secondary",
           })
         }
       } else {
@@ -1529,14 +1597,30 @@ export default function SmsTestingTool() {
                     
                     {/* 快速选择所有号码的选项 */}
                     {!selectedCarrier && (
-                      <div>
+                      <div className="space-y-2">
                         <Label className="text-xs text-gray-500 mb-1 block">快速选择</Label>
+                        
+                        {/* 搜索输入框 */}
+                        <div className="relative">
+                          <Input
+                            placeholder="搜索手机号码、运营商或备注..."
+                            value={phoneSearchTerm}
+                            onChange={(e) => setPhoneSearchTerm(e.target.value)}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        
+                        {/* 号码选择下拉框 */}
                         <Select value={phoneNumber} onValueChange={setPhoneNumber}>
                           <SelectTrigger className="h-9">
-                            <SelectValue placeholder="从所有号码中选择" />
+                            <SelectValue placeholder={
+                              phoneSearchTerm.trim() 
+                                ? `搜索结果 (${getFilteredPhoneNumbers().length}条)` 
+                                : `选择号码 (显示前20条，共${savedPhoneNumbers.length}条)`
+                            } />
                           </SelectTrigger>
                           <SelectContent>
-                            {savedPhoneNumbers.map((phone) => (
+                            {getFilteredPhoneNumbers().map((phone) => (
                               <SelectItem key={phone.id} value={phone.number}>
                                 <div className="flex flex-col items-start py-1 max-w-full text-left">
                                   <div className="flex items-center gap-2 max-w-full">
@@ -1553,6 +1637,16 @@ export default function SmsTestingTool() {
                                 </div>
                               </SelectItem>
                             ))}
+                            {getFilteredPhoneNumbers().length === 0 && (
+                              <div className="px-2 py-1.5 text-xs text-gray-500">
+                                {phoneSearchTerm.trim() ? '未找到匹配的号码' : '暂无保存的号码'}
+                              </div>
+                            )}
+                            {!phoneSearchTerm.trim() && savedPhoneNumbers.length > 20 && (
+                              <div className="px-2 py-1.5 text-xs text-blue-600 bg-blue-50">
+                                还有 {savedPhoneNumbers.length - 20} 个号码，请使用搜索功能查找
+                              </div>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

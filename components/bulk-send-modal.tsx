@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Search, Send, Users, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Search, Send, Users, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface PhoneNumber {
@@ -57,6 +57,14 @@ export default function BulkSendModal({
   const [searchTerm, setSearchTerm] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  
+  // 折叠状态管理
+  const [collapsedCarriers, setCollapsedCarriers] = useState<Set<string>>(new Set())
+  
+  // 分页状态管理 - 每个运营商的当前页码
+  const [carrierPages, setCarrierPages] = useState<Record<string, number>>({})
+  const ITEMS_PER_PAGE = 20
+  
   const [sendProgress, setSendProgress] = useState<BulkSendProgress>({
     total: 0,
     sent: 0,
@@ -168,6 +176,47 @@ export default function BulkSendModal({
     const carrierPhones = groupedPhoneNumbers[carrier] || []
     return carrierPhones.some(phone => selectedNumbers.has(phone.id)) && 
            !carrierPhones.every(phone => selectedNumbers.has(phone.id))
+  }
+
+  // 切换运营商折叠状态
+  const toggleCarrierCollapse = (carrier: string) => {
+    const newCollapsed = new Set(collapsedCarriers)
+    if (newCollapsed.has(carrier)) {
+      newCollapsed.delete(carrier)
+    } else {
+      newCollapsed.add(carrier)
+    }
+    setCollapsedCarriers(newCollapsed)
+  }
+
+  // 获取运营商当前页码
+  const getCarrierPage = (carrier: string) => {
+    return carrierPages[carrier] || 1
+  }
+
+  // 设置运营商页码
+  const setCarrierPage = (carrier: string, page: number) => {
+    setCarrierPages(prev => ({
+      ...prev,
+      [carrier]: page
+    }))
+  }
+
+  // 获取运营商分页数据
+  const getCarrierPageData = (carrier: string) => {
+    const allPhones = groupedPhoneNumbers[carrier] || []
+    const currentPage = getCarrierPage(carrier)
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    const endIndex = startIndex + ITEMS_PER_PAGE
+    
+    return {
+      phones: allPhones.slice(startIndex, endIndex),
+      totalCount: allPhones.length,
+      totalPages: Math.ceil(allPhones.length / ITEMS_PER_PAGE),
+      currentPage,
+      hasNext: currentPage < Math.ceil(allPhones.length / ITEMS_PER_PAGE),
+      hasPrev: currentPage > 1
+    }
   }
 
   // 批量发送SMS
@@ -446,56 +495,133 @@ export default function BulkSendModal({
               </div>
             ) : (
               <div className="p-4 space-y-4">
-                {Object.entries(groupedPhoneNumbers).map(([carrier, phones]) => (
-                  <div key={carrier} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={isCarrierSelected(carrier)}
-                          ref={checkbox => {
-                            if (checkbox && isCarrierPartiallySelected(carrier)) {
-                              checkbox.indeterminate = true
-                            }
-                          }}
-                          onCheckedChange={(checked) => toggleCarrierSelection(carrier, !!checked)}
-                          disabled={isSending}
-                        />
-                        <Badge variant="secondary" className="font-medium">
-                          {carrier}
-                        </Badge>
-                        <span className="text-sm text-gray-600">
-                          ({phones.length} 个号码)
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {phones.map((phone) => (
-                        <div
-                          key={phone.id}
-                          className={`flex items-center gap-3 p-3 rounded border cursor-pointer hover:bg-gray-50 ${
-                            selectedNumbers.has(phone.id) ? 'bg-blue-50 border-blue-200' : ''
-                          }`}
-                          onClick={() => !isSending && togglePhoneSelection(phone.id)}
-                        >
+                {Object.entries(groupedPhoneNumbers).map(([carrier, phones]) => {
+                  const isCollapsed = collapsedCarriers.has(carrier)
+                  const pageData = getCarrierPageData(carrier)
+                  
+                  return (
+                    <div key={carrier} className="border rounded-lg">
+                      {/* 运营商标题行 */}
+                      <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+                        <div className="flex items-center gap-2">
                           <Checkbox
-                            checked={selectedNumbers.has(phone.id)}
-                            onCheckedChange={() => togglePhoneSelection(phone.id)}
+                            checked={isCarrierSelected(carrier)}
+                            ref={checkbox => {
+                              if (checkbox && isCarrierPartiallySelected(carrier)) {
+                                checkbox.indeterminate = true
+                              }
+                            }}
+                            onCheckedChange={(checked) => toggleCarrierSelection(carrier, !!checked)}
                             disabled={isSending}
                           />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm">{phone.number}</div>
-                            {phone.note && (
-                              <div className="text-xs text-gray-500 truncate">
-                                备注: {phone.note}
-                              </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleCarrierCollapse(carrier)}
+                            className="h-auto p-1 hover:bg-gray-200"
+                          >
+                            {isCollapsed ? (
+                              <ChevronRight className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
                             )}
-                          </div>
+                          </Button>
+                          <Badge variant="secondary" className="font-medium">
+                            {carrier}
+                          </Badge>
+                          <span className="text-sm text-gray-600">
+                            (共{phones.length}个号码)
+                          </span>
+                          {pageData.totalPages > 1 && !isCollapsed && (
+                            <span className="text-xs text-blue-600">
+                              显示第{pageData.currentPage}页，共{pageData.totalPages}页
+                            </span>
+                          )}
                         </div>
-                      ))}
+                        
+                        {/* 运营商全选按钮 */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleCarrierSelection(carrier, !isCarrierSelected(carrier))}
+                          disabled={isSending}
+                          className="text-xs"
+                        >
+                          {isCarrierSelected(carrier) ? '取消全选' : '全选'}
+                        </Button>
+                      </div>
+                      
+                      {/* 号码列表（可折叠） */}
+                      {!isCollapsed && (
+                        <div className="p-4">
+                          {pageData.phones.length === 0 ? (
+                            <div className="text-center text-gray-500 py-4">
+                              该运营商暂无匹配的号码
+                            </div>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {pageData.phones.map((phone) => (
+                                  <div
+                                    key={phone.id}
+                                    className={`flex items-center gap-3 p-3 rounded border cursor-pointer hover:bg-gray-50 ${
+                                      selectedNumbers.has(phone.id) ? 'bg-blue-50 border-blue-200' : ''
+                                    }`}
+                                    onClick={() => !isSending && togglePhoneSelection(phone.id)}
+                                  >
+                                    <Checkbox
+                                      checked={selectedNumbers.has(phone.id)}
+                                      onCheckedChange={() => togglePhoneSelection(phone.id)}
+                                      disabled={isSending}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-sm">{phone.number}</div>
+                                      {phone.note && (
+                                        <div className="text-xs text-gray-500 truncate">
+                                          备注: {phone.note}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              {/* 分页控制 */}
+                              {pageData.totalPages > 1 && (
+                                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                                  <div className="text-sm text-gray-600">
+                                    显示 {pageData.phones.length} 个号码，共 {pageData.totalCount} 个
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setCarrierPage(carrier, pageData.currentPage - 1)}
+                                      disabled={!pageData.hasPrev || isSending}
+                                    >
+                                      上一页
+                                    </Button>
+                                    <span className="text-sm px-2">
+                                      {pageData.currentPage} / {pageData.totalPages}
+                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setCarrierPage(carrier, pageData.currentPage + 1)}
+                                      disabled={!pageData.hasNext || isSending}
+                                    >
+                                      下一页
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

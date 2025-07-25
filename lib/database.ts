@@ -792,6 +792,18 @@ export class PhoneNumberDB {
     return result.count
   }
   
+  // 获取所有唯一的运营商列表
+  getUniqueCarriers(): string[] {
+    const stmt = this.db.prepare(`
+      SELECT DISTINCT carrier 
+      FROM phone_numbers 
+      WHERE carrier IS NOT NULL AND carrier != ''
+      ORDER BY carrier
+    `)
+    const results = stmt.all() as { carrier: string }[]
+    return results.map(row => row.carrier)
+  }
+  
   // 关闭数据库连接
   close() {
     if (this.db) {
