@@ -72,6 +72,12 @@ export default function SmsTestingTool() {
     hasPrev: false
   })
 
+  // Phone number input suggestion states
+  const [inputSuggestions, setInputSuggestions] = useState<any[]>([])
+  const [showInputSuggestions, setShowInputSuggestions] = useState(false)
+  const [activeInputSuggestionIndex, setActiveInputSuggestionIndex] = useState(-1)
+  const [isLoadingInputSuggestions, setIsLoadingInputSuggestions] = useState(false)
+
   // Status monitoring
   const [smsStatuses, setSmsStatuses] = useState<SmsStatus[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -335,10 +341,85 @@ export default function SmsTestingTool() {
     }
   }
 
-  // 处理手机号码输入
+  // Search phone number suggestions based on user input
+  const searchInputSuggestions = async (input: string) => {
+    if (input.length < 3) {
+      setInputSuggestions([])
+      setShowInputSuggestions(false)
+      return
+    }
+
+    setIsLoadingInputSuggestions(true)
+    try {
+      const response = await fetch(`/api/phone-numbers/search?q=${encodeURIComponent(input)}&limit=10`)
+      if (response.ok) {
+        const data = await response.json()
+        setInputSuggestions(data.data || [])
+        setShowInputSuggestions((data.data || []).length > 0)
+        setActiveInputSuggestionIndex(-1)
+      }
+    } catch (error) {
+      console.error('Failed to search input suggestions:', error)
+      setInputSuggestions([])
+      setShowInputSuggestions(false)
+    } finally {
+      setIsLoadingInputSuggestions(false)
+    }
+  }
+
+  // Select suggestion from input dropdown
+  const selectInputSuggestion = (suggestion: any) => {
+    setPhoneNumber(suggestion.number)
+    setShowInputSuggestions(false)
+    setActiveInputSuggestionIndex(-1)
+  }
+
+  // Handle keyboard navigation for input suggestions
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (!showInputSuggestions) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setActiveInputSuggestionIndex(prev => 
+          prev < inputSuggestions.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setActiveInputSuggestionIndex(prev => prev > 0 ? prev - 1 : -1)
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (activeInputSuggestionIndex >= 0) {
+          selectInputSuggestion(inputSuggestions[activeInputSuggestionIndex])
+        }
+        break
+      case 'Escape':
+        setShowInputSuggestions(false)
+        setActiveInputSuggestionIndex(-1)
+        break
+    }
+  }
+
+  // 处理手机号码输入和自动推荐
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value)
   }
+
+  // 使用 useEffect 来处理延迟搜索
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (phoneNumber.length >= 3) {
+        searchInputSuggestions(phoneNumber)
+      } else {
+        setInputSuggestions([])
+        setShowInputSuggestions(false)
+      }
+    }, 300)
+    
+    return () => clearTimeout(timeoutId)
+  }, [phoneNumber])
 
   // Load tokens from localStorage on mount with validation
   useEffect(() => {
@@ -1398,8 +1479,55 @@ export default function SmsTestingTool() {
                       placeholder="请输入手机号码"
                       value={phoneNumber}
                       onChange={(e) => handlePhoneNumberChange(e.target.value)}
+                      onKeyDown={handleInputKeyDown}
+                      onBlur={() => {
+                        // 延迟关闭建议列表，以便点击建议项
+                        setTimeout(() => setShowInputSuggestions(false), 200)
+                      }}
+                      onFocus={() => {
+                        // 如果有建议且输入长度>=3，重新显示建议
+                        if (phoneNumber.length >= 3 && inputSuggestions.length > 0) {
+                          setShowInputSuggestions(true)
+                        }
+                      }}
                       className="flex-1"
                     />
+                    {/* 自动推荐下拉列表 */}
+                    {showInputSuggestions && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {isLoadingInputSuggestions ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">
+                            搜索中...
+                          </div>
+                        ) : inputSuggestions.length > 0 ? (
+                          inputSuggestions.map((suggestion, index) => (
+                            <div
+                              key={suggestion.id}
+                              className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                                index === activeInputSuggestionIndex ? 'bg-blue-100' : ''
+                              }`}
+                              onClick={() => selectInputSuggestion(suggestion)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">{suggestion.number}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {suggestion.carrier || '未知运营商'}
+                                </Badge>
+                              </div>
+                              {suggestion.note && (
+                                <div className="text-xs text-gray-500 mt-1 truncate">
+                                  备注: {suggestion.note}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-gray-500">
+                            未找到匹配的号码
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <PhoneNumberManagerModal 
                     onPhoneNumbersChange={() => {
