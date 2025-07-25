@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2, MessageSquare, RotateCcw } from "lucide-react"
+import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2, MessageSquare, RotateCcw, BarChart } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -656,6 +656,12 @@ export default function SmsMonitorPage() {
                 </SelectContent>
               </Select>
             </div>
+            <Link href="/analytics">
+              <Button variant="outline" size="sm">
+                <BarChart className="w-4 h-4 mr-2" />
+                数据分析
+              </Button>
+            </Link>
             <Button 
               variant="outline" 
               onClick={() => loadRecords(1, true)}

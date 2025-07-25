@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import * as Sentry from "@sentry/nextjs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff, RotateCcw } from "lucide-react"
+import { RefreshCw, Send, Settings, Phone, MessageSquare, Clock, Eye, EyeOff, RotateCcw, BarChart, Timer } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import PhoneNumberManagerModal from "@/components/phone-number-manager-modal"
 import BulkSendModal from "@/components/bulk-send-modal"
@@ -41,7 +41,6 @@ export default function SmsTestingTool() {
   // Token management
   const [adminToken, setAdminToken] = useState("")
   const [refreshToken, setRefreshToken] = useState("")
-  const [tokensConfigured, setTokensConfigured] = useState(false)
   
   // Password visibility states
   const [showAdminToken, setShowAdminToken] = useState(false)
@@ -279,39 +278,23 @@ export default function SmsTestingTool() {
     }
   }
 
-  // Handle carrier selection
+  // Handle carrier selection and trigger phone number search
   const handleCarrierSelect = (carrier: string) => {
     setSelectedCarrier(carrier)
-    setPhoneNumber("") // 清空当前选择的手机号
-    
-    if (carrier && carrier !== "") {
-      // 筛选该运营商的手机号码
-      const filteredNumbers = savedPhoneNumbers.filter(phone => phone.carrier === carrier)
-      setCarrierPhoneNumbers(filteredNumbers)
-    } else {
-      setCarrierPhoneNumbers([])
-    }
+    setPhoneNumber("") // Clear selected phone number when carrier changes
+    searchPhoneNumbers(phoneSearchTerm, carrier, 1) // Reset to first page
   }
 
-  // Get unique carriers from saved phone numbers
-  const getUniqueCarriers = () => {
-    const carriers = [...new Set(savedPhoneNumbers.map(phone => phone.carrier))]
-    return carriers.filter(carrier => carrier) // 过滤掉空值
+  // Handle phone search
+  const handlePhoneSearch = (searchTerm: string) => {
+    setPhoneSearchTerm(searchTerm)
+    setPhoneNumber("") // Clear selected phone number when search changes
+    searchPhoneNumbers(searchTerm, selectedCarrier, 1) // Reset to first page
   }
-  
-  // Filter phone numbers for search
-  const getFilteredPhoneNumbers = () => {
-    if (!phoneSearchTerm.trim()) {
-      return savedPhoneNumbers.slice(0, 20) // 默认显示前20条
-    }
-    
-    const filtered = savedPhoneNumbers.filter(phone => 
-      phone.number.includes(phoneSearchTerm) ||
-      phone.carrier?.includes(phoneSearchTerm) ||
-      phone.note?.includes(phoneSearchTerm)
-    )
-    
-    return filtered.slice(0, 20) // 搜索结果也限制20条
+
+  // Handle pagination
+  const handlePageChange = (page: number) => {
+    searchPhoneNumbers(phoneSearchTerm, selectedCarrier, page)
   }
 
   // 保存用户状态到localStorage
@@ -352,57 +335,9 @@ export default function SmsTestingTool() {
     }
   }
 
-  // 处理手机号码输入和自动推荐
+  // 处理手机号码输入
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value)
-    
-    if (value.length >= 3) {
-      // 过滤匹配的手机号码
-      const filtered = savedPhoneNumbers.filter(phone => 
-        phone.number.startsWith(value)
-      )
-      setFilteredSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
-      setActiveSuggestionIndex(-1)
-    } else {
-      setShowSuggestions(false)
-      setFilteredSuggestions([])
-    }
-  }
-
-  // 选择推荐的手机号码
-  const selectSuggestion = (suggestion: any) => {
-    setPhoneNumber(suggestion.number)
-    setShowSuggestions(false)
-    setActiveSuggestionIndex(-1)
-  }
-
-  // 处理键盘导航
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggestions) return
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setActiveSuggestionIndex(prev => 
-          prev < filteredSuggestions.length - 1 ? prev + 1 : prev
-        )
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setActiveSuggestionIndex(prev => prev > 0 ? prev - 1 : -1)
-        break
-      case 'Enter':
-        e.preventDefault()
-        if (activeSuggestionIndex >= 0) {
-          selectSuggestion(filteredSuggestions[activeSuggestionIndex])
-        }
-        break
-      case 'Escape':
-        setShowSuggestions(false)
-        setActiveSuggestionIndex(-1)
-        break
-    }
   }
 
   // Load tokens from localStorage on mount with validation
@@ -413,7 +348,6 @@ export default function SmsTestingTool() {
     // Load saved tokens if available
     if (savedAdminToken) {
       setAdminToken(savedAdminToken)
-      setTokensConfigured(true)
       
       fetchTemplates(savedAdminToken, true).finally(() => {
         setIsInitialLoad(false)
@@ -427,8 +361,8 @@ export default function SmsTestingTool() {
       setRefreshToken(savedRefreshToken)
     }
     
-    // Load saved phone numbers
-    loadSavedPhoneNumbers()
+    // Load carriers
+    loadCarriers()
     
     // Load SMS history from database
     loadSmsHistory()
@@ -471,23 +405,12 @@ export default function SmsTestingTool() {
     saveUserState()
   }, [phoneNumber, selectedCarrier, selectedTemplate, templateParams])
 
-  // 当手机号码加载完成且有选择的运营商时，恢复级联选择状态
+  // 当选择运营商时，自动触发搜索
   useEffect(() => {
-    if (savedPhoneNumbers.length > 0 && selectedCarrier) {
-      const filteredNumbers = savedPhoneNumbers.filter(phone => phone.carrier === selectedCarrier)
-      setCarrierPhoneNumbers(filteredNumbers)
+    if (selectedCarrier) {
+      searchPhoneNumbers(phoneSearchTerm, selectedCarrier, 1)
     }
-  }, [savedPhoneNumbers, selectedCarrier])
-
-  // Clear phone number when search term changes and selected number not in results
-  useEffect(() => {
-    if (phoneSearchTerm.trim() && phoneNumber) {
-      const isInResults = getFilteredPhoneNumbers().some(phone => phone.number === phoneNumber)
-      if (!isInResults) {
-        setPhoneNumber("")
-      }
-    }
-  }, [phoneSearchTerm, phoneNumber, savedPhoneNumbers])
+  }, [selectedCarrier])
 
   // Save tokens to localStorage and validate configuration
   const saveTokens = () => {
@@ -505,7 +428,6 @@ export default function SmsTestingTool() {
       localStorage.setItem("sms-refresh-token", refreshToken)
     }
     
-    setTokensConfigured(true)
     setShowConfigModal(false)
     setShow401Error(false)
 
@@ -1399,13 +1321,27 @@ export default function SmsTestingTool() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">短信测试工具</h1>
-          <Button
-            variant="outline"
-            onClick={() => setShowConfigModal(true)}
-          >
-            <Settings className="w-4 h-4 mr-2" />
-            配置Token
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/analytics">
+              <Button variant="outline" size="sm">
+                <BarChart className="w-4 h-4 mr-2" />
+                数据分析
+              </Button>
+            </Link>
+            <Link href="/auto-test">
+              <Button variant="outline" size="sm">
+                <Timer className="w-4 h-4 mr-2" />
+                自动化测试
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfigModal(true)}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              配置Token
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1462,48 +1398,24 @@ export default function SmsTestingTool() {
                       placeholder="请输入手机号码"
                       value={phoneNumber}
                       onChange={(e) => handlePhoneNumberChange(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      onBlur={() => {
-                        // 延迟关闭建议列表，以便点击建议项
-                        setTimeout(() => setShowSuggestions(false), 200)
-                      }}
                       className="flex-1"
                     />
-                    {/* 自动推荐下拉列表 */}
-                    {showSuggestions && filteredSuggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        {filteredSuggestions.map((suggestion, index) => (
-                          <div
-                            key={suggestion.id}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                              index === activeSuggestionIndex ? 'bg-blue-100' : ''
-                            }`}
-                            onClick={() => selectSuggestion(suggestion)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">{suggestion.number}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {suggestion.carrier}
-                              </Badge>
-                            </div>
-                            {suggestion.note && (
-                              <div className="text-xs text-gray-500 mt-1 truncate">
-                                备注: {suggestion.note}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   <PhoneNumberManagerModal 
-                    onPhoneNumbersChange={loadSavedPhoneNumbers}
+                    onPhoneNumbersChange={() => {
+                      // 重新加载运营商列表
+                      loadCarriers()
+                      // 如果有选择的运营商，重新搜索
+                      if (selectedCarrier) {
+                        searchPhoneNumbers(phoneSearchTerm, selectedCarrier, 1)
+                      }
+                    }}
                     onSelectNumber={setPhoneNumber}
                   />
                 </div>
                 
                 {/* 运营商和号码级联选择 */}
-                {savedPhoneNumbers.length > 0 && (
+                {availableCarriers.length > 0 && (
                   <div className="space-y-3">
                     <div className="text-sm text-gray-600">或从已保存的号码中选择：</div>
                     <div className="flex gap-2 items-end">
@@ -1516,16 +1428,11 @@ export default function SmsTestingTool() {
                               <SelectValue placeholder="选择运营商" />
                             </SelectTrigger>
                             <SelectContent>
-                              {getUniqueCarriers().map((carrier) => (
+                              {availableCarriers.map((carrier) => (
                                 <SelectItem key={carrier} value={carrier}>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">
-                                      {carrier}
-                                    </Badge>
-                                    <span className="text-xs text-gray-500">
-                                      ({savedPhoneNumbers.filter(p => p.carrier === carrier).length}个)
-                                    </span>
-                                  </div>
+                                  <Badge variant="outline" className="text-xs">
+                                    {carrier}
+                                  </Badge>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1559,9 +1466,9 @@ export default function SmsTestingTool() {
                                   <div className="font-medium overflow-visible text-ellipsis-none whitespace-nowrap">
                                     {phoneNumber}
                                   </div>
-                                  {carrierPhoneNumbers.find(p => p.number === phoneNumber)?.note && (
+                                  {phoneNumbers.find(p => p.number === phoneNumber)?.note && (
                                     <div className="text-xs text-gray-500 overflow-visible text-ellipsis-none whitespace-nowrap">
-                                      备注: {carrierPhoneNumbers.find(p => p.number === phoneNumber)?.note}
+                                      备注: {phoneNumbers.find(p => p.number === phoneNumber)?.note}
                                     </div>
                                   )}
                                 </div>
@@ -1573,7 +1480,11 @@ export default function SmsTestingTool() {
                             </div>
                           </SelectTrigger>
                           <SelectContent className="w-full">
-                            {carrierPhoneNumbers.map((phone) => (
+                            {phoneNumbersLoading ? (
+                              <div className="px-2 py-1.5 text-xs text-gray-500">
+                                加载中...
+                              </div>
+                            ) : phoneNumbers.map((phone) => (
                               <SelectItem key={phone.id} value={phone.number}>
                                 <div className="w-full text-left">
                                   <div className="font-medium text-left">{phone.number}</div>
@@ -1585,7 +1496,7 @@ export default function SmsTestingTool() {
                                 </div>
                               </SelectItem>
                             ))}
-                            {carrierPhoneNumbers.length === 0 && selectedCarrier && (
+                            {!phoneNumbersLoading && phoneNumbers.length === 0 && selectedCarrier && (
                               <div className="px-2 py-1.5 text-xs text-gray-500">
                                 该运营商暂无保存的号码
                               </div>
@@ -1595,60 +1506,112 @@ export default function SmsTestingTool() {
                       </div>
                     </div>
                     
-                    {/* 快速选择所有号码的选项 */}
+                    {/* 分页控制 */}
+                    {selectedCarrier && phonePagination.totalPages > 1 && (
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>共 {phonePagination.total} 个号码</span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(phonePagination.currentPage - 1)}
+                            disabled={!phonePagination.hasPrev || phoneNumbersLoading}
+                          >
+                            上一页
+                          </Button>
+                          <span className="px-2">
+                            {phonePagination.currentPage} / {phonePagination.totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(phonePagination.currentPage + 1)}
+                            disabled={!phonePagination.hasNext || phoneNumbersLoading}
+                          >
+                            下一页
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 快速搜索所有号码的选项 */}
                     {!selectedCarrier && (
                       <div className="space-y-2">
-                        <Label className="text-xs text-gray-500 mb-1 block">快速选择</Label>
+                        <Label className="text-xs text-gray-500 mb-1 block">快速搜索</Label>
                         
                         {/* 搜索输入框 */}
                         <div className="relative">
                           <Input
                             placeholder="搜索手机号码、运营商或备注..."
                             value={phoneSearchTerm}
-                            onChange={(e) => setPhoneSearchTerm(e.target.value)}
+                            onChange={(e) => handlePhoneSearch(e.target.value)}
                             className="h-9 text-sm"
                           />
                         </div>
                         
-                        {/* 号码选择下拉框 */}
-                        <Select value={phoneNumber} onValueChange={setPhoneNumber}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder={
-                              phoneSearchTerm.trim() 
-                                ? `搜索结果 (${getFilteredPhoneNumbers().length}条)` 
-                                : `选择号码 (显示前20条，共${savedPhoneNumbers.length}条)`
-                            } />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getFilteredPhoneNumbers().map((phone) => (
-                              <SelectItem key={phone.id} value={phone.number}>
-                                <div className="flex flex-col items-start py-1 max-w-full text-left">
-                                  <div className="flex items-center gap-2 max-w-full">
-                                    <span className="font-medium text-left">{phone.number}</span>
-                                    <Badge variant="outline" className="text-xs flex-shrink-0">
-                                      {phone.carrier}
-                                    </Badge>
-                                  </div>
-                                  {phone.note && (
-                                    <div className="text-xs text-gray-500 mt-1 max-w-full text-left">
-                                      备注: {phone.note}
-                                    </div>
-                                  )}
+                        {/* 搜索结果下拉框 */}
+                        {phoneSearchTerm.trim() && (
+                          <Select value={phoneNumber} onValueChange={setPhoneNumber}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder={`搜索结果 (${phonePagination.total}条)`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {phoneNumbersLoading ? (
+                                <div className="px-2 py-1.5 text-xs text-gray-500">
+                                  搜索中...
                                 </div>
-                              </SelectItem>
-                            ))}
-                            {getFilteredPhoneNumbers().length === 0 && (
-                              <div className="px-2 py-1.5 text-xs text-gray-500">
-                                {phoneSearchTerm.trim() ? '未找到匹配的号码' : '暂无保存的号码'}
-                              </div>
-                            )}
-                            {!phoneSearchTerm.trim() && savedPhoneNumbers.length > 20 && (
-                              <div className="px-2 py-1.5 text-xs text-blue-600 bg-blue-50">
-                                还有 {savedPhoneNumbers.length - 20} 个号码，请使用搜索功能查找
-                              </div>
-                            )}
-                          </SelectContent>
-                        </Select>
+                              ) : phoneNumbers.map((phone) => (
+                                <SelectItem key={phone.id} value={phone.number}>
+                                  <div className="flex flex-col items-start py-1 max-w-full text-left">
+                                    <div className="flex items-center gap-2 max-w-full">
+                                      <span className="font-medium text-left">{phone.number}</span>
+                                      <Badge variant="outline" className="text-xs flex-shrink-0">
+                                        {phone.carrier}
+                                      </Badge>
+                                    </div>
+                                    {phone.note && (
+                                      <div className="text-xs text-gray-500 mt-1 max-w-full text-left">
+                                        备注: {phone.note}
+                                      </div>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                              {!phoneNumbersLoading && phoneNumbers.length === 0 && (
+                                <div className="px-2 py-1.5 text-xs text-gray-500">
+                                  未找到匹配的号码
+                                </div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        
+                        {/* 分页控制 */}
+                        {phoneSearchTerm.trim() && phonePagination.totalPages > 1 && (
+                          <div className="flex items-center justify-between text-xs text-gray-600">
+                            <span>第 {phonePagination.currentPage} 页，共 {phonePagination.totalPages} 页</span>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(phonePagination.currentPage - 1)}
+                                disabled={!phonePagination.hasPrev || phoneNumbersLoading}
+                                className="h-7 px-2 text-xs"
+                              >
+                                上一页
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(phonePagination.currentPage + 1)}
+                                disabled={!phonePagination.hasNext || phoneNumbersLoading}
+                                className="h-7 px-2 text-xs"
+                              >
+                                下一页
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

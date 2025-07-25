@@ -83,7 +83,8 @@ export default function BulkSendModal({
   const loadPhoneNumbers = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/phone-numbers?limit=10000')
+      // 使用新的搜索API，初始加载所有数据但限制在合理范围内
+      const response = await fetch('/api/phone-numbers/search?limit=1000')
       if (response.ok) {
         const data = await response.json()
         setPhoneNumbers(data.data || [])
