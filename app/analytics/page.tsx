@@ -331,15 +331,51 @@ export default function AnalyticsPage() {
                     </div>
                     <div className="space-y-2">
                       <div className="flex gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-3 relative overflow-hidden">
+                          {/* 成功部分 */}
                           <div 
-                            className="bg-green-500 h-2 rounded-full"
+                            className="bg-green-500 h-full absolute left-0"
                             style={{ width: `${day.sent > 0 ? (day.success / day.sent) * 100 : 0}%` }}
                           ></div>
+                          {/* 失败部分 */}
+                          <div 
+                            className="bg-red-500 h-full absolute"
+                            style={{ 
+                              left: `${day.sent > 0 ? (day.success / day.sent) * 100 : 0}%`,
+                              width: `${day.sent > 0 ? (day.failed / day.sent) * 100 : 0}%`
+                            }}
+                          ></div>
+                          {/* 其他状态部分（发送中等） */}
+                          {day.sent > (day.success + day.failed) && (
+                            <div 
+                              className="bg-yellow-400 h-full absolute"
+                              style={{ 
+                                left: `${day.sent > 0 ? ((day.success + day.failed) / day.sent) * 100 : 0}%`,
+                                width: `${day.sent > 0 ? ((day.sent - day.success - day.failed) / day.sent) * 100 : 0}%`
+                              }}
+                            ></div>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-600 w-16">
-                          {day.sent > 0 ? ((day.success / day.sent) * 100).toFixed(1) : 0}%
+                        <span className="text-xs text-gray-600 w-20">
+                          {day.sent > 0 ? ((day.success / day.sent) * 100).toFixed(1) : 0}% 成功
                         </span>
+                      </div>
+                      {/* 添加图例说明 */}
+                      <div className="flex items-center gap-4 text-xs text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-2 bg-green-500 rounded"></div>
+                          <span>成功 ({day.success})</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-2 bg-red-500 rounded"></div>
+                          <span>失败 ({day.failed})</span>
+                        </div>
+                        {day.sent > (day.success + day.failed) && (
+                          <div className="flex items-center gap-1">
+                            <div className="w-3 h-2 bg-yellow-400 rounded"></div>
+                            <span>其他 ({day.sent - day.success - day.failed})</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
