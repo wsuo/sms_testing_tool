@@ -22,6 +22,25 @@ export async function POST(request: NextRequest, { params }: Params) {
     
     const db = getDatabase()
     
+    // 确保auto_test_plans表存在
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS auto_test_plans (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        template_id TEXT NOT NULL,
+        template_name TEXT,
+        phone_numbers TEXT NOT NULL, -- JSON array
+        schedule TEXT NOT NULL, -- JSON object
+        status TEXT NOT NULL DEFAULT 'inactive',
+        progress TEXT NOT NULL DEFAULT '{"total":0,"completed":0,"success":0,"failed":0}',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_run DATETIME,
+        next_run DATETIME
+      )
+    `)
+    
     // 获取计划信息
     const stmt = db.prepare('SELECT * FROM auto_test_plans WHERE id = ?')
     const plan = stmt.get(planId) as any
