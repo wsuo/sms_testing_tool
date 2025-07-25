@@ -343,7 +343,7 @@ export default function SmsTestingTool() {
 
   // Search phone number suggestions based on user input
   const searchInputSuggestions = async (input: string) => {
-    if (input.length < 3) {
+    if (input.length < 3 || input.length === 11) {
       setInputSuggestions([])
       setShowInputSuggestions(false)
       return
@@ -410,7 +410,7 @@ export default function SmsTestingTool() {
   // 使用 useEffect 来处理延迟搜索
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (phoneNumber.length >= 3) {
+      if (phoneNumber.length >= 3 && phoneNumber.length !== 11) {
         searchInputSuggestions(phoneNumber)
       } else {
         setInputSuggestions([])
@@ -1485,8 +1485,8 @@ export default function SmsTestingTool() {
                         setTimeout(() => setShowInputSuggestions(false), 200)
                       }}
                       onFocus={() => {
-                        // 如果有建议且输入长度>=3，重新显示建议
-                        if (phoneNumber.length >= 3 && inputSuggestions.length > 0) {
+                        // 如果有建议且输入长度>=3且不等于11，重新显示建议
+                        if (phoneNumber.length >= 3 && phoneNumber.length !== 11 && inputSuggestions.length > 0) {
                           setShowInputSuggestions(true)
                         }
                       }}
