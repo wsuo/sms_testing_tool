@@ -407,15 +407,40 @@ export default function SmsMonitorPage() {
     
     // 设置SMS状态更新监听器
     const unsubscribe = smsMonitorService.onStatusUpdate((updates: SmsStatusUpdate[]) => {
-      // 当后台服务更新状态时，重新加载记录以获取最新数据
-      loadRecords()
+      // 优化：直接更新相关记录状态，避免全量刷新
+      if (updates.length > 0) {
+        setRecords(prevRecords => {
+          return prevRecords.map(record => {
+            const update = updates.find(u => u.outId === record.out_id)
+            if (update) {
+              return {
+                ...record,
+                status: update.status,
+                error_code: update.errorCode,
+                receive_date: update.receiveDate,
+                updated_at: new Date().toISOString()
+              }
+            }
+            return record
+          })
+        })
+        
+        // 显示状态更新通知（减少频率，避免过于干扰）
+        if (updates.length <= 2 && updates.some(u => u.status === '已送达' || u.status === '发送失败')) {
+          toast({
+            title: "状态已更新",
+            description: `${updates.length} 条记录状态已更新`,
+            variant: "default",
+          })
+        }
+      }
     })
     
     // 清理函数
     return () => {
       unsubscribe()
     }
-  }, [loadRecords])
+  }, [loadRecords, toast])
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -592,8 +617,30 @@ export default function SmsMonitorPage() {
           )
         }
 
-        // 重新加载当前页记录
-        await loadRecords(currentPage)
+        // 优化：直接更新记录状态，避免全量刷新
+        setRecords(prevRecords => {
+          const updatedRecords = prevRecords.map(record => {
+            if (record.out_id === outId) {
+              // 更新原记录的重试次数
+              return {
+                ...record,
+                retry_count: (record.retry_count || 0) + 1,
+                last_retry_at: new Date().toISOString()
+              }
+            }
+            return record
+          })
+          
+          // 如果当前在第一页，将新记录添加到列表开头
+          if (currentPage === 1 && result.data.new_record) {
+            return [result.data.new_record, ...updatedRecords]
+          }
+          
+          return updatedRecords
+        })
+
+        // 更新总记录数（因为新增了一条记录）
+        setTotalRecords(prev => prev + 1)
 
       } else {
         throw new Error(result.error || '重发失败')
