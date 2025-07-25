@@ -107,7 +107,7 @@ export default function PhoneNumberSelector({
   useEffect(() => {
     const numbers = selectedPhoneNumbers.map(phone => phone.number)
     onSelectionChange(numbers)
-  }, [selectedPhoneNumbers, onSelectionChange])
+  }, [selectedPhoneNumbers]) // 移除onSelectionChange依赖避免无限循环
 
   // 全选/取消全选
   const handleSelectAll = (checked: boolean) => {

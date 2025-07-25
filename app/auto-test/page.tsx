@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,6 +66,14 @@ export default function AutoTestPage() {
     interval: 60,
     endTime: ''
   })
+
+  // 优化的电话号码选择回调
+  const handlePhoneNumberChange = useCallback((numbers: string[]) => {
+    setNewPlan(prev => ({
+      ...prev,
+      phoneNumbers: numbers
+    }))
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -387,12 +395,7 @@ export default function AutoTestPage() {
                 <div className="mt-2">
                   <PhoneNumberSelector
                     selectedNumbers={newPlan.phoneNumbers}
-                    onSelectionChange={(numbers) => {
-                      setNewPlan(prev => ({
-                        ...prev,
-                        phoneNumbers: numbers
-                      }))
-                    }}
+                    onSelectionChange={handlePhoneNumberChange}
                     maxHeight="300px"
                     showSearch={true}
                     showGrouping={true}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -54,6 +54,11 @@ export default function BulkSendModal({
     failed: 0,
     isComplete: false
   })
+
+  // 优化的电话号码选择回调
+  const handlePhoneNumberChange = useCallback((numbers: string[]) => {
+    setSelectedNumbers(numbers)
+  }, [])
 
   // 批量发送SMS
   const handleBulkSend = async () => {
@@ -298,7 +303,7 @@ export default function BulkSendModal({
           <div className="flex-1 overflow-hidden">
             <PhoneNumberSelector
               selectedNumbers={selectedNumbers}
-              onSelectionChange={setSelectedNumbers}
+              onSelectionChange={handlePhoneNumberChange}
               maxHeight="400px"
               disabled={isSending}
               showSearch={true}
