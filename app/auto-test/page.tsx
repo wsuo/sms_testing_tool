@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress"
 import { Play, Pause, Square, Plus, Trash2, Clock, Settings, Calendar, Timer } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+import PhoneNumberSelector from "@/components/phone-number-selector"
 
 interface AutoTestPlan {
   id: string
@@ -51,7 +52,6 @@ export default function AutoTestPage() {
   const { toast } = useToast()
   const [plans, setPlans] = useState<AutoTestPlan[]>([])
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
-  const [phoneNumbers, setPhoneNumbers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
   
@@ -98,13 +98,6 @@ export default function AutoTestPage() {
             setTemplates(templatesList)
           }
         }
-      }
-
-      // 加载电话号码
-      const phonesResponse = await fetch('/api/phone-numbers/search?limit=1000')
-      if (phonesResponse.ok) {
-        const phonesData = await phonesResponse.json()
-        setPhoneNumbers(phonesData.data || [])
       }
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -391,30 +384,19 @@ export default function AutoTestPage() {
 
               <div>
                 <Label>目标电话号码 ({newPlan.phoneNumbers.length} 个已选择)</Label>
-                <div className="mt-2 p-3 border rounded-lg max-h-32 overflow-y-auto">
-                  {phoneNumbers.map((phone) => (
-                    <div key={phone.id} className="flex items-center space-x-2 py-1">
-                      <input
-                        type="checkbox"
-                        checked={newPlan.phoneNumbers.includes(phone.number)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setNewPlan(prev => ({
-                              ...prev,
-                              phoneNumbers: [...prev.phoneNumbers, phone.number]
-                            }))
-                          } else {
-                            setNewPlan(prev => ({
-                              ...prev,
-                              phoneNumbers: prev.phoneNumbers.filter(num => num !== phone.number)
-                            }))
-                          }
-                        }}
-                      />
-                      <span className="text-sm">{phone.number}</span>
-                      <Badge variant="outline" className="text-xs">{phone.carrier}</Badge>
-                    </div>
-                  ))}
+                <div className="mt-2">
+                  <PhoneNumberSelector
+                    selectedNumbers={newPlan.phoneNumbers}
+                    onSelectionChange={(numbers) => {
+                      setNewPlan(prev => ({
+                        ...prev,
+                        phoneNumbers: numbers
+                      }))
+                    }}
+                    maxHeight="300px"
+                    showSearch={true}
+                    showGrouping={true}
+                  />
                 </div>
               </div>
 
