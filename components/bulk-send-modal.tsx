@@ -75,7 +75,7 @@ export default function BulkSendModal({
   const loadPhoneNumbers = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/phone-numbers')
+      const response = await fetch('/api/phone-numbers?limit=10000')
       if (response.ok) {
         const data = await response.json()
         setPhoneNumbers(data.data || [])

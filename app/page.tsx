@@ -220,7 +220,7 @@ export default function SmsTestingTool() {
   const loadSavedPhoneNumbers = async () => {
     try {
       setIsLoadingPhoneNumbers(true)
-      const response = await fetch('/api/phone-numbers')
+      const response = await fetch('/api/phone-numbers?limit=10000')
       if (response.ok) {
         const data = await response.json()
         setSavedPhoneNumbers(data.data)
