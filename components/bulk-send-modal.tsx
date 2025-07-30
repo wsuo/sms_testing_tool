@@ -80,6 +80,20 @@ export default function BulkSendModal({
       return
     }
 
+    // 验证模板参数完整性
+    const missingParams = selectedTemplate.params.filter(param => 
+      !templateParams[param] || templateParams[param].trim() === ''
+    )
+    
+    if (missingParams.length > 0) {
+      toast({
+        title: "参数错误",
+        description: `模板参数缺失: ${missingParams.join(', ')}`,
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSending(true)
     setSendProgress({
       total: selectedNumbers.length,
@@ -245,8 +259,8 @@ export default function BulkSendModal({
   }
 
   // 重置状态
-  const handleClose = () => {
-    if (!isSending) {
+  const handleClose = (newOpen: boolean) => {
+    if (!newOpen && !isSending) {
       setSelectedNumbers([])
       setSendProgress({
         total: 0,

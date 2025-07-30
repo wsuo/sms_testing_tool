@@ -360,6 +360,9 @@ class SmsMonitorService {
           task.retryCount++
           task.lastRetryAt = new Date()
           tasksToUpdate.push(task)
+          
+          // 更新数据库重试计数
+          await this.incrementRetryCount(task.outId, task.retryCount, task.lastRetryAt)
         }
       } else {
         // 查询失败，更新重试信息
@@ -377,10 +380,10 @@ class SmsMonitorService {
         } else {
           tasksToUpdate.push(task)
         }
+        
+        // 更新数据库重试计数
+        await this.incrementRetryCount(task.outId, task.retryCount, task.lastRetryAt)
       }
-
-      // 更新数据库重试计数
-      await this.incrementRetryCount(task.outId, task.retryCount, task.lastRetryAt!)
     }
 
     // 从队列中移除已完成的任务
