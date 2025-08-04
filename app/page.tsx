@@ -48,40 +48,77 @@ export default function PlatformDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      // Load SMS statistics
+      // Load SMS statistics from analytics API
       const smsResponse = await fetch('/api/analytics?range=week')
       if (smsResponse.ok) {
-        const smsData = await smsResponse.json()
-        setDashboardStats(prev => ({
-          ...prev,
-          smsStats: {
-            totalSent: smsData.totalSms || 0,
-            successRate: smsData.successRate || 0,
-            pendingCount: smsData.pendingCount || 0
-          }
-        }))
+        const smsResult = await smsResponse.json()
+        if (smsResult.success && smsResult.data) {
+          const smsData = smsResult.data
+          // Calculate pending count from status breakdown
+          const pendingStatuses = smsData.statusBreakdown.filter((s: any) => 
+            s.status === '发送中' || s.status === '发送中(已停止查询)'
+          )
+          const pendingCount = pendingStatuses.reduce((sum: number, s: any) => sum + s.count, 0)
+          
+          setDashboardStats(prev => ({
+            ...prev,
+            smsStats: {
+              totalSent: smsData.totalSms || 0,
+              successRate: smsData.successRate || 0,
+              pendingCount: pendingCount
+            }
+          }))
+        }
       }
 
-      // Mock recent activity data
-      setDashboardStats(prev => ({
-        ...prev,
-        recentActivity: [
-          {
-            type: 'SMS',
-            message: 'Bulk SMS sent to 50 recipients',
-            timestamp: new Date().toISOString(),
-            status: 'success'
-          },
-          {
-            type: 'Import',
-            message: 'Company data imported successfully',
-            timestamp: new Date(Date.now() - 3600000).toISOString(),
-            status: 'success'
-          }
-        ]
-      }))
+      // Load recent SMS records for activity
+      const recordsResponse = await fetch('/api/sms-records?limit=5&offset=0')
+      if (recordsResponse.ok) {
+        const recordsResult = await recordsResponse.json()
+        if (recordsResult.success && recordsResult.data) {
+          const recentRecords = recordsResult.data.slice(0, 3) // 取最近3条记录
+          const recentActivity = recentRecords.map((record: any) => {
+            let message = ''
+            let type = 'SMS'
+            let status: 'success' | 'warning' | 'error' = 'success'
+            
+            if (record.status === '已送达') {
+              message = `短信成功发送至 ${record.phone_number}`
+              status = 'success'
+            } else if (record.status === '发送失败') {
+              message = `短信发送失败至 ${record.phone_number}`
+              status = 'error'
+            } else {
+              message = `短信发送中至 ${record.phone_number}`
+              status = 'warning'
+            }
+            
+            return {
+              type,
+              message,
+              timestamp: record.created_at,
+              status
+            }
+          })
+          
+          setDashboardStats(prev => ({
+            ...prev,
+            recentActivity
+          }))
+        }
+      }
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
+      // Fallback to empty data
+      setDashboardStats(prev => ({
+        ...prev,
+        smsStats: {
+          totalSent: 0,
+          successRate: 0,
+          pendingCount: 0
+        },
+        recentActivity: []
+      }))
     } finally {
       setIsLoading(false)
     }
@@ -125,9 +162,9 @@ export default function PlatformDashboard() {
     <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">Testing Platform Dashboard</h1>
+        <h1 className="text-4xl font-bold tracking-tight">测试平台</h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Comprehensive testing tools for SMS, data management, and automated workflows
+          智能测试与数据分析平台，提供短信测试、数据管理和性能分析服务
         </p>
       </div>
 
@@ -135,18 +172,18 @@ export default function PlatformDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total SMS Sent</CardTitle>
+            <CardTitle className="text-sm font-medium">总短信发送量</CardTitle>
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{dashboardStats.smsStats.totalSent}</div>
-            <p className="text-xs text-muted-foreground">This week</p>
+            <p className="text-xs text-muted-foreground">本周</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">成功率</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -157,19 +194,19 @@ export default function PlatformDashboard() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Messages</CardTitle>
+            <CardTitle className="text-sm font-medium">待处理消息</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{dashboardStats.smsStats.pendingCount}</div>
-            <p className="text-xs text-muted-foreground">Awaiting status</p>
+            <p className="text-xs text-muted-foreground">等待状态更新</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Testing Tools Grid */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">Testing Tools</h2>
+        <h2 className="text-2xl font-semibold">功能模块</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {testingTools.map((tool) => {
             const Icon = tool.icon
@@ -202,11 +239,11 @@ export default function PlatformDashboard() {
 
       {/* Recent Activity */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">Recent Activity</h2>
+        <h2 className="text-2xl font-semibold">最近活动</h2>
         <Card>
           <CardContent className="p-6">
             {dashboardStats.recentActivity.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No recent activity</p>
+              <p className="text-muted-foreground text-center py-8">暂无最近活动</p>
             ) : (
               <div className="space-y-4">
                 {dashboardStats.recentActivity.map((activity, index) => (
