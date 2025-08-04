@@ -50,7 +50,7 @@ interface CompanyData {
   whats_app?: string
   fax?: string
   postal_code?: string
-  company_birth?: string
+  company_birth?: string | number
   is_verified?: number
   homepage?: string
 }
@@ -107,41 +107,40 @@ export default function SupplierImportPage() {
       }
 
       // 第一行是标题，从第二行开始是数据
-      const headers = jsonData[0]
       const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ''))
 
-      // 映射数据到CompanyData格式
-      const mappedData: CompanyData[] = rows.map((row, index) => ({
-        company_id: parseInt(row[0]) || 0,
-        company_no: row[1] || '',
-        name: row[2] || '',
-        name_en: row[3] || '',
-        country: row[4] || '',
-        province: row[5] || '',
-        province_en: row[6] || '',
-        city: row[7] || '',
-        city_en: row[8] || '',
-        county: row[9] || '',
-        county_en: row[10] || '',
-        address: row[11] || '',
-        address_en: row[12] || '',
-        business_scope: row[13] || '',
-        business_scope_en: row[14] || '',
-        contact_person: row[15] || '',
-        contact_person_en: row[16] || '',
-        contact_person_title: row[17] || '',
-        contact_person_title_en: row[18] || '',
-        mobile: row[19] || '',
-        phone: row[20] || '',
-        email: row[21] || '',
-        intro: row[22] || '',
-        intro_en: row[23] || '',
-        whats_app: row[24] || '',
-        fax: row[25] || '',
-        postal_code: row[26] || '',
-        company_birth: row[27] || '',
-        is_verified: parseInt(row[28]) || 0,
-        homepage: row[29] || ''
+      // 映射数据到CompanyData格式，确保所有字段都是字符串类型
+      const mappedData: CompanyData[] = rows.map((row) => ({
+        company_id: parseInt(String(row[0] || '0')) || 0,
+        company_no: String(row[1] || ''),
+        name: String(row[2] || ''),
+        name_en: String(row[3] || ''),
+        country: String(row[4] || ''),
+        province: String(row[5] || ''),
+        province_en: String(row[6] || ''),
+        city: String(row[7] || ''),
+        city_en: String(row[8] || ''),
+        county: String(row[9] || ''),
+        county_en: String(row[10] || ''),
+        address: String(row[11] || ''),
+        address_en: String(row[12] || ''),
+        business_scope: String(row[13] || ''),
+        business_scope_en: String(row[14] || ''),
+        contact_person: String(row[15] || ''),
+        contact_person_en: String(row[16] || ''),
+        contact_person_title: String(row[17] || ''),
+        contact_person_title_en: String(row[18] || ''),
+        mobile: String(row[19] || ''),
+        phone: String(row[20] || ''),
+        email: String(row[21] || ''),
+        intro: String(row[22] || ''),
+        intro_en: String(row[23] || ''),
+        whats_app: String(row[24] || ''),
+        fax: String(row[25] || ''),
+        postal_code: String(row[26] || ''),
+        company_birth: String(row[27] || ''),
+        is_verified: parseInt(String(row[28] || '0')) || 0,
+        homepage: String(row[29] || '')
       }))
 
       // 验证数据
@@ -153,14 +152,14 @@ export default function SupplierImportPage() {
       if (errors.length === 0) {
         setImportStatus('completed')
         toast({
-          title: "文件处理成功",
-          description: `成功处理 ${mappedData.length} 条公司记录`,
+          title: "文件解析成功",
+          description: `成功解析 ${mappedData.length} 条公司记录，可以开始导入`,
         })
       } else {
         setImportStatus('error')
         toast({
           title: "数据验证失败",
-          description: `发现 ${errors.length} 个验证错误`,
+          description: `发现 ${errors.length} 个验证错误，请修复后重新上传`,
           variant: "destructive",
         })
       }
@@ -186,23 +185,23 @@ export default function SupplierImportPage() {
         errors.push({ row: rowNumber, field: 'company_id', message: '公司ID必须是有效的正整数' })
       }
 
-      if (!company.name.trim()) {
+      if (!company.name || !company.name.trim()) {
         errors.push({ row: rowNumber, field: 'name', message: '公司中文名称不能为空' })
       }
 
-      if (!company.name_en.trim()) {
+      if (!company.name_en || !company.name_en.trim()) {
         errors.push({ row: rowNumber, field: 'name_en', message: '公司英文名称不能为空' })
       }
 
-      if (company.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(company.email)) {
+      if (company.email && typeof company.email === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(company.email)) {
         errors.push({ row: rowNumber, field: 'email', message: '邮箱格式不正确' })
       }
 
-      if (company.mobile && !/^1[3-9]\d{9}$/.test(company.mobile.replace(/\s|-/g, ''))) {
+      if (company.mobile && typeof company.mobile === 'string' && !/^1[3-9]\d{9}$/.test(company.mobile.replace(/\s|-/g, ''))) {
         errors.push({ row: rowNumber, field: 'mobile', message: '手机号格式不正确' })
       }
 
-      if (company.homepage && company.homepage.trim() && !/^https?:\/\/.+/.test(company.homepage)) {
+      if (company.homepage && typeof company.homepage === 'string' && company.homepage.trim() && !/^https?:\/\/.+/.test(company.homepage)) {
         errors.push({ row: rowNumber, field: 'homepage', message: '网站地址格式不正确，应以http://或https://开头' })
       }
     })
@@ -220,11 +219,31 @@ export default function SupplierImportPage() {
       return
     }
 
+    if (companyData.length === 0) {
+      toast({
+        title: "无数据可导入",
+        description: "请先选择并解析Excel文件",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsProcessing(true)
     setImportProgress(0)
     setImportResults(null)
+    setImportStatus('processing')
 
     try {
+      toast({
+        title: "开始导入",
+        description: "正在导入数据到数据库，请稍候...",
+      })
+
+      // 模拟进度更新
+      const progressInterval = setInterval(() => {
+        setImportProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+
       // 调用后端API进行数据导入
       const response = await fetch('/api/supplier-import', {
         method: 'POST',
@@ -236,6 +255,9 @@ export default function SupplierImportPage() {
         })
       })
 
+      clearInterval(progressInterval)
+      setImportProgress(100)
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || '导入失败')
@@ -243,21 +265,13 @@ export default function SupplierImportPage() {
 
       const result = await response.json()
       setImportResults(result)
-      setImportProgress(100)
+      setImportStatus('completed')
 
       toast({
         title: "导入完成",
         description: `成功处理 ${result.totalProcessed} 条记录，成功 ${result.successCount} 条，失败 ${result.errorCount} 条`,
       })
 
-      // 清理状态
-      setFile(null)
-      setCompanyData([])
-      setValidationErrors([])
-      setImportStatus('idle')
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     } catch (error) {
       toast({
         title: "导入失败",
@@ -302,6 +316,18 @@ export default function SupplierImportPage() {
     setImportStatus('idle')
     setImportProgress(0)
     setImportResults(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const clearImportResults = () => {
+    setImportResults(null)
+    setFile(null)
+    setCompanyData([])
+    setValidationErrors([])
+    setImportStatus('idle')
+    setImportProgress(0)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -452,10 +478,17 @@ export default function SupplierImportPage() {
               {isProcessing && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>处理进度</span>
+                    <span>
+                      {importStatus === 'processing' && importResults === null ? '文件解析进度' : '数据导入进度'}
+                    </span>
                     <span>{importProgress}%</span>
                   </div>
                   <Progress value={importProgress} />
+                  <p className="text-xs text-muted-foreground">
+                    {importStatus === 'processing' && importResults === null
+                      ? '正在解析Excel文件...'
+                      : '正在导入数据到数据库...'}
+                  </p>
                 </div>
               )}
             </div>
@@ -501,13 +534,25 @@ export default function SupplierImportPage() {
                         <><AlertCircle className="h-3 w-3 mr-1" />{validationErrors.length} 个错误</>
                       )}
                     </Badge>
-                    <Button
-                      onClick={handleImport}
-                      disabled={validationErrors.length > 0 || isProcessing}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      确认导入
-                    </Button>
+                    {!importResults && (
+                      <Button
+                        onClick={handleImport}
+                        disabled={validationErrors.length > 0 || isProcessing || companyData.length === 0}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {isProcessing ? '导入中...' : '开始导入'}
+                      </Button>
+                    )}
+                    {importResults && (
+                      <Button
+                        onClick={clearImportResults}
+                        variant="outline"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        清除结果
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -584,11 +629,21 @@ export default function SupplierImportPage() {
             {importResults && (
               <TabsContent value="results">
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-green-600">导入结果</CardTitle>
-                    <CardDescription>
-                      数据导入操作已完成
-                    </CardDescription>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-green-600">导入结果</CardTitle>
+                      <CardDescription>
+                        数据导入操作已完成
+                      </CardDescription>
+                    </div>
+                    <Button
+                      onClick={clearImportResults}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      清除结果
+                    </Button>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
@@ -618,6 +673,12 @@ export default function SupplierImportPage() {
                           ))}
                         </div>
                       )}
+
+                      <div className="pt-4 border-t">
+                        <p className="text-sm text-muted-foreground">
+                          导入完成时间: {new Date().toLocaleString()}
+                        </p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

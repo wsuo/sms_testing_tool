@@ -29,7 +29,7 @@ interface CompanyData {
   whats_app?: string
   fax?: string
   postal_code?: string
-  company_birth?: string
+  company_birth?: string | number
   is_verified?: number
   homepage?: string
 }
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
             company_id, company_no, name, country, province, city, county,
             address, business_scope, contact_person, contact_person_title,
             mobile, phone, email, intro, whats_app, fax, postal_code,
-            company_birth, is_verified, homepage, updated_at
+            company_birth, is_verified, homepage, update_time
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
           ON DUPLICATE KEY UPDATE
             company_no = VALUES(company_no),
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
             company_birth = VALUES(company_birth),
             is_verified = VALUES(is_verified),
             homepage = VALUES(homepage),
-            updated_at = NOW()
+            update_time = NOW()
         `
 
         queries.push({
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
             company.whats_app || null,
             company.fax || null,
             company.postal_code || null,
-            company.company_birth || null,
+            company.company_birth ? parseInt(String(company.company_birth)) || null : null,
             company.is_verified || 0,
             company.homepage || null
           ]
@@ -139,19 +139,18 @@ export async function POST(request: NextRequest) {
           INSERT INTO seller_company_lang (
             company_id, language_code, name, province, city, county,
             address, business_scope, contact_person, contact_person_title,
-            intro, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            intro
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
-            name = VALUES(name),
-            province = VALUES(province),
-            city = VALUES(city),
-            county = VALUES(county),
-            address = VALUES(address),
-            business_scope = VALUES(business_scope),
-            contact_person = VALUES(contact_person),
-            contact_person_title = VALUES(contact_person_title),
-            intro = VALUES(intro),
-            updated_at = NOW()
+            name = COALESCE(VALUES(name), name),
+            province = COALESCE(VALUES(province), province),
+            city = COALESCE(VALUES(city), city),
+            county = COALESCE(VALUES(county), county),
+            address = COALESCE(VALUES(address), address),
+            business_scope = COALESCE(VALUES(business_scope), business_scope),
+            contact_person = COALESCE(VALUES(contact_person), contact_person),
+            contact_person_title = COALESCE(VALUES(contact_person_title), contact_person_title),
+            intro = COALESCE(VALUES(intro), intro)
         `
 
         queries.push({
