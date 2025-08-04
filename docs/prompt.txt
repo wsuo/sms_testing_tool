@@ -1,0 +1,102 @@
+ultrathink
+
+/Users/wshuo/Developer/my/auto_test_sms/sms-testing-tool/app/page.tsx 文件太大了，请你优化，要求页面所有的样式和功能、组件都不变，只改变代码，不改变页面。
+
+The file `app/page.tsx` has become too large and needs to be refactored for better maintainability. Please optimize this file by extracting reusable logic and components while maintaining the exact same functionality and UI appearance.
+
+Requirements:
+1. **Preserve all functionality**: Every feature must work exactly as before (SMS sending, template selection, phone number management, status monitoring, bulk sending, etc.)
+2. **Maintain identical UI/UX**: No visual changes to the page layout, styling, or user interactions
+3. **Extract custom hooks**: Move complex state management logic (like token management, SMS status monitoring, phone number search) into separate custom hooks in the `hooks/` directory
+4. **Create utility functions**: Extract helper functions (like `getStatusBadgeVariant`, `getErrorMessage`, API calls) into the `lib/` directory
+5. **Component extraction**: Break down large JSX sections into smaller, focused components in the `components/` directory while keeping them co-located if they're only used by this page
+6. **Maintain existing imports**: Keep all current dependencies and ensure no breaking changes to the component's external interface
+7. **Preserve state management**: All useState, useEffect, and localStorage logic should continue working identically
+8. **Keep TypeScript types**: Maintain all existing interfaces and type definitions
+
+The goal is to improve code organization and readability without changing any user-facing behavior or appearance.
+
+ultrathink
+在 ‘http://localhost:3030/analytics’ 页面，‘失败原因分析’ 模块，failureReasons，概览标签中，errorCode作为副标题，中文名称作为主标题；
+‘按运营商’ 和‘按模版’标签中，不要展示 ‘还有 2 种其他失败原因...’ 展示全部的原因，然后不要展示 errorCode ，要展示中文名。
+
+我现在正在测试软件，我发现一个问题，复现步骤如下，请你描述给开发人员：
+1. 首先我注册一个账号，认证一家公司，我是这家公司的管理员；
+2. 然后我邀请一个员工A，员工加入该公司；
+3. 将管理员移交给这个员工A
+4. 在员工管理中，我点击退出这个公司
+5. 问题：使用员工A登录供应商网页端，提示用户不存在；我使用账号重新登录，提示企业需要重新认证；
+
+我作为认证公司的用户，默认是管理员角色，后来将管理员移交给用户A，然后我点击退出公司，提示公司需要重新认证（这是对的），但是使用其他用户账号登录，提示用户不存在。
+
+反馈一个测试中发现的问题，复现步骤及现象如下：
+
+1. 我注册账号后，认证了一家公司，默认作为该公司管理员；
+2. 邀请员工A加入公司，员工A成功加入；
+3. 将管理员权限移交给员工A；
+4. 我在员工管理中退出该公司；
+5. 出现异常：
+   - 用员工A的账号登录供应商网页端，提示“用户不存在”；
+   - 我用自己的账号重新登录，提示“企业需要重新认证”（这个符合预期）。
+
+问题核心：管理员移交后原管理员退出公司，接收管理员权限的员工A登录时被提示用户不存在，不符合正常逻辑，麻烦排查下~
+
+ultrathink
+在 ‘http://localhost:3030/monitor’ 页面，如果重发次数为 0 ，不要在列表中展示0 ，我看到是这个模块中的 ‘document.querySelector("body > div.min-h-screen.bg-gray-50.p-4 > div > div:nth-child(5) > div.p-6.pt-0 > div.space-y-3 > div:nth-child(2) > div.text-sm.text-gray-600.space-y-1")’
+
+ultrathink
+http://localhost:3030/analytics 页面中的
+日发送趋势 组件中的进度条没有按照实际数据内容正确展示
+
+请你使用中文。
+接下来我详细描述这个页面 ‘http://localhost:3030/supplier-import’ 的功能。
+我的目的就是将Excel中的公司数据导入到系统的数据库中，我们的数据库是这样设计的，seller_company是公司的中文名称表
+seller_company_lang是公司的多语言名称表，seller_company表中的name字段是中文名称，seller_company_lang表中的name字段是英文名称，seller_company_lang表中的company_id是seller_company表中的id，
+seller_company_lang表中的language_code是语言代码，比如en-US就是英文，es-ES就是西语。
+开发人员给我提供了导入步骤，我觉得这个步骤比较麻烦，想让你帮我实现便捷的导入功能。
+Excel原始表，以及开发提供的导入步骤我都给你了：
+
+Excel表为（我已经按照以下步骤删除了表头）：
+company_id	company_no	name	name_en	country	province	province_en	city	city_en	county	county_en	address	address_en	business_scope	business_scope_en	contact_person	contact_person_en	contact_person_title	contact_person_title_en	mobile	phone	email	intro	intro_en	whats_app	fax	postal_code	company_birth	is_verified	homepage				
+3		重庆市众力生物工程有限公司	Chongqing Zhongli Bioengineering Co.Ltd	CN	重庆市	Chongqing	重庆市	Chongqing	綦江区	Qijiang District	重庆市綦江区古南街道金福大道34号	No. 34, Jinfu Avenue, Gunan Street, Qijiang District, Chongqing			覃云菊	法人	法人	legal representative	13308310818	023-67610806/66956993	422643996@qq.com				023-67611298	400020		1					
+
+1、表头的第一行删掉，只留下 第二行的标准字段名的那个表头，比如 company_id   company_no 等等；
+2、navicate 中，打开一个本地的数据库，最好是空库，右键点击导入向导，选中需要导入的 excel 表格；
+3、一路下一步，得到一个 装满数据的 seller_company 表；
+4、把这张表更名问 tmp_import，放到线上的 agrochain_seller 库中；
+5、备份线上agrochain_seller库中的seller_company表和seller_company_lang表；
+6、执行如下 sql 语句，即可将数据更新为导入的版本：
+update seller_company a, tmp_import b set a.name=b.name where a.company_id=b.company_id and b.name is not null;
+update seller_company a, tmp_import b set a.country=b.country where a.company_id=b.company_id and b.country is not null;
+update seller_company a, tmp_import b set a.province=b.province where a.company_id=b.company_id and b.province is not null;
+update seller_company a, tmp_import b set a.city=b.city where a.company_id=b.company_id and b.city is not null;
+update seller_company a, tmp_import b set a.county=b.county where a.company_id=b.company_id and b.county is not null;
+update seller_company a, tmp_import b set a.address=b.address where a.company_id=b.company_id and b.address is not null;
+update seller_company a, tmp_import b set a.business_scope=b.business_scope where a.company_id=b.company_id and b.business_scope is not null;
+update seller_company a, tmp_import b set a.contact_person=b.contact_person where a.company_id=b.company_id and b.contact_person is not null;
+update seller_company a, tmp_import b set a.contact_person_title=b.contact_person_title where a.company_id=b.company_id and b.contact_person_title is not null;
+update seller_company a, tmp_import b set a.mobile=b.mobile where a.company_id=b.company_id and b.mobile is not null;
+update seller_company a, tmp_import b set a.phone=b.phone where a.company_id=b.company_id and b.phone is not null;
+update seller_company a, tmp_import b set a.email=b.email where a.company_id=b.company_id and b.email is not null;
+update seller_company a, tmp_import b set a.intro=b.intro where a.company_id=b.company_id and b.intro is not null;
+update seller_company a, tmp_import b set a.whats_app=b.whats_app where a.company_id=b.company_id and b.whats_app is not null;
+update seller_company a, tmp_import b set a.fax=b.fax where a.company_id=b.company_id and b.fax is not null;
+update seller_company a, tmp_import b set a.postal_code=b.postal_code where a.company_id=b.company_id and b.postal_code is not null;
+update seller_company a, tmp_import b set a.company_birth=b.company_birth where a.company_id=b.company_id and b.company_birth is not null;
+update seller_company a, tmp_import b set a.homepage=b.homepage where a.company_id=b.company_id and b.homepage is not null;
+update seller_company a, tmp_import b set a.is_verified=b.is_verified where a.company_id=b.company_id and b.is_verified is not null;
+
+update seller_company_lang a, tmp_import b set a.name=b.name_en where a.company_id=b.company_id and a.language_code='en-US' and b.name_en is not null;
+update seller_company_lang a, tmp_import b set a.province=b.province_en where a.company_id=b.company_id and a.language_code='en-US' and b.province_en is not null;
+update seller_company_lang a, tmp_import b set a.city=b.city_en where a.company_id=b.company_id and a.language_code='en-US' and b.city_en is not null;
+update seller_company_lang a, tmp_import b set a.county=b.county_en where a.company_id=b.company_id and a.language_code='en-US' and b.county_en is not null;
+update seller_company_lang a, tmp_import b set a.address=b.address_en where a.company_id=b.company_id and a.language_code='en-US' and b.address_en is not null;
+update seller_company_lang a, tmp_import b set a.business_scope=b.business_scope_en where a.company_id=b.company_id and a.language_code='en-US' and b.business_scope_en is not null;
+update seller_company_lang a, tmp_import b set a.contact_person=b.contact_person_en where a.company_id=b.company_id and a.language_code='en-US' and b.contact_person_en is not null;
+update seller_company_lang a, tmp_import b set a.contact_person_title=b.contact_person_title_en where a.company_id=b.company_id and a.language_code='en-US' and b.contact_person_title_en is not null;
+update seller_company_lang a, tmp_import b set a.intro=b.intro_en where a.company_id=b.company_id and a.language_code='en-US' and b.intro_en is not null;
+
+7、验证数据是否正确，删除 tmp_import表
+
+哦我忘记告诉你了，数据库要使用外部的数据库，这个数据库配置请你在env.local中配置，这是一个mysql8数据库
+你需要连接这个数据库进行导入操作。

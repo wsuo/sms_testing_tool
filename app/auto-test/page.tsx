@@ -262,22 +262,19 @@ export default function AutoTestPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">自动化测试</h1>
-            <p className="text-gray-600 mt-1">创建和管理自动化短信测试计划</p>
+            <h1 className="text-3xl font-bold text-gray-900">自动测试</h1>
+            <p className="text-muted-foreground mt-1">调度和管理自动化测试工作流</p>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => setShowCreateForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
               创建计划
             </Button>
-            <Link href="/">
-              <Button variant="outline">返回首页</Button>
-            </Link>
           </div>
         </div>
 

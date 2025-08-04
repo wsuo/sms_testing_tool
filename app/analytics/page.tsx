@@ -79,10 +79,13 @@ export default function AnalyticsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
+              <p className="text-muted-foreground mt-1">查看全面的测试分析和性能报告</p>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map((i) => (
@@ -103,13 +106,13 @@ export default function AnalyticsPage() {
 
   if (!analyticsData) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
-            <Link href="/">
-              <Button variant="outline">返回首页</Button>
-            </Link>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
+              <p className="text-muted-foreground mt-1">查看全面的测试分析和性能报告</p>
+            </div>
           </div>
           <Card>
             <CardContent className="p-12 text-center">
@@ -122,11 +125,14 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="container mx-auto px-4 py-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
+            <p className="text-muted-foreground mt-1">查看全面的测试分析和性能报告</p>
+          </div>
           <div className="flex items-center gap-4">
             <Select value={dateRange} onValueChange={setDateRange}>
               <SelectTrigger className="w-32">
@@ -143,9 +149,6 @@ export default function AnalyticsPage() {
               <RefreshCw className="w-4 h-4 mr-2" />
               刷新
             </Button>
-            <Link href="/">
-              <Button variant="outline">返回首页</Button>
-            </Link>
           </div>
         </div>
 

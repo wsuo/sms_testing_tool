@@ -670,21 +670,13 @@ export default function SmsMonitorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="container mx-auto px-4 py-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                返回主页
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">短信发送监控</h1>
-              <p className="text-gray-600 mt-1">实时监控短信发送状态和统计数据 (后台自动更新)</p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">短信监控</h1>
+            <p className="text-muted-foreground mt-1">实时短信状态监控和统计（自动更新）</p>
           </div>
           <div className="flex items-center gap-2">
             {/* 全局时间筛选 */}

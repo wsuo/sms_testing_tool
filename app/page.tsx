@@ -1,346 +1,270 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { Settings, BarChart, Timer } from "lucide-react"
+import {
+  MessageSquare,
+  BarChart,
+  Timer,
+  Upload,
+  TrendingUp,
+  Activity,
+  Users,
+  Clock,
+  ArrowRight,
+  CheckCircle,
+  AlertCircle
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import BulkSendModal from "@/components/bulk-send-modal"
-import smsMonitorService from "@/lib/sms-monitor-service"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 
-// Import custom hooks
-import { useTokenManagement } from "@/hooks/useTokenManagement"
-import { useSmsTemplates } from "@/hooks/useSmsTemplates"
-import { usePhoneNumbers } from "@/hooks/usePhoneNumbers"
-import { useSmsStatus } from "@/hooks/useSmsStatus"
-import { useUserState } from "@/hooks/useUserState"
+interface DashboardStats {
+  smsStats: {
+    totalSent: number
+    successRate: number
+    pendingCount: number
+  }
+  recentActivity: {
+    type: string
+    message: string
+    timestamp: string
+    status: 'success' | 'warning' | 'error'
+  }[]
+}
 
-// Import components
-import { LoadingPageSkeleton } from "@/components/sms/skeleton-loaders"
-import { ConfigurationModal } from "@/components/sms/configuration-modal"
-import { TemplateSelection } from "@/components/sms/template-selection"
-import { PhoneNumberInput } from "@/components/sms/phone-number-input"
-import { TemplateParameters } from "@/components/sms/template-parameters"
-import { SendButtons } from "@/components/sms/send-buttons"
-import { StatusMonitoring } from "@/components/sms/status-monitoring"
+export default function PlatformDashboard() {
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    smsStats: {
+      totalSent: 0,
+      successRate: 0,
+      pendingCount: 0
+    },
+    recentActivity: []
+  })
+  const [isLoading, setIsLoading] = useState(true)
 
-// Import helpers
-import { getMonitoringStatus } from "@/lib/helpers/sms-helpers"
-
-export default function SmsTestingTool() {
-  // Configuration modal state
-  const [showConfigModal, setShowConfigModal] = React.useState(false)
-  const [showBulkSendModal, setShowBulkSendModal] = React.useState(false)
-  const [isInitialLoad, setIsInitialLoad] = React.useState(true)
-
-  // Custom hooks
-  const tokenManager = useTokenManagement()
-  const smsTemplates = useSmsTemplates()
-  const phoneNumbers = usePhoneNumbers()
-  const smsStatus = useSmsStatus()
-  const userState = useUserState()
-
-  // Calculate overall loading state
-  const isPageLoading = isInitialLoad && (
-    smsTemplates.isLoadingTemplates || 
-    phoneNumbers.isLoadingCarriers || 
-    smsStatus.isLoadingSmsHistory
-  )
-
-  // Load tokens from localStorage on mount with validation
   useEffect(() => {
-    tokenManager.loadTokensFromStorage()
-    
-    const savedAdminToken = localStorage.getItem("sms-admin-token")
-    
-    if (savedAdminToken) {
-      smsTemplates.fetchTemplates(tokenManager.callAdminApi, savedAdminToken, true).finally(() => {
-        setIsInitialLoad(false)
-      })
-    } else {
-      smsTemplates.setIsLoadingTemplates(false)
-      setIsInitialLoad(false)
-    }
-    
-    // Load carriers
-    phoneNumbers.loadCarriers()
-    
-    // Load SMS history from database
-    smsStatus.loadSmsHistory()
-    
-    // 加载待监控的SMS记录到后台服务
-    smsMonitorService.loadPendingMessages()
-    
-    // Restore user state
-    const restored = userState.restoreUserState()
-    if (restored) {
-      if (restored.phoneNumber) phoneNumbers.setPhoneNumber(restored.phoneNumber)
-      if (restored.selectedCarrier) phoneNumbers.setSelectedCarrier(restored.selectedCarrier)
-      if (restored.templateParams) smsTemplates.setTemplateParams(restored.templateParams)
-      if (restored.selectedTemplate) {
-        smsTemplates.setSelectedTemplate(restored.selectedTemplate)
-      }
-    }
-    
-    // 设置SMS状态更新监听器
-    const unsubscribe = smsStatus.setupSmsMonitorListener()
-    
-    // 清理函数
-    return () => {
-      unsubscribe()
-    }
+    loadDashboardData()
   }, [])
 
-  // 保存用户状态当状态变化时
-  useEffect(() => {
-    const currentState = {
-      phoneNumber: phoneNumbers.phoneNumber,
-      selectedCarrier: phoneNumbers.selectedCarrier,
-      selectedTemplate: smsTemplates.selectedTemplate,
-      templateParams: smsTemplates.templateParams
-    }
-    userState.saveUserState(currentState)
-  }, [
-    phoneNumbers.phoneNumber, 
-    phoneNumbers.selectedCarrier, 
-    smsTemplates.selectedTemplate, 
-    smsTemplates.templateParams
-  ])
+  const loadDashboardData = async () => {
+    try {
+      // Load SMS statistics
+      const smsResponse = await fetch('/api/analytics?range=week')
+      if (smsResponse.ok) {
+        const smsData = await smsResponse.json()
+        setDashboardStats(prev => ({
+          ...prev,
+          smsStats: {
+            totalSent: smsData.totalSms || 0,
+            successRate: smsData.successRate || 0,
+            pendingCount: smsData.pendingCount || 0
+          }
+        }))
+      }
 
-  // Save tokens with modal close and error reset
-  const handleSaveTokens = () => {
-    tokenManager.saveTokens()
-    setShowConfigModal(false)
-    
-    // Fetch templates after saving tokens
-    smsTemplates.fetchTemplates(tokenManager.callAdminApi)
-  }
-
-  // Handle template selection
-  const handleTemplateSelect = (templateId: string) => {
-    smsTemplates.handleTemplateSelect(tokenManager.callAdminApi, templateId)
-  }
-
-  // Handle SMS sending
-  const handleSendSms = () => {
-    smsStatus.sendSms(
-      smsTemplates.selectedTemplate,
-      phoneNumbers.phoneNumber,
-      smsTemplates.templateParams,
-      tokenManager.callAdminApi
-    )
-  }
-
-  // Handle SMS resending
-  const handleResendSms = (outId: string) => {
-    smsStatus.resendSms(outId, tokenManager.adminToken)
-  }
-
-  // Handle phone number input focus
-  const handlePhoneInputFocus = () => {
-    // 如果有建议且输入长度>=3且不等于11，重新显示建议
-    if (phoneNumbers.phoneNumber.length >= 3 && 
-        phoneNumbers.phoneNumber.length !== 11 && 
-        phoneNumbers.inputSuggestions.length > 0) {
-      phoneNumbers.setShowInputSuggestions(true)
+      // Mock recent activity data (you can replace with actual API call)
+      setDashboardStats(prev => ({
+        ...prev,
+        recentActivity: [
+          {
+            type: 'SMS',
+            message: '批量短信已发送至50个接收者',
+            timestamp: new Date().toISOString(),
+            status: 'success'
+          },
+          {
+            type: 'Import',
+            message: '供应商数据导入成功',
+            timestamp: new Date(Date.now() - 3600000).toISOString(),
+            status: 'success'
+          },
+          {
+            type: 'Test',
+            message: '自动测试完成，成功率95%',
+            timestamp: new Date(Date.now() - 7200000).toISOString(),
+            status: 'success'
+          }
+        ]
+      }))
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // Handle phone number input blur
-  const handlePhoneInputBlur = () => {
-    // 延迟关闭建议列表，以便点击建议项
-    setTimeout(() => phoneNumbers.setShowInputSuggestions(false), 200)
-  }
+  const testingTools = [
+    {
+      name: "短信测试",
+      description: "发送和监控短信消息，实时跟踪状态",
+      href: "/sms-testing",
+      icon: MessageSquare,
+      stats: `${dashboardStats.smsStats.totalSent} sent this week`,
+      color: "bg-blue-500"
+    },
+    {
+      name: "供应商导入",
+      description: "导入和管理供应商数据，包含验证和预览功能",
+      href: "/supplier-import",
+      icon: Upload,
+      stats: "准备数据导入",
+      color: "bg-green-500"
+    },
+    {
+      name: "数据分析",
+      description: "查看全面的测试分析和性能报告",
+      href: "/analytics",
+      icon: BarChart,
+      stats: `${dashboardStats.smsStats.successRate.toFixed(1)}% success rate`,
+      color: "bg-purple-500"
+    },
+    {
+      name: "自动测试",
+      description: "调度和管理自动化测试工作流",
+      href: "/auto-test",
+      icon: Timer,
+      stats: "自动化调度",
+      color: "bg-orange-500"
+    }
+  ]
 
-  // Calculate monitoring status
-  const monitoringStatus = getMonitoringStatus(smsStatus.smsStatuses)
-
-  // Show loading skeleton if page is still loading
-  if (isPageLoading) {
-    return <LoadingPageSkeleton />
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* 401 Error Alert */}
-        {tokenManager.show401Error && (
-          <Alert variant="destructive">
-            <AlertDescription className="flex items-center justify-between">
-              <div>
-                <strong>认证失败：</strong> 管理后台令牌已过期或无效，请重新配置令牌以继续使用系统功能。
-              </div>
-              <div className="flex gap-2 ml-4">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowConfigModal(true)}
-                >
-                  配置Token
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => tokenManager.setShow401Error(false)}
-                >
-                  ×
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">短信测试工具</h1>
-          <div className="flex items-center gap-2">
-            <Link href="/analytics">
-              <Button variant="outline" size="sm">
-                <BarChart className="w-4 h-4 mr-2" />
-                数据分析
-              </Button>
-            </Link>
-            <Link href="/auto-test">
-              <Button variant="outline" size="sm">
-                <Timer className="w-4 h-4 mr-2" />
-                自动化测试
-              </Button>
-            </Link>
-            <Button
-              variant="outline"
-              onClick={() => setShowConfigModal(true)}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              配置Token
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Panel - SMS Configuration */}
-          <div className="space-y-6">
-            {/* Template Selection */}
-            <TemplateSelection
-              templates={smsTemplates.templates}
-              selectedTemplate={smsTemplates.selectedTemplate}
-              onTemplateSelect={handleTemplateSelect}
-              onRefreshTemplates={() => smsTemplates.fetchTemplates(tokenManager.callAdminApi)}
-            />
-
-            {/* Phone Number Input */}
-            <PhoneNumberInput
-              phoneNumber={phoneNumbers.phoneNumber}
-              onPhoneNumberChange={phoneNumbers.handlePhoneNumberChange}
-              inputSuggestions={phoneNumbers.inputSuggestions}
-              showInputSuggestions={phoneNumbers.showInputSuggestions}
-              activeInputSuggestionIndex={phoneNumbers.activeInputSuggestionIndex}
-              isLoadingInputSuggestions={phoneNumbers.isLoadingInputSuggestions}
-              onInputKeyDown={phoneNumbers.handleInputKeyDown}
-              onSelectInputSuggestion={phoneNumbers.selectInputSuggestion}
-              onInputFocus={handlePhoneInputFocus}
-              onInputBlur={handlePhoneInputBlur}
-              availableCarriers={phoneNumbers.availableCarriers}
-              selectedCarrier={phoneNumbers.selectedCarrier}
-              onCarrierSelect={phoneNumbers.handleCarrierSelect}
-              phoneNumbers={phoneNumbers.phoneNumbers}
-              phoneNumbersLoading={phoneNumbers.phoneNumbersLoading}
-              phonePagination={phoneNumbers.phonePagination}
-              phoneSearchTerm={phoneNumbers.phoneSearchTerm}
-              onPhoneSearch={phoneNumbers.handlePhoneSearch}
-              onPageChange={phoneNumbers.handlePageChange}
-              onPhoneNumbersChange={() => {
-                // 重新加载运营商列表
-                phoneNumbers.loadCarriers()
-                // 如果有选择的运营商，重新搜索
-                if (phoneNumbers.selectedCarrier) {
-                  phoneNumbers.searchPhoneNumbers(phoneNumbers.phoneSearchTerm, phoneNumbers.selectedCarrier, 1)
-                }
-              }}
-            />
-
-            {/* Template Parameters */}
-            <TemplateParameters
-              selectedTemplate={smsTemplates.selectedTemplate}
-              templateParams={smsTemplates.templateParams}
-              onTemplateParamsChange={smsTemplates.setTemplateParams}
-            />
-
-            {/* Send Buttons */}
-            <SendButtons
-              selectedTemplate={smsTemplates.selectedTemplate}
-              phoneNumber={phoneNumbers.phoneNumber}
-              isSending={smsStatus.isSending}
-              onSendSms={handleSendSms}
-              onShowBulkSendModal={() => setShowBulkSendModal(true)}
-            />
-          </div>
-
-          {/* Right Panel - Status Monitoring */}
-          <div className="space-y-6">
-            <StatusMonitoring
-              smsStatuses={smsStatus.smsStatuses}
-              isRefreshing={smsStatus.isRefreshing}
-              resendingOutIds={smsStatus.resendingOutIds}
-              isLoadingSmsHistory={smsStatus.isLoadingSmsHistory}
-              onRefreshStatuses={smsStatus.refreshStatuses}
-              onResendSms={handleResendSms}
-              canResend={smsStatus.canResend}
-              monitoringStatus={monitoringStatus}
-            />
-
-            {/* Instructions */}
-            <Alert>
-              <AlertDescription>
-                <strong>使用说明:</strong>
-                <ul className="mt-2 space-y-1 text-sm">
-                  <li>• 系统后台自动监控SMS状态，无需手动刷新</li>
-                  <li>• <strong>强制刷新</strong>：主动查询阿里云最新状态，解决延迟反馈问题</li>
-                  <li>• <strong>一键发送</strong>：选择模板后可批量发送给所有号码，支持搜索和分组选择</li>
-                  <li>• <strong>重发功能</strong>：失败的短信可点击"重发"按钮重新发送，会生成新的OutId</li>
-                  <li>• 可点击"查看详情"查看完整的发送记录和统计</li>
-                  <li>• 点击"管理号码"可添加和管理常用手机号</li>
-                  <li>• 令牌信息已本地保存，刷新页面不会丢失</li>
-                  <li>• 支持多个短信同时监控状态，切换页面不会中断监控</li>
-                </ul>
-              </AlertDescription>
-            </Alert>
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
           </div>
         </div>
       </div>
-      
-      {/* Configuration Modal */}
-      <ConfigurationModal
-        open={showConfigModal}
-        onOpenChange={setShowConfigModal}
-        adminToken={tokenManager.adminToken}
-        refreshToken={tokenManager.refreshToken}
-        showAdminToken={tokenManager.showAdminToken}
-        showRefreshToken={tokenManager.showRefreshToken}
-        onAdminTokenChange={tokenManager.setAdminToken}
-        onRefreshTokenChange={tokenManager.setRefreshToken}
-        onToggleAdminTokenVisibility={() => tokenManager.setShowAdminToken(!tokenManager.showAdminToken)}
-        onToggleRefreshTokenVisibility={() => tokenManager.setShowRefreshToken(!tokenManager.showRefreshToken)}
-        onSaveTokens={handleSaveTokens}
-      />
-      
-      {/* Bulk Send Modal */}
-      <BulkSendModal
-        open={showBulkSendModal}
-        onOpenChange={setShowBulkSendModal}
-        selectedTemplate={smsTemplates.selectedTemplate}
-        templateParams={smsTemplates.templateParams}
-        onSendComplete={(results) => {
-          // 批量发送完成后，刷新SMS状态列表
-          smsStatus.loadSmsHistory()
-          // 添加发送成功的记录到后台监控服务
-          results.forEach(result => {
-            if (result.status === 'success') {
-              // 传递手机号码和优先级，批量SMS使用稍低优先级
-              smsMonitorService.addSmsForMonitoring(result.outId, result.phone, 2)
-            }
-          })
-        }}
-      />
+    )
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8 space-y-8">
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <h1 className="text-4xl font-bold tracking-tight">测试平台仪表板</h1>
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          为短信发送、数据导入、分析报告和自动化工作流提供全面的测试工具
+        </p>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">总短信发送量</CardTitle>
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats.smsStats.totalSent}</div>
+            <p className="text-xs text-muted-foreground">本周</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">成功率</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats.smsStats.successRate.toFixed(1)}%</div>
+            <Progress value={dashboardStats.smsStats.successRate} className="mt-2" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">待处理消息</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats.smsStats.pendingCount}</div>
+            <p className="text-xs text-muted-foreground">等待状态更新</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Testing Tools Grid */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">测试工具</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {testingTools.map((tool) => {
+            const Icon = tool.icon
+            return (
+              <Card key={tool.name} className="hover:shadow-lg transition-shadow cursor-pointer">
+                <Link href={tool.href}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${tool.color} text-white`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{tool.name}</CardTitle>
+                          <CardDescription className="text-sm">{tool.stats}</CardDescription>
+                        </div>
+                      </div>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">{tool.description}</p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">最近活动</h2>
+        <Card>
+          <CardContent className="p-6">
+            {dashboardStats.recentActivity.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">暂无最近活动</p>
+            ) : (
+              <div className="space-y-4">
+                {dashboardStats.recentActivity.map((activity, index) => (
+                  <div key={index} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
+                    <div className="flex-shrink-0">
+                      {activity.status === 'success' && (
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      )}
+                      {activity.status === 'warning' && (
+                        <AlertCircle className="h-5 w-5 text-yellow-500" />
+                      )}
+                      {activity.status === 'error' && (
+                        <AlertCircle className="h-5 w-5 text-red-500" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs">
+                          {activity.type}
+                        </Badge>
+                        <span className="text-sm font-medium">{activity.message}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(activity.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
