@@ -93,7 +93,7 @@ export function PlatformNavigation({ className }: PlatformNavigationProps) {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg font-semibold">测试平台</h1>
-                <p className="text-xs text-muted-foreground">全面的测试工具</p>
+                <p className="text-xs text-muted-foreground">智能测试与数据分析平台</p>
               </div>
             </Link>
           </div>
