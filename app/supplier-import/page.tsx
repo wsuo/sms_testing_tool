@@ -19,6 +19,10 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/hooks/use-toast"
 import * as XLSX from 'xlsx'
 
@@ -86,6 +90,10 @@ export default function DataManagementPage() {
   // 导出相关状态
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportType, setExportType] = useState<'sample' | 'custom' | 'all'>('sample')
+  const [exportLimit, setExportLimit] = useState(100)
+  const [totalRecords, setTotalRecords] = useState<number | null>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -314,23 +322,39 @@ export default function DataManagementPage() {
     }
   }
 
-  // 导出所有数据
-  const handleExportAll = async () => {
+  // 执行导出
+  const executeExport = async (type: 'sample' | 'custom' | 'all', limit?: number) => {
     setIsExporting(true)
     setExportProgress(0)
 
     try {
+      const typeNames = {
+        sample: '示例数据',
+        custom: '自定义数量',
+        all: '全部数据'
+      }
+
       toast({
         title: "开始导出",
-        description: "正在从数据库导出所有公司数据...",
+        description: `正在导出${typeNames[type]}...`,
       })
 
       // 模拟进度更新
       const progressInterval = setInterval(() => {
         setExportProgress(prev => Math.min(prev + 10, 90))
-      }, 200)
+      }, type === 'all' ? 500 : 200) // 全量导出进度更新慢一些
 
-      const response = await fetch('/api/supplier-export?format=excel&limit=10000')
+      // 构建请求URL
+      const params = new URLSearchParams({
+        format: 'excel',
+        type: type
+      })
+
+      if (type === 'custom' && limit) {
+        params.append('limit', limit.toString())
+      }
+
+      const response = await fetch(`/api/supplier-export?${params.toString()}`)
 
       clearInterval(progressInterval)
       setExportProgress(100)
@@ -345,7 +369,7 @@ export default function DataManagementPage() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `companies_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `companies_${type}_${new Date().toISOString().slice(0, 10)}.xlsx`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -353,7 +377,7 @@ export default function DataManagementPage() {
 
       toast({
         title: "导出成功",
-        description: "公司数据已成功导出到Excel文件",
+        description: `${typeNames[type]}已成功导出到Excel文件`,
       })
 
     } catch (error) {
@@ -365,6 +389,33 @@ export default function DataManagementPage() {
     } finally {
       setIsExporting(false)
       setExportProgress(0)
+    }
+  }
+
+
+
+  // 显示导出选项
+  const handleShowExportOptions = async () => {
+    try {
+      // 获取数据库统计信息
+      const response = await fetch('/api/supplier-export', { method: 'HEAD' })
+      const totalCount = response.headers.get('X-Total-Count')
+      if (totalCount) {
+        setTotalRecords(parseInt(totalCount))
+      }
+    } catch (error) {
+      console.error('Failed to get database stats:', error)
+    }
+    setShowExportModal(true)
+  }
+
+  // 确认导出
+  const handleConfirmExport = () => {
+    setShowExportModal(false)
+    if (exportType === 'custom') {
+      executeExport('custom', exportLimit)
+    } else {
+      executeExport(exportType)
     }
   }
 
@@ -485,7 +536,7 @@ export default function DataManagementPage() {
               <FileText className="w-4 h-4 mr-2" />
               下载模板
             </Button>
-            <Button variant="outline" onClick={handleExportAll} disabled={isExporting}>
+            <Button variant="outline" onClick={handleShowExportOptions} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
               {isExporting ? '导出中...' : '导出数据'}
             </Button>
@@ -817,6 +868,86 @@ export default function DataManagementPage() {
           </AlertDescription>
         </Alert>
       </div>
+
+      {/* Export Options Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>选择导出选项</DialogTitle>
+            <DialogDescription>
+              请选择要导出的数据范围。大量数据导出可能需要较长时间。
+              {totalRecords && (
+                <div className="mt-2 text-sm">
+                  数据库中共有 <span className="font-semibold text-blue-600">{totalRecords.toLocaleString()}</span> 条记录
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <RadioGroup value={exportType} onValueChange={(value) => setExportType(value as 'sample' | 'custom' | 'all')}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="sample" id="sample" />
+                <Label htmlFor="sample" className="flex-1">
+                  <div>
+                    <div className="font-medium">示例数据 (推荐)</div>
+                    <div className="text-sm text-muted-foreground">导出前100条数据，快速预览</div>
+                  </div>
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="custom" id="custom" />
+                <Label htmlFor="custom" className="flex-1">
+                  <div>
+                    <div className="font-medium">自定义数量</div>
+                    <div className="text-sm text-muted-foreground">指定导出数量，最多10000条</div>
+                  </div>
+                </Label>
+              </div>
+
+              {exportType === 'custom' && (
+                <div className="ml-6 mt-2">
+                  <Label htmlFor="limit">导出数量</Label>
+                  <Input
+                    id="limit"
+                    type="number"
+                    min="1"
+                    max="10000"
+                    value={exportLimit}
+                    onChange={(e) => setExportLimit(Math.min(10000, Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="mt-1"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="all" id="all" />
+                <Label htmlFor="all" className="flex-1">
+                  <div>
+                    <div className="font-medium">全部数据</div>
+                    <div className="text-sm text-muted-foreground text-orange-600">
+                      {totalRecords
+                        ? `导出全部 ${totalRecords.toLocaleString()} 条数据，数据量大时可能较慢`
+                        : '导出所有数据，数据量大时可能较慢'
+                      }
+                    </div>
+                  </div>
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportModal(false)}>
+              取消
+            </Button>
+            <Button onClick={handleConfirmExport} disabled={isExporting}>
+              {isExporting ? '导出中...' : '开始导出'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
