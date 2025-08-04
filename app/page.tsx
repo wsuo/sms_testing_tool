@@ -2,14 +2,11 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import {
-  MessageSquare,
-  BarChart,
-  Timer,
-  Upload,
+import { 
+  MessageSquare, 
+  Upload, 
   TrendingUp,
   Activity,
-  Users,
   Clock,
   ArrowRight,
   CheckCircle,
@@ -65,26 +62,20 @@ export default function PlatformDashboard() {
         }))
       }
 
-      // Mock recent activity data (you can replace with actual API call)
+      // Mock recent activity data
       setDashboardStats(prev => ({
         ...prev,
         recentActivity: [
           {
             type: 'SMS',
-            message: '批量短信已发送至50个接收者',
+            message: 'Bulk SMS sent to 50 recipients',
             timestamp: new Date().toISOString(),
             status: 'success'
           },
           {
             type: 'Import',
-            message: '供应商数据导入成功',
+            message: 'Company data imported successfully',
             timestamp: new Date(Date.now() - 3600000).toISOString(),
-            status: 'success'
-          },
-          {
-            type: 'Test',
-            message: '自动测试完成，成功率95%',
-            timestamp: new Date(Date.now() - 7200000).toISOString(),
             status: 'success'
           }
         ]
@@ -99,35 +90,19 @@ export default function PlatformDashboard() {
   const testingTools = [
     {
       name: "短信测试",
-      description: "发送和监控短信消息，实时跟踪状态",
+      description: "发送和监控短信消息，支持实时状态跟踪、数据分析和自动化测试",
       href: "/sms-testing",
       icon: MessageSquare,
-      stats: `${dashboardStats.smsStats.totalSent} sent this week`,
+      stats: `${dashboardStats.smsStats.totalSent} 条本周发送`,
       color: "bg-blue-500"
     },
     {
-      name: "供应商导入",
-      description: "导入和管理供应商数据，包含验证和预览功能",
+      name: "数据管理",
+      description: "导入和导出公司数据，支持Excel格式和数据验证预览",
       href: "/supplier-import",
       icon: Upload,
-      stats: "准备数据导入",
+      stats: "支持导入导出",
       color: "bg-green-500"
-    },
-    {
-      name: "数据分析",
-      description: "查看全面的测试分析和性能报告",
-      href: "/analytics",
-      icon: BarChart,
-      stats: `${dashboardStats.smsStats.successRate.toFixed(1)}% success rate`,
-      color: "bg-purple-500"
-    },
-    {
-      name: "自动测试",
-      description: "调度和管理自动化测试工作流",
-      href: "/auto-test",
-      icon: Timer,
-      stats: "自动化调度",
-      color: "bg-orange-500"
     }
   ]
 
@@ -136,8 +111,8 @@ export default function PlatformDashboard() {
       <div className="container mx-auto px-4 py-8">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[...Array(4)].map((_, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[...Array(2)].map((_, i) => (
               <div key={i} className="h-32 bg-gray-200 rounded"></div>
             ))}
           </div>
@@ -150,9 +125,9 @@ export default function PlatformDashboard() {
     <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">测试平台仪表板</h1>
+        <h1 className="text-4xl font-bold tracking-tight">Testing Platform Dashboard</h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          为短信发送、数据导入、分析报告和自动化工作流提供全面的测试工具
+          Comprehensive testing tools for SMS, data management, and automated workflows
         </p>
       </div>
 
@@ -160,18 +135,18 @@ export default function PlatformDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总短信发送量</CardTitle>
+            <CardTitle className="text-sm font-medium">Total SMS Sent</CardTitle>
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{dashboardStats.smsStats.totalSent}</div>
-            <p className="text-xs text-muted-foreground">本周</p>
+            <p className="text-xs text-muted-foreground">This week</p>
           </CardContent>
         </Card>
-
+        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">成功率</CardTitle>
+            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -179,22 +154,22 @@ export default function PlatformDashboard() {
             <Progress value={dashboardStats.smsStats.successRate} className="mt-2" />
           </CardContent>
         </Card>
-
+        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">待处理消息</CardTitle>
+            <CardTitle className="text-sm font-medium">Pending Messages</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{dashboardStats.smsStats.pendingCount}</div>
-            <p className="text-xs text-muted-foreground">等待状态更新</p>
+            <p className="text-xs text-muted-foreground">Awaiting status</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Testing Tools Grid */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">测试工具</h2>
+        <h2 className="text-2xl font-semibold">Testing Tools</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {testingTools.map((tool) => {
             const Icon = tool.icon
@@ -227,11 +202,11 @@ export default function PlatformDashboard() {
 
       {/* Recent Activity */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">最近活动</h2>
+        <h2 className="text-2xl font-semibold">Recent Activity</h2>
         <Card>
           <CardContent className="p-6">
             {dashboardStats.recentActivity.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">暂无最近活动</p>
+              <p className="text-muted-foreground text-center py-8">No recent activity</p>
             ) : (
               <div className="space-y-4">
                 {dashboardStats.recentActivity.map((activity, index) => (

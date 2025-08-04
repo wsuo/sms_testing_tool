@@ -38,22 +38,10 @@ const navigationItems: NavigationItem[] = [
     description: "发送和监控短信消息"
   },
   {
-    name: "公司数据导入",
+    name: "数据管理",
     href: "/supplier-import",
     icon: Upload,
-    description: "导入和管理公司数据"
-  },
-  {
-    name: "数据分析",
-    href: "/analytics",
-    icon: BarChart,
-    description: "查看测试分析和报告"
-  },
-  {
-    name: "自动测试",
-    href: "/auto-test",
-    icon: Timer,
-    description: "自动化测试调度"
+    description: "导入和导出公司数据"
   }
 ]
 

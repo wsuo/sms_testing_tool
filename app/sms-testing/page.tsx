@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useEffect } from "react"
-import { Settings } from "lucide-react"
+import Link from "next/link"
+import { Settings, BarChart, Timer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import BulkSendModal from "@/components/bulk-send-modal"
@@ -196,6 +197,18 @@ export default function SmsTestingPage() {
             <p className="text-muted-foreground mt-1">Send and monitor SMS messages with real-time status tracking</p>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/analytics">
+              <Button variant="outline" size="sm">
+                <BarChart className="w-4 h-4 mr-2" />
+                数据分析
+              </Button>
+            </Link>
+            <Link href="/auto-test">
+              <Button variant="outline" size="sm">
+                <Timer className="w-4 h-4 mr-2" />
+                自动测试
+              </Button>
+            </Link>
             <Button
               variant="outline"
               onClick={() => setShowConfigModal(true)}

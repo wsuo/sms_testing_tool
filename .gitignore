@@ -94,3 +94,6 @@ data/
 # SQLite database files
 *.db
 *.db-journal
+
+# Documentation folder
+docs/

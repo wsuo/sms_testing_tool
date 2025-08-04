@@ -61,7 +61,7 @@ interface ValidationError {
   message: string
 }
 
-export default function SupplierImportPage() {
+export default function DataManagementPage() {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -82,6 +82,10 @@ export default function SupplierImportPage() {
     message: string
     tables?: { seller_company: number; seller_company_lang: number }
   } | null>(null)
+
+  // 导出相关状态
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -284,30 +288,7 @@ export default function SupplierImportPage() {
     }
   }
 
-  const downloadTemplate = () => {
-    const templateData = [
-      [
-        'company_id', 'company_no', 'name', 'name_en', 'country', 'province', 'province_en',
-        'city', 'city_en', 'county', 'county_en', 'address', 'address_en', 'business_scope',
-        'business_scope_en', 'contact_person', 'contact_person_en', 'contact_person_title',
-        'contact_person_title_en', 'mobile', 'phone', 'email', 'intro', 'intro_en',
-        'whats_app', 'fax', 'postal_code', 'company_birth', 'is_verified', 'homepage'
-      ],
-      [
-        3, '', '重庆市众力生物工程有限公司', 'Chongqing Zhongli Bioengineering Co.Ltd', 'CN',
-        '重庆市', 'Chongqing', '重庆市', 'Chongqing', '綦江区', 'Qijiang District',
-        '重庆市綦江区古南街道金福大道34号', 'No. 34, Jinfu Avenue, Gunan Street, Qijiang District, Chongqing',
-        '', '', '覃云菊', '', '法人', 'legal representative', '13308310818',
-        '023-67610806/66956993', '422643996@qq.com', '', '', '', '023-67611298',
-        '400020', '', 1, ''
-      ]
-    ]
 
-    const ws = XLSX.utils.aoa_to_sheet(templateData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '公司数据模板')
-    XLSX.writeFile(wb, '公司数据导入模板.xlsx')
-  }
 
   const clearData = () => {
     setFile(null)
@@ -331,6 +312,116 @@ export default function SupplierImportPage() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  // 导出所有数据
+  const handleExportAll = async () => {
+    setIsExporting(true)
+    setExportProgress(0)
+
+    try {
+      toast({
+        title: "开始导出",
+        description: "正在从数据库导出所有公司数据...",
+      })
+
+      // 模拟进度更新
+      const progressInterval = setInterval(() => {
+        setExportProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+
+      const response = await fetch('/api/supplier-export?format=excel&limit=10000')
+
+      clearInterval(progressInterval)
+      setExportProgress(100)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || '导出失败')
+      }
+
+      // 下载文件
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `companies_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast({
+        title: "导出成功",
+        description: "公司数据已成功导出到Excel文件",
+      })
+
+    } catch (error) {
+      toast({
+        title: "导出失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        variant: "destructive",
+      })
+    } finally {
+      setIsExporting(false)
+      setExportProgress(0)
+    }
+  }
+
+  // 导出模板文件
+  const handleExportTemplate = () => {
+    // 创建模板数据
+    const templateData = [{
+      company_id: 1,
+      company_no: "COMP001",
+      name: "示例公司",
+      name_en: "Example Company",
+      country: "中国",
+      province: "广东省",
+      province_en: "Guangdong",
+      city: "深圳市",
+      city_en: "Shenzhen",
+      county: "南山区",
+      county_en: "Nanshan",
+      address: "深圳市南山区科技园",
+      address_en: "Science Park, Nanshan District, Shenzhen",
+      business_scope: "软件开发",
+      business_scope_en: "Software Development",
+      contact_person: "张三",
+      contact_person_en: "Zhang San",
+      contact_person_title: "总经理",
+      contact_person_title_en: "General Manager",
+      mobile: "13800138000",
+      phone: "0755-12345678",
+      email: "contact@example.com",
+      intro: "这是一个示例公司",
+      intro_en: "This is an example company",
+      whats_app: "+86-13800138000",
+      fax: "0755-87654321",
+      postal_code: "518000",
+      company_birth: "2020",
+      is_verified: 1,
+      homepage: "https://www.example.com"
+    }]
+
+    // 使用浏览器的XLSX库创建Excel文件
+    import('xlsx').then(XLSX => {
+      const worksheet = XLSX.utils.json_to_sheet(templateData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Template')
+      XLSX.writeFile(workbook, 'company_import_template.xlsx')
+
+      toast({
+        title: "模板下载成功",
+        description: "导入模板已下载，请按照模板格式填写数据",
+      })
+    }).catch(() => {
+      toast({
+        title: "模板下载失败",
+        description: "无法生成模板文件",
+        variant: "destructive",
+      })
+    })
   }
 
   const testDatabaseConnection = async () => {
@@ -386,20 +477,38 @@ export default function SupplierImportPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">公司数据导入</h1>
-            <p className="text-muted-foreground mt-1">导入和管理公司数据，支持中英文双语信息自动更新</p>
+            <h1 className="text-3xl font-bold text-gray-900">数据管理</h1>
+            <p className="text-muted-foreground mt-1">导入和导出公司数据，支持Excel格式和中英文双语信息</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportTemplate}>
+              <FileText className="w-4 h-4 mr-2" />
+              下载模板
+            </Button>
+            <Button variant="outline" onClick={handleExportAll} disabled={isExporting}>
+              <Download className="w-4 h-4 mr-2" />
+              {isExporting ? '导出中...' : '导出数据'}
+            </Button>
             <Button variant="outline" onClick={testDatabaseConnection}>
               <Activity className="w-4 h-4 mr-2" />
               测试数据库连接
             </Button>
-            <Button variant="outline" onClick={downloadTemplate}>
-              <Download className="w-4 h-4 mr-2" />
-              下载模板
-            </Button>
           </div>
         </div>
+
+        {/* Export Progress */}
+        {isExporting && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span>导出进度</span>
+              <span>{exportProgress}%</span>
+            </div>
+            <Progress value={exportProgress} />
+            <p className="text-xs text-muted-foreground">
+              正在从数据库导出公司数据...
+            </p>
+          </div>
+        )}
 
         {/* Database Connection Status */}
         {dbConnectionStatus && (
