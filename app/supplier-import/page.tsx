@@ -160,7 +160,10 @@ export default function DataManagementPage() {
       const response = await fetch('/api/import-history')
       if (response.ok) {
         const data = await response.json()
-        setImportHistory(data.records || [])
+        console.log('导入历史API响应:', data) // 添加调试日志
+        setImportHistory(data.data || []) // 修正字段名
+      } else {
+        console.error('导入历史API响应失败:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('加载导入历史失败:', error)
@@ -179,7 +182,10 @@ export default function DataManagementPage() {
       const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
-        setFailedCompanies(data.companies || [])
+        console.log('失败数据API响应:', data) // 添加调试日志
+        setFailedCompanies(data.data || []) // 修正字段名
+      } else {
+        console.error('失败数据API响应失败:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('加载失败数据失败:', error)
