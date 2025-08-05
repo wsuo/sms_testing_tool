@@ -63,6 +63,64 @@ function initializeTables() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `
+
+  // 创建导入记录表
+  const createImportRecordsTable = `
+    CREATE TABLE IF NOT EXISTS import_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      import_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      total_processed INTEGER NOT NULL DEFAULT 0,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      error_count INTEGER NOT NULL DEFAULT 0,
+      success_rate REAL DEFAULT 0,
+      duration_seconds INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'completed',
+      notes TEXT,
+      mysql_update_time DATETIME
+    )
+  `
+
+  // 创建失败的公司数据表
+  const createFailedCompaniesTable = `
+    CREATE TABLE IF NOT EXISTS failed_companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      import_record_id INTEGER,
+      company_id INTEGER,
+      company_no TEXT,
+      name TEXT,
+      name_en TEXT,
+      country TEXT,
+      province TEXT,
+      province_en TEXT,
+      city TEXT,
+      city_en TEXT,
+      county TEXT,
+      county_en TEXT,
+      address TEXT,
+      address_en TEXT,
+      business_scope TEXT,
+      business_scope_en TEXT,
+      contact_person TEXT,
+      contact_person_en TEXT,
+      contact_person_title TEXT,
+      contact_person_title_en TEXT,
+      mobile TEXT,
+      phone TEXT,
+      email TEXT,
+      intro TEXT,
+      intro_en TEXT,
+      whats_app TEXT,
+      fax TEXT,
+      postal_code TEXT,
+      company_birth TEXT,
+      is_verified INTEGER DEFAULT 0,
+      homepage TEXT,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      retry_count INTEGER DEFAULT 0,
+      FOREIGN KEY (import_record_id) REFERENCES import_records (id)
+    )
+  `
   
   // 创建索引以提升查询性能
   const createIndexes = [
@@ -71,7 +129,10 @@ function initializeTables() {
     'CREATE INDEX IF NOT EXISTS idx_status ON sms_records (status)',
     'CREATE INDEX IF NOT EXISTS idx_created_at ON sms_records (created_at)',
     'CREATE INDEX IF NOT EXISTS idx_phone_numbers_number ON phone_numbers (number)',
-    'CREATE INDEX IF NOT EXISTS idx_phone_numbers_carrier ON phone_numbers (carrier)'
+    'CREATE INDEX IF NOT EXISTS idx_phone_numbers_carrier ON phone_numbers (carrier)',
+    'CREATE INDEX IF NOT EXISTS idx_import_records_date ON import_records (import_date)',
+    'CREATE INDEX IF NOT EXISTS idx_failed_companies_import_id ON failed_companies (import_record_id)',
+    'CREATE INDEX IF NOT EXISTS idx_failed_companies_company_id ON failed_companies (company_id)'
   ]
   
   try {
@@ -80,6 +141,12 @@ function initializeTables() {
     
     db.exec(createPhoneNumbersTable)
     console.log('Phone numbers table created/verified')
+    
+    db.exec(createImportRecordsTable)
+    console.log('Import records table created/verified')
+    
+    db.exec(createFailedCompaniesTable)
+    console.log('Failed companies table created/verified')
     
     // 执行数据库迁移
     runMigrations()
@@ -184,6 +251,59 @@ export interface PhoneNumber {
   note?: string
   created_at?: string
   updated_at?: string
+}
+
+// 导入记录类型定义
+export interface ImportRecord {
+  id?: number
+  import_date?: string
+  total_processed: number
+  success_count: number
+  error_count: number
+  success_rate: number
+  duration_seconds: number
+  status: 'processing' | 'completed' | 'failed'
+  notes?: string
+  mysql_update_time?: string
+}
+
+// 失败公司数据类型定义
+export interface FailedCompany {
+  id?: number
+  import_record_id: number
+  company_id: number
+  company_no?: string
+  name?: string
+  name_en?: string
+  country?: string
+  province?: string
+  province_en?: string
+  city?: string
+  city_en?: string
+  county?: string
+  county_en?: string
+  address?: string
+  address_en?: string
+  business_scope?: string
+  business_scope_en?: string
+  contact_person?: string
+  contact_person_en?: string
+  contact_person_title?: string
+  contact_person_title_en?: string
+  mobile?: string
+  phone?: string
+  email?: string
+  intro?: string
+  intro_en?: string
+  whats_app?: string
+  fax?: string
+  postal_code?: string
+  company_birth?: string
+  is_verified?: number
+  homepage?: string
+  error_message?: string
+  created_at?: string
+  retry_count: number
 }
 
 // 数据库操作类
@@ -812,6 +932,294 @@ export class PhoneNumberDB {
   }
 }
 
+// 导入记录数据库操作类
+export class ImportRecordDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入导入记록
+  insertRecord(record: Omit<ImportRecord, 'id' | 'import_date'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO import_records 
+      (total_processed, success_count, error_count, success_rate, duration_seconds, status, notes, mysql_update_time)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      record.total_processed,
+      record.success_count,
+      record.error_count,
+      record.success_rate,
+      record.duration_seconds,
+      record.status,
+      record.notes || null,
+      record.mysql_update_time || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 更新导入记录
+  updateRecord(id: number, updates: Partial<ImportRecord>): boolean {
+    const updateFields: string[] = []
+    const values: any[] = []
+    
+    const allowedFields = ['total_processed', 'success_count', 'error_count', 'success_rate', 'duration_seconds', 'status', 'notes', 'mysql_update_time']
+    
+    for (const field of allowedFields) {
+      if (field in updates && updates[field as keyof ImportRecord] !== undefined) {
+        updateFields.push(`${field} = ?`)
+        values.push(updates[field as keyof ImportRecord])
+      }
+    }
+    
+    if (updateFields.length === 0) return false
+    
+    values.push(id)
+    
+    const stmt = this.db.prepare(`
+      UPDATE import_records 
+      SET ${updateFields.join(', ')}
+      WHERE id = ?
+    `)
+    
+    const result = stmt.run(...values)
+    return result.changes > 0
+  }
+  
+  // 查询所有导入记录
+  findAll(limit = 50, offset = 0): ImportRecord[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM import_records 
+      ORDER BY import_date DESC 
+      LIMIT ? OFFSET ?
+    `)
+    return stmt.all(limit, offset) as ImportRecord[]
+  }
+  
+  // 根据ID查询记录
+  findById(id: number): ImportRecord | null {
+    const stmt = this.db.prepare('SELECT * FROM import_records WHERE id = ?')
+    return stmt.get(id) as ImportRecord | null
+  }
+  
+  // 查询最新的导入记录
+  findLatest(): ImportRecord | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM import_records 
+      ORDER BY import_date DESC 
+      LIMIT 1
+    `)
+    return stmt.get() as ImportRecord | null
+  }
+  
+  // 统计记录数量
+  count(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM import_records')
+    const result = stmt.get() as { count: number }
+    return result.count
+  }
+  
+  // 删除记录
+  deleteRecord(id: number): boolean {
+    // 先删除关联的失败公司数据
+    const deleteFailedCompanies = this.db.prepare('DELETE FROM failed_companies WHERE import_record_id = ?')
+    deleteFailedCompanies.run(id)
+    
+    // 删除导入记录
+    const stmt = this.db.prepare('DELETE FROM import_records WHERE id = ?')
+    const result = stmt.run(id)
+    return result.changes > 0
+  }
+}
+
+// 失败公司数据数据库操作类
+export class FailedCompanyDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入失败公司数据
+  insertCompany(company: Omit<FailedCompany, 'id' | 'created_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO failed_companies 
+      (import_record_id, company_id, company_no, name, name_en, country, province, province_en, city, city_en, 
+       county, county_en, address, address_en, business_scope, business_scope_en, contact_person, contact_person_en,
+       contact_person_title, contact_person_title_en, mobile, phone, email, intro, intro_en, whats_app, fax,
+       postal_code, company_birth, is_verified, homepage, error_message, retry_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      company.import_record_id,
+      company.company_id,
+      company.company_no || null,
+      company.name || null,
+      company.name_en || null,
+      company.country || null,
+      company.province || null,
+      company.province_en || null,
+      company.city || null,
+      company.city_en || null,
+      company.county || null,
+      company.county_en || null,
+      company.address || null,
+      company.address_en || null,
+      company.business_scope || null,
+      company.business_scope_en || null,
+      company.contact_person || null,
+      company.contact_person_en || null,
+      company.contact_person_title || null,
+      company.contact_person_title_en || null,
+      company.mobile || null,
+      company.phone || null,
+      company.email || null,
+      company.intro || null,
+      company.intro_en || null,
+      company.whats_app || null,
+      company.fax || null,
+      company.postal_code || null,
+      company.company_birth || null,
+      company.is_verified || 0,
+      company.homepage || null,
+      company.error_message || null,
+      company.retry_count
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 批量插入失败公司数据
+  insertBatch(companies: Omit<FailedCompany, 'id' | 'created_at'>[]): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO failed_companies 
+      (import_record_id, company_id, company_no, name, name_en, country, province, province_en, city, city_en, 
+       county, county_en, address, address_en, business_scope, business_scope_en, contact_person, contact_person_en,
+       contact_person_title, contact_person_title_en, mobile, phone, email, intro, intro_en, whats_app, fax,
+       postal_code, company_birth, is_verified, homepage, error_message, retry_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const transaction = this.db.transaction((companies: Omit<FailedCompany, 'id' | 'created_at'>[]) => {
+      let insertedCount = 0
+      for (const company of companies) {
+        stmt.run(
+          company.import_record_id,
+          company.company_id,
+          company.company_no || null,
+          company.name || null,
+          company.name_en || null,
+          company.country || null,
+          company.province || null,
+          company.province_en || null,
+          company.city || null,
+          company.city_en || null,
+          company.county || null,
+          company.county_en || null,
+          company.address || null,
+          company.address_en || null,
+          company.business_scope || null,
+          company.business_scope_en || null,
+          company.contact_person || null,
+          company.contact_person_en || null,
+          company.contact_person_title || null,
+          company.contact_person_title_en || null,
+          company.mobile || null,
+          company.phone || null,
+          company.email || null,
+          company.intro || null,
+          company.intro_en || null,
+          company.whats_app || null,
+          company.fax || null,
+          company.postal_code || null,
+          company.company_birth || null,
+          company.is_verified || 0,
+          company.homepage || null,
+          company.error_message || null,
+          company.retry_count
+        )
+        insertedCount++
+      }
+      return insertedCount
+    })
+    
+    return transaction(companies)
+  }
+  
+  // 根据导入记录ID查询失败公司
+  findByImportRecordId(importRecordId: number): FailedCompany[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM failed_companies 
+      WHERE import_record_id = ? 
+      ORDER BY created_at DESC
+    `)
+    return stmt.all(importRecordId) as FailedCompany[]
+  }
+  
+  // 查询所有失败公司（分页）
+  findAll(limit = 100, offset = 0): FailedCompany[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM failed_companies 
+      ORDER BY created_at DESC 
+      LIMIT ? OFFSET ?
+    `)
+    return stmt.all(limit, offset) as FailedCompany[]
+  }
+  
+  // 根据ID查询失败公司
+  findById(id: number): FailedCompany | null {
+    const stmt = this.db.prepare('SELECT * FROM failed_companies WHERE id = ?')
+    return stmt.get(id) as FailedCompany | null
+  }
+  
+  // 更新重试次数
+  updateRetryCount(id: number, retryCount: number): boolean {
+    const stmt = this.db.prepare(`
+      UPDATE failed_companies 
+      SET retry_count = ?
+      WHERE id = ?
+    `)
+    
+    const result = stmt.run(retryCount, id)
+    return result.changes > 0
+  }
+  
+  // 删除失败公司记录
+  deleteCompany(id: number): boolean {
+    const stmt = this.db.prepare('DELETE FROM failed_companies WHERE id = ?')
+    const result = stmt.run(id)
+    return result.changes > 0
+  }
+  
+  // 根据导入记录ID删除所有失败公司
+  deleteByImportRecordId(importRecordId: number): number {
+    const stmt = this.db.prepare('DELETE FROM failed_companies WHERE import_record_id = ?')
+    const result = stmt.run(importRecordId)
+    return result.changes
+  }
+  
+  // 统计失败公司数量
+  count(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM failed_companies')
+    const result = stmt.get() as { count: number }
+    return result.count
+  }
+  
+  // 根据导入记录ID统计失败公司数量
+  countByImportRecordId(importRecordId: number): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM failed_companies WHERE import_record_id = ?')
+    const result = stmt.get(importRecordId) as { count: number }
+    return result.count
+  }
+}
+
 // 导出单例实例
 export const smsRecordDB = new SmsRecordDB()
 export const phoneNumberDB = new PhoneNumberDB()
+export const importRecordDB = new ImportRecordDB()
+export const failedCompanyDB = new FailedCompanyDB()

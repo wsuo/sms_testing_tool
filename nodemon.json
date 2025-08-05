@@ -1,0 +1,21 @@
+{
+  "watch": [
+    "app",
+    "lib",
+    "components",
+    "hooks",
+    "*.ts",
+    "*.tsx",
+    "*.js",
+    "*.jsx"
+  ],
+  "ignore": [
+    ".next",
+    "node_modules",
+    "*.db",
+    ".git"
+  ],
+  "ext": "ts,tsx,js,jsx,json",
+  "exec": "npm run build && npm run dev",
+  "delay": "1000"
+}

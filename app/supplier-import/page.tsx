@@ -10,7 +10,11 @@ import {
   Trash2,
   Eye,
   Save,
-  Activity
+  Activity,
+  History,
+  RefreshCw,
+  Database,
+  AlertTriangle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import * as XLSX from 'xlsx'
 
@@ -65,10 +70,34 @@ interface ValidationError {
   message: string
 }
 
+interface ImportRecord {
+  id: number
+  import_date: string
+  total_processed: number
+  success_count: number
+  error_count: number
+  success_rate: number
+  duration_seconds: number
+  status: string
+  notes?: string
+  mysql_update_time?: string
+  failed_count?: number
+}
+
+interface FailedCompany {
+  id: number
+  import_record_id: number
+  company_data: CompanyData
+  error_message: string
+  retry_count: number
+  created_at: string
+}
+
 export default function DataManagementPage() {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // 所有状态变量
   const [file, setFile] = useState<File | null>(null)
   const [companyData, setCompanyData] = useState<CompanyData[]>([])
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
@@ -95,6 +124,174 @@ export default function DataManagementPage() {
   const [exportLimit, setExportLimit] = useState(100)
   const [totalRecords, setTotalRecords] = useState<number | null>(null)
 
+  // 导入历史相关状态
+  const [importHistory, setImportHistory] = useState<ImportRecord[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [failedCompanies, setFailedCompanies] = useState<FailedCompany[]>([])
+  const [isLoadingFailed, setIsLoadingFailed] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
+  const [selectedImportId, setSelectedImportId] = useState<number | null>(null)
+  
+  // 全量更新相关状态
+  const [showBulkUpdateDialog, setShowBulkUpdateDialog] = useState(false)
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+  const [bulkUpdateProgress, setBulkUpdateProgress] = useState(0)
+  const [importStartTime, setImportStartTime] = useState<string | null>(null)
+  
+  // 导入配置
+  const [batchSize, setBatchSize] = useState(20)
+  
+  // Tab控制
+  const [activeTab, setActiveTab] = useState<string>("history")
+
+  // 请求通知权限
+  React.useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+    // 加载导入历史
+    loadImportHistory()
+  }, [])
+
+  // 加载导入历史
+  const loadImportHistory = async () => {
+    setIsLoadingHistory(true)
+    try {
+      const response = await fetch('/api/import-history')
+      if (response.ok) {
+        const data = await response.json()
+        setImportHistory(data.records || [])
+      }
+    } catch (error) {
+      console.error('加载导入历史失败:', error)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
+  // 加载失败数据
+  const loadFailedCompanies = async (importRecordId?: number) => {
+    setIsLoadingFailed(true)
+    try {
+      const url = importRecordId 
+        ? `/api/failed-companies?import_record_id=${importRecordId}`
+        : '/api/failed-companies'
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        setFailedCompanies(data.companies || [])
+      }
+    } catch (error) {
+      console.error('加载失败数据失败:', error)
+    } finally {
+      setIsLoadingFailed(false)
+    }
+  }
+
+  // 重试失败的数据
+  const retryFailedCompanies = async (companyIds?: number[]) => {
+    setIsRetrying(true)
+    try {
+      const response = await fetch('/api/retry-failed-companies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          company_ids: companyIds
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        toast({
+          title: "重试完成",
+          description: `成功重试 ${result.retryCount} 条记录，成功 ${result.successCount} 条，失败 ${result.failedCount} 条`,
+        })
+        
+        // 重新加载数据
+        loadFailedCompanies(selectedImportId || undefined)
+        loadImportHistory()
+      } else {
+        const error = await response.json()
+        throw new Error(error.error || '重试失败')
+      }
+    } catch (error) {
+      toast({
+        title: "重试失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
+  // 全量更新功能
+  const handleBulkUpdate = async () => {
+    if (!importStartTime) {
+      toast({
+        title: "无法执行全量更新",
+        description: "未找到导入开始时间",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsBulkUpdating(true)
+    setBulkUpdateProgress(0)
+    
+    try {
+      toast({
+        title: "开始全量更新",
+        description: "正在清理旧数据，保留最新导入的数据...",
+      })
+
+      // 模拟进度更新
+      const progressInterval = setInterval(() => {
+        setBulkUpdateProgress(prev => Math.min(prev + 10, 90))
+      }, 300)
+
+      const response = await fetch('/api/bulk-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          keep_update_time: importStartTime // 使用实际的导入开始时间
+        })
+      })
+
+      clearInterval(progressInterval)
+      setBulkUpdateProgress(100)
+
+      if (response.ok) {
+        const result = await response.json()
+        toast({
+          title: "全量更新完成",
+          description: `已清理 ${result.deletedCount} 条旧数据，保留了最新导入的数据`,
+        })
+        
+        // 重新加载数据
+        loadImportHistory()
+        testDatabaseConnection() // 刷新数据库统计
+      } else {
+        const error = await response.json()
+        throw new Error(error.error || '全量更新失败')
+      }
+    } catch (error) {
+      toast({
+        title: "全量更新失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBulkUpdating(false)
+      setBulkUpdateProgress(0)
+      setShowBulkUpdateDialog(false)
+    }
+  }
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
     if (selectedFile) {
@@ -104,9 +301,6 @@ export default function DataManagementPage() {
   }
 
   const processFile = async (file: File) => {
-    setIsProcessing(true)
-    setImportProgress(0)
-
     try {
       const data = await file.arrayBuffer()
       const workbook = XLSX.read(data, { type: 'array' })
@@ -159,7 +353,6 @@ export default function DataManagementPage() {
       const errors = validateCompanyData(mappedData)
       setValidationErrors(errors)
       setCompanyData(mappedData)
-      setImportProgress(100)
 
       if (errors.length === 0) {
         setImportStatus('completed')
@@ -167,6 +360,8 @@ export default function DataManagementPage() {
           title: "文件解析成功",
           description: `成功解析 ${mappedData.length} 条公司记录，可以开始导入`,
         })
+        // 自动切换到数据预览tab
+        setActiveTab('preview')
       } else {
         setImportStatus('error')
         toast({
@@ -174,6 +369,8 @@ export default function DataManagementPage() {
           description: `发现 ${errors.length} 个验证错误，请修复后重新上传`,
           variant: "destructive",
         })
+        // 如果有错误，切换到错误tab
+        setActiveTab('errors')
       }
     } catch (error) {
       setImportStatus('error')
@@ -182,8 +379,6 @@ export default function DataManagementPage() {
         description: error instanceof Error ? error.message : "未知错误",
         variant: "destructive",
       })
-    } finally {
-      setIsProcessing(false)
     }
   }
 
@@ -244,6 +439,12 @@ export default function DataManagementPage() {
     setImportProgress(0)
     setImportResults(null)
     setImportStatus('processing')
+    
+    // 记录导入开始时间 (UTC+8)
+    const startTime = new Date()
+    const utc8Time = new Date(startTime.getTime() + (8 * 60 * 60 * 1000))
+    const importStartTimeStr = utc8Time.toISOString().slice(0, 19).replace('T', ' ')
+    setImportStartTime(importStartTimeStr)
 
     try {
       toast({
@@ -251,43 +452,195 @@ export default function DataManagementPage() {
         description: "正在导入数据到数据库，请稍候...",
       })
 
-      // 模拟进度更新
-      const progressInterval = setInterval(() => {
-        setImportProgress(prev => Math.min(prev + 10, 90))
-      }, 200)
+      console.log('开始导入，数据量:', companyData.length)
 
-      // 调用后端API进行数据导入
-      const response = await fetch('/api/supplier-import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          companies: companyData
+      // 先尝试流式响应，如果失败则降级到普通API
+      try {
+        // 直接使用POST请求，通过流式响应获取实时进度
+        const response = await fetch('/api/supplier-import-progress', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            companies: companyData,
+            batchSize: batchSize // 使用用户配置的批次大小
+          })
         })
-      })
 
-      clearInterval(progressInterval)
-      setImportProgress(100)
+        console.log('流式API响应状态:', response.status, response.statusText)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || '导入失败')
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('流式API响应错误:', errorText)
+          throw new Error(`流式API请求失败: ${response.status} ${response.statusText}`)
+        }
+
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+
+        if (!reader) {
+          throw new Error('无法获取响应流')
+        }
+
+        console.log('开始处理流式响应')
+
+        const processStream = async () => {
+          try {
+            let hasReceivedData = false
+            while (true) {
+              const { done, value } = await reader.read()
+              
+              if (done) {
+                console.log('流读取完成')
+                if (!hasReceivedData) {
+                  throw new Error('未收到任何进度数据')
+                }
+                break
+              }
+
+              const chunk = decoder.decode(value)
+              console.log('收到数据块:', chunk)
+              const lines = chunk.split('\n')
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  hasReceivedData = true
+                  try {
+                    const progressData = line.slice(6).trim()
+                    if (progressData) {
+                      const progress = JSON.parse(progressData)
+                      console.log('解析进度数据:', progress)
+                      
+                      // 更新进度条
+                      setImportProgress(progress.progress)
+                      
+                      // 如果完成，处理结果
+                      if (progress.completed) {
+                        const result = {
+                          totalProcessed: progress.total,
+                          successCount: progress.successCount,
+                          errorCount: progress.errorCount,
+                          errors: progress.errors
+                        }
+                        
+                        setImportResults(result)
+                        setImportStatus('completed')
+                        
+                        // 导入完成后自动切换到结果tab
+                        setActiveTab('results')
+                        
+                        // 发送浏览器通知
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                          new Notification('数据导入完成', {
+                            body: `成功处理 ${progress.successCount} 条记录，失败 ${progress.errorCount} 条`,
+                            icon: '/favicon.ico'
+                          })
+                        }
+                        
+                        // 显示完成提醒和统计
+                        if (progress.errorCount > 0) {
+                          toast({
+                            title: "🎉 导入完成（部分失败）",
+                            description: `✅ 成功：${progress.successCount} 条\n❌ 失败：${progress.errorCount} 条\n📊 总计：${progress.total} 条记录\n🎯 成功率：${Math.round((progress.successCount / progress.total) * 100)}%`,
+                            variant: "destructive",
+                            duration: 10000, // 10秒后自动消失
+                          })
+                        } else {
+                          toast({
+                            title: "🎉 导入完成！",
+                            description: `✅ 成功处理 ${progress.successCount} 条记录\n🎯 成功率：100%\n⏱️ 导入已完成`,
+                            duration: 10000, // 10秒后自动消失
+                          })
+                        }
+                        
+                        // 重新加载导入历史
+                        loadImportHistory()
+                        
+                        return
+                      }
+                    }
+                  } catch (error) {
+                    console.error('解析进度数据失败:', error, '原始数据:', line)
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error('流处理错误:', error)
+            throw error
+          }
+        }
+
+        await processStream()
+
+      } catch (streamError) {
+        console.warn('流式API失败，降级到普通API:', streamError)
+        
+        // 降级到普通API
+        toast({
+          title: "切换到标准导入模式",
+          description: "实时进度不可用，使用标准导入模式...",
+        })
+
+        const response = await fetch('/api/supplier-import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            companies: companyData
+          })
+        })
+
+        // 模拟进度更新
+        const progressInterval = setInterval(() => {
+          setImportProgress(prev => Math.min(prev + 10, 90))
+        }, 500)
+
+        if (!response.ok) {
+          clearInterval(progressInterval)
+          const errorData = await response.json()
+          throw new Error(errorData.error || '导入失败')
+        }
+
+        const result = await response.json()
+        clearInterval(progressInterval)
+        setImportProgress(100)
+        
+        setImportResults(result)
+        setImportStatus('completed')
+        
+        // 导入完成后自动切换到结果tab
+        setActiveTab('results')
+
+        toast({
+          title: "导入完成",
+          description: `成功处理 ${result.totalProcessed} 条记录，成功 ${result.successCount} 条，失败 ${result.errorCount} 条`,
+        })
       }
 
-      const result = await response.json()
-      setImportResults(result)
-      setImportStatus('completed')
-
-      toast({
-        title: "导入完成",
-        description: `成功处理 ${result.totalProcessed} 条记录，成功 ${result.successCount} 条，失败 ${result.errorCount} 条`,
-      })
-
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "未知错误"
+      
+      // 根据错误类型显示不同的提示
+      let title = "导入失败"
+      let description = errorMessage
+      
+      if (errorMessage.includes("字段长度限制") || errorMessage.includes("数据过长")) {
+        title = "数据格式问题"
+        description = `${errorMessage}\n\n建议：请检查Excel文件中的数据长度，或联系管理员调整数据库字段限制。`
+      } else if (errorMessage.includes("数据重复") || errorMessage.includes("已存在")) {
+        title = "数据重复"
+        description = `${errorMessage}\n\n这通常是正常现象，系统会自动更新现有记录。`
+      } else if (errorMessage.includes("数据库") || errorMessage.includes("连接")) {
+        title = "数据库连接问题"
+        description = `${errorMessage}\n\n建议：请检查数据库连接状态，或联系管理员。`
+      }
+      
       toast({
-        title: "导入失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title,
+        description,
         variant: "destructive",
       })
       setImportStatus('error')
@@ -305,6 +658,7 @@ export default function DataManagementPage() {
     setImportStatus('idle')
     setImportProgress(0)
     setImportResults(null)
+    setActiveTab('history') // 重置到历史tab
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -317,6 +671,7 @@ export default function DataManagementPage() {
     setValidationErrors([])
     setImportStatus('idle')
     setImportProgress(0)
+    setActiveTab('history') // 重置到历史tab
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -635,19 +990,15 @@ export default function DataManagementPage() {
                 )}
               </div>
               
-              {isProcessing && (
+              {importStatus === 'processing' && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>
-                      {importStatus === 'processing' && importResults === null ? '文件解析进度' : '数据导入进度'}
-                    </span>
+                    <span>数据导入进度</span>
                     <span>{importProgress}%</span>
                   </div>
-                  <Progress value={importProgress} />
+                  <Progress value={importProgress} className="w-full" />
                   <p className="text-xs text-muted-foreground">
-                    {importStatus === 'processing' && importResults === null
-                      ? '正在解析Excel文件...'
-                      : '正在导入数据到数据库...'}
+                    正在分批导入数据 (每批{batchSize}条记录)... 当前进度: {importProgress}%
                   </p>
                 </div>
               )}
@@ -655,28 +1006,254 @@ export default function DataManagementPage() {
           </CardContent>
         </Card>
 
-        {/* Status and Results */}
-        {companyData.length > 0 && (
-          <Tabs defaultValue="preview" className="space-y-4">
-            <TabsList>
+        {/* Main Content Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList>
+            {companyData.length > 0 && (
               <TabsTrigger value="preview" className="flex items-center gap-2">
                 <Eye className="h-4 w-4" />
                 数据预览 ({companyData.length})
               </TabsTrigger>
-              {validationErrors.length > 0 && (
-                <TabsTrigger value="errors" className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  验证错误 ({validationErrors.length})
-                </TabsTrigger>
-              )}
-              {importResults && (
-                <TabsTrigger value="results" className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  导入结果
-                </TabsTrigger>
-              )}
-            </TabsList>
+            )}
+            {validationErrors.length > 0 && (
+              <TabsTrigger value="errors" className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                验证错误 ({validationErrors.length})
+              </TabsTrigger>
+            )}
+            {importResults && (
+              <TabsTrigger value="results" className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                导入结果
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              导入历史
+            </TabsTrigger>
+            <TabsTrigger value="failed" className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              失败数据管理
+            </TabsTrigger>
+          </TabsList>
 
+          {/* 导入历史标签页 */}
+          <TabsContent value="history">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>导入历史</CardTitle>
+                  <CardDescription>
+                    查看历史导入记录和统计信息
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={loadImportHistory}
+                  disabled={isLoadingHistory}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                  刷新
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isLoadingHistory ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">加载导入历史...</p>
+                  </div>
+                ) : importHistory.length === 0 ? (
+                  <div className="text-center py-8">
+                    <History className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">暂无导入历史记录</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>导入时间</TableHead>
+                          <TableHead>总数</TableHead>
+                          <TableHead>成功</TableHead>
+                          <TableHead>失败</TableHead>
+                          <TableHead>成功率</TableHead>
+                          <TableHead>耗时</TableHead>
+                          <TableHead>状态</TableHead>
+                          <TableHead>操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importHistory.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell className="font-medium">
+                              {new Date(record.import_date).toLocaleString()}
+                            </TableCell>
+                            <TableCell>{record.total_processed}</TableCell>
+                            <TableCell className="text-green-600">{record.success_count}</TableCell>
+                            <TableCell className="text-red-600">{record.error_count}</TableCell>
+                            <TableCell>
+                              <Badge variant={record.success_rate >= 0.9 ? 'default' : record.success_rate >= 0.7 ? 'secondary' : 'destructive'}>
+                                {Math.round(record.success_rate * 100)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{record.duration_seconds}s</TableCell>
+                            <TableCell>
+                              <Badge variant={record.status === 'completed' ? 'default' : 'secondary'}>
+                                {record.status === 'completed' ? '已完成' : record.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {record.error_count > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedImportId(record.id)
+                                    loadFailedCompanies(record.id)
+                                  }}
+                                >
+                                  查看失败数据
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 失败数据管理标签页 */}
+          <TabsContent value="failed">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>失败数据管理</CardTitle>
+                  <CardDescription>
+                    管理导入失败的数据，支持重试功能
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => loadFailedCompanies()}
+                    disabled={isLoadingFailed}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingFailed ? 'animate-spin' : ''}`} />
+                    刷新
+                  </Button>
+                  {failedCompanies.length > 0 && (
+                    <Button
+                      onClick={() => retryFailedCompanies()}
+                      disabled={isRetrying}
+                      className="bg-orange-600 hover:bg-orange-700"
+                      size="sm"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isRetrying ? 'animate-spin' : ''}`} />
+                      {isRetrying ? '重试中...' : '重试全部'}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingFailed ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">加载失败数据...</p>
+                  </div>
+                ) : failedCompanies.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                    <p className="text-muted-foreground">暂无失败的数据记录</p>
+                    <p className="text-sm text-muted-foreground mt-1">所有数据都已成功导入</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        共 {failedCompanies.length} 条失败记录
+                        {selectedImportId && (
+                          <span className="ml-2 text-blue-600">
+                            (导入记录 #{selectedImportId})
+                          </span>
+                        )}
+                      </p>
+                      {selectedImportId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedImportId(null)
+                            loadFailedCompanies()
+                          }}
+                        >
+                          显示全部失败数据
+                        </Button>
+                      )}
+                    </div>
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>公司名称</TableHead>
+                            <TableHead>公司ID</TableHead>
+                            <TableHead>失败原因</TableHead>
+                            <TableHead>重试次数</TableHead>
+                            <TableHead>失败时间</TableHead>
+                            <TableHead>操作</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {failedCompanies.slice(0, 20).map((failedCompany) => (
+                            <TableRow key={failedCompany.id}>
+                              <TableCell className="font-medium">
+                                {failedCompany.company_data.name}
+                              </TableCell>
+                              <TableCell>{failedCompany.company_data.company_id}</TableCell>
+                              <TableCell className="max-w-xs truncate" title={failedCompany.error_message}>
+                                {failedCompany.error_message}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={failedCompany.retry_count > 0 ? 'secondary' : 'outline'}>
+                                  {failedCompany.retry_count}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {new Date(failedCompany.created_at).toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => retryFailedCompanies([failedCompany.id])}
+                                  disabled={isRetrying}
+                                >
+                                  <RefreshCw className={`w-3 h-3 mr-1 ${isRetrying ? 'animate-spin' : ''}`} />
+                                  重试
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {failedCompanies.length > 20 && (
+                      <p className="text-sm text-muted-foreground text-center">
+                        显示前 20 条记录，共 {failedCompanies.length} 条失败记录
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {companyData.length > 0 && (
             <TabsContent value="preview">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -716,19 +1293,59 @@ export default function DataManagementPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {/* 导入配置 - 只在有数据且准备导入时显示 */}
+                  {companyData.length > 0 && !importResults && (
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg border mb-4">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="batch-size" className="text-sm font-medium">
+                          导入配置
+                        </Label>
+                        <Badge variant="outline" className="text-xs">
+                          影响导入速度和系统性能
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <Label htmlFor="batch-size" className="text-sm text-muted-foreground min-w-fit">
+                          每批处理数量：
+                        </Label>
+                        <Select value={batchSize.toString()} onValueChange={(value) => setBatchSize(Number(value))}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10条</SelectItem>
+                            <SelectItem value="20">20条</SelectItem>
+                            <SelectItem value="50">50条</SelectItem>
+                            <SelectItem value="100">100条</SelectItem>
+                            <SelectItem value="200">200条</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p><strong>性能影响说明：</strong></p>
+                        <ul className="space-y-1 ml-2">
+                          <li>• <strong>10-20条</strong>：速度较慢，但对数据库压力最小，推荐服务器性能较低时使用</li>
+                          <li>• <strong>50条</strong>：平衡选择，适合大多数情况</li>
+                          <li>• <strong>100-200条</strong>：速度最快，但会增加数据库连接压力和内存使用</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                   <div className="rounded-md border overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>公司ID</TableHead>
-                          <TableHead>中文名称</TableHead>
-                          <TableHead>英文名称</TableHead>
-                          <TableHead>省份</TableHead>
-                          <TableHead>城市</TableHead>
-                          <TableHead>联系人</TableHead>
-                          <TableHead>手机</TableHead>
-                          <TableHead>邮箱</TableHead>
-                          <TableHead>验证状态</TableHead>
+                          <TableHead className="w-[80px]">公司ID</TableHead>
+                          <TableHead className="min-w-[120px]">中文名称</TableHead>
+                          <TableHead className="min-w-[120px]">英文名称</TableHead>
+                          <TableHead className="w-[80px]">省份</TableHead>
+                          <TableHead className="w-[80px]">城市</TableHead>
+                          <TableHead className="w-[80px]">联系人</TableHead>
+                          <TableHead className="w-[100px]">手机</TableHead>
+                          <TableHead className="min-w-[120px]">邮箱</TableHead>
+                          <TableHead className="w-[100px]">验证状态</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -760,6 +1377,7 @@ export default function DataManagementPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            )}
 
             {validationErrors.length > 0 && (
               <TabsContent value="errors">
@@ -796,41 +1414,86 @@ export default function DataManagementPage() {
                         数据导入操作已完成
                       </CardDescription>
                     </div>
-                    <Button
-                      onClick={clearImportResults}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      清除结果
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => setShowBulkUpdateDialog(true)}
+                        disabled={isBulkUpdating}
+                        className="bg-orange-600 hover:bg-orange-700"
+                        size="sm"
+                      >
+                        <Database className="w-4 h-4 mr-2" />
+                        {isBulkUpdating ? '更新中...' : '全量更新'}
+                      </Button>
+                      <Button
+                        onClick={clearImportResults}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        清除结果
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       <div className="grid grid-cols-3 gap-4">
-                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                        <div className="text-center p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
                           <div className="text-2xl font-bold text-blue-600">{importResults.totalProcessed}</div>
                           <div className="text-sm text-blue-600">总处理数</div>
                         </div>
-                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                        <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-200">
                           <div className="text-2xl font-bold text-green-600">{importResults.successCount}</div>
                           <div className="text-sm text-green-600">成功数</div>
                         </div>
-                        <div className="text-center p-4 bg-red-50 rounded-lg">
+                        <div className="text-center p-4 bg-red-50 rounded-lg border-2 border-red-200">
                           <div className="text-2xl font-bold text-red-600">{importResults.errorCount}</div>
                           <div className="text-sm text-red-600">失败数</div>
                         </div>
+                      </div>
+                      
+                      {/* 成功率显示 */}
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">成功率</span>
+                          <span className="text-sm font-bold">
+                            {importResults.totalProcessed > 0 
+                              ? `${Math.round((importResults.successCount / importResults.totalProcessed) * 100)}%`
+                              : '0%'
+                            }
+                          </span>
+                        </div>
+                        <Progress 
+                          value={importResults.totalProcessed > 0 
+                            ? (importResults.successCount / importResults.totalProcessed) * 100
+                            : 0
+                          } 
+                          className="h-2"
+                        />
                       </div>
 
                       {importResults.errors.length > 0 && (
                         <div className="space-y-2">
                           <h4 className="font-medium text-red-600">错误详情：</h4>
-                          {importResults.errors.map((error, index) => (
-                            <Alert key={index} variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                          ))}
+                          <div className="max-h-60 overflow-y-auto space-y-2">
+                            {importResults.errors.map((error, index) => (
+                              <Alert key={index} variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription className="whitespace-pre-line">
+                                  {error}
+                                </AlertDescription>
+                              </Alert>
+                            ))}
+                          </div>
+                          <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              <strong>常见解决方案：</strong>
+                            </p>
+                            <ul className="text-sm text-blue-700 mt-1 space-y-1">
+                              <li>• <strong>字段长度问题：</strong>联系管理员调整数据库字段限制，或缩短数据内容</li>
+                              <li>• <strong>数据格式问题：</strong>检查邮箱、手机号、网址等字段格式是否正确</li>
+                              <li>• <strong>必填字段：</strong>确保公司ID、名称等必填字段不为空</li>
+                            </ul>
+                          </div>
                         </div>
                       )}
 
@@ -845,7 +1508,6 @@ export default function DataManagementPage() {
               </TabsContent>
             )}
           </Tabs>
-        )}
 
         {/* Instructions */}
         <Alert>
@@ -944,6 +1606,71 @@ export default function DataManagementPage() {
             </Button>
             <Button onClick={handleConfirmExport} disabled={isExporting}>
               {isExporting ? '导出中...' : '开始导出'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 全量更新确认对话框 */}
+      <Dialog open={showBulkUpdateDialog} onOpenChange={setShowBulkUpdateDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <AlertTriangle className="h-5 w-5" />
+              确认全量更新
+            </DialogTitle>
+            <DialogDescription>
+              此操作将删除数据库中除最新导入数据外的所有历史数据，请谨慎操作。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>警告：</strong>此操作不可逆！将会删除以下数据：
+                <ul className="mt-2 space-y-1 text-sm">
+                  <li>• {importStartTime ? `${importStartTime} 之前的所有` : '本次导入之前的所有'} seller_company 记录</li>
+                  <li>• 对应的 seller_company_lang 多语言记录</li>
+                  <li>• 相关联的其他数据</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>保留数据：</strong>{importStartTime ? `只保留 ${importStartTime} 之后导入的最新数据` : '只保留本次导入的最新数据'}
+              </p>
+            </div>
+
+            {isBulkUpdating && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span>全量更新进度</span>
+                  <span>{bulkUpdateProgress}%</span>
+                </div>
+                <Progress value={bulkUpdateProgress} />
+                <p className="text-xs text-muted-foreground">
+                  正在清理数据库中的历史数据...
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowBulkUpdateDialog(false)}
+              disabled={isBulkUpdating}
+            >
+              取消
+            </Button>
+            <Button 
+              onClick={handleBulkUpdate} 
+              disabled={isBulkUpdating}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isBulkUpdating ? '更新中...' : '确认删除'}
             </Button>
           </DialogFooter>
         </DialogContent>
