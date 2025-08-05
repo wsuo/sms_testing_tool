@@ -1,8 +1,15 @@
 import Database from 'better-sqlite3'
 import path from 'path'
+import fs from 'fs'
+
+// 确保数据库目录存在
+const dbDir = path.join(process.cwd(), 'data', 'db')
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true })
+}
 
 // 数据库文件路径
-const dbPath = path.join(process.cwd(), 'sms_records.db')
+const dbPath = path.join(dbDir, 'sms_records.db')
 
 // 创建数据库连接
 let db: Database.Database | null = null
