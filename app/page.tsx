@@ -10,7 +10,9 @@ import {
   Clock,
   ArrowRight,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Kanban,
+  Target
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +24,13 @@ interface DashboardStats {
     totalSent: number
     successRate: number
     pendingCount: number
+  }
+  projectStats: {
+    totalProjects: number
+    activeProjects: number
+    totalItems: number
+    completedItems: number
+    completionRate: number
   }
   recentActivity: {
     type: string
@@ -37,6 +46,13 @@ export default function PlatformDashboard() {
       totalSent: 0,
       successRate: 0,
       pendingCount: 0
+    },
+    projectStats: {
+      totalProjects: 0,
+      activeProjects: 0,
+      totalItems: 0,
+      completedItems: 0,
+      completionRate: 0
     },
     recentActivity: []
   })
@@ -66,6 +82,26 @@ export default function PlatformDashboard() {
               totalSent: smsData.totalSms || 0,
               successRate: smsData.successRate || 0,
               pendingCount: pendingCount
+            }
+          }))
+        }
+      }
+
+      // Load project progress statistics
+      const projectResponse = await fetch('/api/project-progress')
+      if (projectResponse.ok) {
+        const projectResult = await projectResponse.json()
+        if (projectResult.success && projectResult.data) {
+          const projectData = projectResult.data.totalStats
+          
+          setDashboardStats(prev => ({
+            ...prev,
+            projectStats: {
+              totalProjects: projectData.totalProjects || 0,
+              activeProjects: projectData.activeProjects || 0,
+              totalItems: projectData.totalItems || 0,
+              completedItems: projectData.completedItems || 0,
+              completionRate: projectData.completionRate || 0
             }
           }))
         }
@@ -117,6 +153,13 @@ export default function PlatformDashboard() {
           successRate: 0,
           pendingCount: 0
         },
+        projectStats: {
+          totalProjects: 0,
+          activeProjects: 0,
+          totalItems: 0,
+          completedItems: 0,
+          completionRate: 0
+        },
         recentActivity: []
       }))
     } finally {
@@ -140,6 +183,14 @@ export default function PlatformDashboard() {
       icon: Upload,
       stats: "支持导入导出",
       color: "bg-green-500"
+    },
+    {
+      name: "项目进度",
+      description: "项目开发进度管理和跟踪，支持功能点状态监控和团队协作",
+      href: "/project-progress",
+      icon: Kanban,
+      stats: `${dashboardStats.projectStats.activeProjects} 个活跃项目`,
+      color: "bg-purple-500"
     }
   ]
 
@@ -148,8 +199,8 @@ export default function PlatformDashboard() {
       <div className="container mx-auto px-4 py-8">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[...Array(2)].map((_, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
               <div key={i} className="h-32 bg-gray-200 rounded"></div>
             ))}
           </div>
@@ -169,7 +220,7 @@ export default function PlatformDashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">总短信发送量</CardTitle>
@@ -183,12 +234,34 @@ export default function PlatformDashboard() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">成功率</CardTitle>
+            <CardTitle className="text-sm font-medium">短信成功率</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{dashboardStats.smsStats.successRate.toFixed(1)}%</div>
             <Progress value={dashboardStats.smsStats.successRate} className="mt-2" />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">活跃项目</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats.projectStats.activeProjects}</div>
+            <p className="text-xs text-muted-foreground">总计 {dashboardStats.projectStats.totalProjects} 个项目</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">功能完成率</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats.projectStats.completionRate}%</div>
+            <Progress value={dashboardStats.projectStats.completionRate} className="mt-2" />
           </CardContent>
         </Card>
         
@@ -207,7 +280,7 @@ export default function PlatformDashboard() {
       {/* Testing Tools Grid */}
       <div className="space-y-4">
         <h2 className="text-2xl font-semibold">功能模块</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {testingTools.map((tool) => {
             const Icon = tool.icon
             return (

@@ -11,7 +11,8 @@ import {
   Home, 
   Settings,
   Menu,
-  X
+  X,
+  Kanban
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -42,6 +43,12 @@ const navigationItems: NavigationItem[] = [
     href: "/supplier-import",
     icon: Upload,
     description: "导入和导出公司数据"
+  },
+  {
+    name: "项目进度",
+    href: "/project-progress",
+    icon: Kanban,
+    description: "项目开发进度管理和跟踪"
   }
 ]
 
