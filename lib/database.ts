@@ -128,6 +128,107 @@ function initializeTables() {
       FOREIGN KEY (import_record_id) REFERENCES import_records (id)
     )
   `
+
+  // 创建平台表
+  const createPlatformsTable = `
+    CREATE TABLE IF NOT EXISTS platforms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      color TEXT DEFAULT '#3b82f6', -- 平台主题色
+      status TEXT DEFAULT 'active', -- active, inactive
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `
+
+  // 创建项目表
+  const createProjectsTable = `
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      platform_id INTEGER, -- 关联平台
+      status TEXT DEFAULT 'active', -- active, completed, paused
+      start_date DATE,
+      end_date DATE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (platform_id) REFERENCES platforms (id)
+    )
+  `
+
+  // 创建开发阶段表
+  const createProjectPhasesTable = `
+    CREATE TABLE IF NOT EXISTS project_phases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      name TEXT NOT NULL, -- 第一期, 第二期, 第三期等
+      description TEXT,
+      phase_order INTEGER NOT NULL, -- 阶段排序
+      status TEXT DEFAULT 'pending', -- pending, in_progress, completed
+      start_date DATE,
+      end_date DATE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects (id)
+    )
+  `
+
+  // 创建功能模块表
+  const createFeatureModulesTable = `
+    CREATE TABLE IF NOT EXISTS feature_modules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      phase_id INTEGER,
+      name TEXT NOT NULL,
+      description TEXT,
+      module_order INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects (id),
+      FOREIGN KEY (phase_id) REFERENCES project_phases (id)
+    )
+  `
+
+  // 创建功能点表
+  const createFeatureItemsTable = `
+    CREATE TABLE IF NOT EXISTS feature_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      module_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      priority TEXT DEFAULT 'medium', -- low, medium, high, critical
+      status TEXT DEFAULT 'pending', -- pending, in_progress, completed, testing, deployed, paused
+      progress_percentage INTEGER DEFAULT 0, -- 0-100
+      estimated_hours REAL,
+      actual_hours REAL,
+      assignee TEXT, -- 负责人
+      start_date DATE,
+      estimated_completion_date DATE,
+      actual_completion_date DATE,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (module_id) REFERENCES feature_modules (id)
+    )
+  `
+
+  // 创建进度记录表
+  const createProgressRecordsTable = `
+    CREATE TABLE IF NOT EXISTS progress_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      feature_item_id INTEGER NOT NULL,
+      old_status TEXT,
+      new_status TEXT NOT NULL,
+      old_progress INTEGER,
+      new_progress INTEGER,
+      notes TEXT,
+      updated_by TEXT, -- 更新人
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (feature_item_id) REFERENCES feature_items (id)
+    )
+  `
   
   // 创建索引以提升查询性能
   const createIndexes = [
@@ -139,7 +240,17 @@ function initializeTables() {
     'CREATE INDEX IF NOT EXISTS idx_phone_numbers_carrier ON phone_numbers (carrier)',
     'CREATE INDEX IF NOT EXISTS idx_import_records_date ON import_records (import_date)',
     'CREATE INDEX IF NOT EXISTS idx_failed_companies_import_id ON failed_companies (import_record_id)',
-    'CREATE INDEX IF NOT EXISTS idx_failed_companies_company_id ON failed_companies (company_id)'
+    'CREATE INDEX IF NOT EXISTS idx_failed_companies_company_id ON failed_companies (company_id)',
+    // 项目进度管理相关索引
+    'CREATE INDEX IF NOT EXISTS idx_platforms_name ON platforms (name)',
+    'CREATE INDEX IF NOT EXISTS idx_platforms_status ON platforms (status)',
+    'CREATE INDEX IF NOT EXISTS idx_projects_platform_id ON projects (platform_id)',
+    'CREATE INDEX IF NOT EXISTS idx_project_phases_project_id ON project_phases (project_id)',
+    'CREATE INDEX IF NOT EXISTS idx_feature_modules_project_id ON feature_modules (project_id)',
+    'CREATE INDEX IF NOT EXISTS idx_feature_modules_phase_id ON feature_modules (phase_id)',
+    'CREATE INDEX IF NOT EXISTS idx_feature_items_module_id ON feature_items (module_id)',
+    'CREATE INDEX IF NOT EXISTS idx_feature_items_status ON feature_items (status)',
+    'CREATE INDEX IF NOT EXISTS idx_progress_records_feature_item_id ON progress_records (feature_item_id)'
   ]
   
   try {
@@ -154,6 +265,26 @@ function initializeTables() {
     
     db.exec(createFailedCompaniesTable)
     console.log('Failed companies table created/verified')
+
+    // 创建平台表
+    db.exec(createPlatformsTable)
+    console.log('Platforms table created/verified')
+
+    // 创建项目进度管理相关表
+    db.exec(createProjectsTable)
+    console.log('Projects table created/verified')
+
+    db.exec(createProjectPhasesTable)
+    console.log('Project phases table created/verified')
+
+    db.exec(createFeatureModulesTable)
+    console.log('Feature modules table created/verified')
+
+    db.exec(createFeatureItemsTable)
+    console.log('Feature items table created/verified')
+
+    db.exec(createProgressRecordsTable)
+    console.log('Progress records table created/verified')
     
     // 执行数据库迁移
     runMigrations()
@@ -218,11 +349,77 @@ function runMigrations() {
       }
     }
     
+    // 检查项目表是否需要添加平台字段
+    const checkProjectColumns = db.prepare("PRAGMA table_info(projects)").all() as any[]
+    const existingProjectColumns = checkProjectColumns.map(col => col.name)
+    
+    if (!existingProjectColumns.includes('platform_id')) {
+      console.log('Adding platform_id column to projects table')
+      db.exec('ALTER TABLE projects ADD COLUMN platform_id INTEGER REFERENCES platforms(id)')
+    }
+
+    // 初始化默认平台数据
+    initializeDefaultPlatforms()
+    
     console.log('Database migration completed')
     
   } catch (error) {
     console.error('Database migration failed:', error)
     // 不抛出错误，让应用继续运行
+  }
+}
+
+// 初始化默认平台数据
+function initializeDefaultPlatforms() {
+  if (!db) return
+  
+  try {
+    // 检查是否已有平台数据
+    const checkStmt = db.prepare('SELECT COUNT(*) as count FROM platforms')
+    const result = checkStmt.get() as { count: number }
+    
+    if (result.count === 0) {
+      console.log('Initializing default platforms...')
+      
+      const insertStmt = db.prepare(`
+        INSERT INTO platforms (name, description, color, status)
+        VALUES (?, ?, ?, ?)
+      `)
+      
+      const defaultPlatforms = [
+        {
+          name: '采购端网页',
+          description: '采购端网页系统',
+          color: '#3b82f6',
+          status: 'active'
+        },
+        {
+          name: '供应商网页',
+          description: '供应商网页系统', 
+          color: '#10b981',
+          status: 'active'
+        },
+        {
+          name: '供应商小程序',
+          description: '供应商小程序系统',
+          color: '#f59e0b',
+          status: 'active'
+        },
+        {
+          name: '管理后台',
+          description: '管理后台系统',
+          color: '#8b5cf6',
+          status: 'active'
+        }
+      ]
+      
+      for (const platform of defaultPlatforms) {
+        insertStmt.run(platform.name, platform.description, platform.color, platform.status)
+        console.log(`Created default platform: ${platform.name}`)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to initialize default platforms:', error)
   }
 }
 
@@ -311,6 +508,89 @@ export interface FailedCompany {
   error_message?: string
   created_at?: string
   retry_count: number
+}
+
+// 平台类型定义
+export interface Platform {
+  id?: number
+  name: string
+  description?: string
+  color?: string
+  status: 'active' | 'inactive'
+  created_at?: string
+  updated_at?: string
+}
+
+// 项目类型定义
+export interface Project {
+  id?: number
+  name: string
+  description?: string
+  platform_id?: number
+  status: 'active' | 'completed' | 'paused'
+  start_date?: string
+  end_date?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// 开发阶段类型定义
+export interface ProjectPhase {
+  id?: number
+  project_id: number
+  name: string
+  description?: string
+  phase_order: number
+  status: 'pending' | 'in_progress' | 'completed'
+  start_date?: string
+  end_date?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// 功能模块类型定义
+export interface FeatureModule {
+  id?: number
+  project_id: number
+  phase_id?: number
+  name: string
+  description?: string
+  module_order?: number
+  created_at?: string
+  updated_at?: string
+}
+
+// 功能点类型定义
+export interface FeatureItem {
+  id?: number
+  module_id: number
+  name: string
+  description?: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  status: 'pending' | 'in_progress' | 'completed' | 'testing' | 'deployed' | 'paused'
+  progress_percentage: number
+  estimated_hours?: number
+  actual_hours?: number
+  assignee?: string
+  start_date?: string
+  estimated_completion_date?: string
+  actual_completion_date?: string
+  notes?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// 进度记录类型定义
+export interface ProgressRecord {
+  id?: number
+  feature_item_id: number
+  old_status?: string
+  new_status: string
+  old_progress?: number
+  new_progress?: number
+  notes?: string
+  updated_by?: string
+  created_at?: string
 }
 
 // 数据库操作类
@@ -1225,8 +1505,513 @@ export class FailedCompanyDB {
   }
 }
 
+// 平台数据库操作类
+export class PlatformDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入平台
+  insertPlatform(platform: Omit<Platform, 'id' | 'created_at' | 'updated_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO platforms (name, description, color, status)
+      VALUES (?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      platform.name,
+      platform.description || null,
+      platform.color || '#3b82f6',
+      platform.status
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 更新平台
+  updatePlatform(id: number, updates: Partial<Platform>): boolean {
+    const updateFields: string[] = []
+    const values: any[] = []
+    
+    const allowedFields = ['name', 'description', 'color', 'status']
+    
+    for (const field of allowedFields) {
+      if (field in updates && updates[field as keyof Platform] !== undefined) {
+        updateFields.push(`${field} = ?`)
+        values.push(updates[field as keyof Platform])
+      }
+    }
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = CURRENT_TIMESTAMP')
+    values.push(id)
+    
+    const stmt = this.db.prepare(`
+      UPDATE platforms 
+      SET ${updateFields.join(', ')}
+      WHERE id = ?
+    `)
+    
+    const result = stmt.run(...values)
+    return result.changes > 0
+  }
+  
+  // 查询所有平台
+  findAll(): Platform[] {
+    const stmt = this.db.prepare('SELECT * FROM platforms WHERE status = ? ORDER BY created_at DESC')
+    return stmt.all('active') as Platform[]
+  }
+  
+  // 根据ID查询平台
+  findById(id: number): Platform | null {
+    const stmt = this.db.prepare('SELECT * FROM platforms WHERE id = ?')
+    return stmt.get(id) as Platform | null
+  }
+  
+  // 根据名称查询平台
+  findByName(name: string): Platform | null {
+    const stmt = this.db.prepare('SELECT * FROM platforms WHERE name = ?')
+    return stmt.get(name) as Platform | null
+  }
+  
+  // 删除平台
+  deletePlatform(id: number): boolean {
+    const stmt = this.db.prepare('UPDATE platforms SET status = ? WHERE id = ?')
+    const result = stmt.run('inactive', id)
+    return result.changes > 0
+  }
+  
+  // 检查平台名称是否存在
+  exists(name: string, excludeId?: number): boolean {
+    let stmt
+    if (excludeId) {
+      stmt = this.db.prepare('SELECT COUNT(*) as count FROM platforms WHERE name = ? AND id != ? AND status = ?')
+      const result = stmt.get(name, excludeId, 'active') as { count: number }
+      return result.count > 0
+    } else {
+      stmt = this.db.prepare('SELECT COUNT(*) as count FROM platforms WHERE name = ? AND status = ?')
+      const result = stmt.get(name, 'active') as { count: number }
+      return result.count > 0
+    }
+  }
+}
+
+// 项目数据库操作类
+export class ProjectDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入项目
+  insertProject(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO projects (name, description, platform_id, status, start_date, end_date)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      project.name,
+      project.description || null,
+      project.platform_id || null,
+      project.status,
+      project.start_date || null,
+      project.end_date || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 更新项目
+  updateProject(id: number, updates: Partial<Project>): boolean {
+    const updateFields: string[] = []
+    const values: any[] = []
+    
+    const allowedFields = ['name', 'description', 'platform_id', 'status', 'start_date', 'end_date']
+    
+    for (const field of allowedFields) {
+      if (field in updates && updates[field as keyof Project] !== undefined) {
+        updateFields.push(`${field} = ?`)
+        values.push(updates[field as keyof Project])
+      }
+    }
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = CURRENT_TIMESTAMP')
+    values.push(id)
+    
+    const stmt = this.db.prepare(`
+      UPDATE projects 
+      SET ${updateFields.join(', ')}
+      WHERE id = ?
+    `)
+    
+    const result = stmt.run(...values)
+    return result.changes > 0
+  }
+  
+  // 查询所有项目
+  findAll(): Project[] {
+    const stmt = this.db.prepare('SELECT * FROM projects ORDER BY created_at DESC')
+    return stmt.all() as Project[]
+  }
+
+  // 根据平台ID查询项目
+  findByPlatformId(platformId: number): Project[] {
+    const stmt = this.db.prepare('SELECT * FROM projects WHERE platform_id = ? ORDER BY created_at DESC')
+    return stmt.all(platformId) as Project[]
+  }
+  
+  // 根据ID查询项目
+  findById(id: number): Project | null {
+    const stmt = this.db.prepare('SELECT * FROM projects WHERE id = ?')
+    return stmt.get(id) as Project | null
+  }
+  
+  // 删除项目
+  deleteProject(id: number): boolean {
+    const stmt = this.db.prepare('DELETE FROM projects WHERE id = ?')
+    const result = stmt.run(id)
+    return result.changes > 0
+  }
+}
+
+// 项目阶段数据库操作类
+export class ProjectPhaseDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入项目阶段
+  insertPhase(phase: Omit<ProjectPhase, 'id' | 'created_at' | 'updated_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO project_phases (project_id, name, description, phase_order, status, start_date, end_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      phase.project_id,
+      phase.name,
+      phase.description || null,
+      phase.phase_order,
+      phase.status,
+      phase.start_date || null,
+      phase.end_date || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 根据项目ID查询阶段
+  findByProjectId(projectId: number): ProjectPhase[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM project_phases 
+      WHERE project_id = ? 
+      ORDER BY phase_order ASC
+    `)
+    return stmt.all(projectId) as ProjectPhase[]
+  }
+
+  // 根据ID查询阶段
+  findById(id: number): ProjectPhase | null {
+    const stmt = this.db.prepare('SELECT * FROM project_phases WHERE id = ?')
+    return stmt.get(id) as ProjectPhase | null
+  }
+  
+  // 更新阶段状态
+  updateStatus(id: number, status: ProjectPhase['status']): boolean {
+    const stmt = this.db.prepare(`
+      UPDATE project_phases 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `)
+    
+    const result = stmt.run(status, id)
+    return result.changes > 0
+  }
+}
+
+// 功能模块数据库操作类
+export class FeatureModuleDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入功能模块
+  insertModule(module: Omit<FeatureModule, 'id' | 'created_at' | 'updated_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO feature_modules (project_id, phase_id, name, description, module_order)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      module.project_id,
+      module.phase_id || null,
+      module.name,
+      module.description || null,
+      module.module_order || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 根据项目ID查询模块
+  findByProjectId(projectId: number): FeatureModule[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM feature_modules 
+      WHERE project_id = ? 
+      ORDER BY module_order ASC, created_at ASC
+    `)
+    return stmt.all(projectId) as FeatureModule[]
+  }
+  
+  // 根据阶段ID查询模块
+  findByPhaseId(phaseId: number): FeatureModule[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM feature_modules 
+      WHERE phase_id = ? 
+      ORDER BY module_order ASC, created_at ASC
+    `)
+    return stmt.all(phaseId) as FeatureModule[]
+  }
+
+  // 根据ID查询模块
+  findById(id: number): FeatureModule | null {
+    const stmt = this.db.prepare('SELECT * FROM feature_modules WHERE id = ?')
+    return stmt.get(id) as FeatureModule | null
+  }
+}
+
+// 功能点数据库操作类
+export class FeatureItemDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入功能点
+  insertItem(item: Omit<FeatureItem, 'id' | 'created_at' | 'updated_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO feature_items 
+      (module_id, name, description, priority, status, progress_percentage, estimated_hours, actual_hours, 
+       assignee, start_date, estimated_completion_date, actual_completion_date, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      item.module_id,
+      item.name,
+      item.description || null,
+      item.priority,
+      item.status,
+      item.progress_percentage,
+      item.estimated_hours || null,
+      item.actual_hours || null,
+      item.assignee || null,
+      item.start_date || null,
+      item.estimated_completion_date || null,
+      item.actual_completion_date || null,
+      item.notes || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 批量插入功能点
+  insertBatch(items: Omit<FeatureItem, 'id' | 'created_at' | 'updated_at'>[]): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO feature_items 
+      (module_id, name, description, priority, status, progress_percentage, estimated_hours, actual_hours, 
+       assignee, start_date, estimated_completion_date, actual_completion_date, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const transaction = this.db.transaction((items: Omit<FeatureItem, 'id' | 'created_at' | 'updated_at'>[]) => {
+      let insertedCount = 0
+      for (const item of items) {
+        stmt.run(
+          item.module_id,
+          item.name,
+          item.description || null,
+          item.priority,
+          item.status,
+          item.progress_percentage,
+          item.estimated_hours || null,
+          item.actual_hours || null,
+          item.assignee || null,
+          item.start_date || null,
+          item.estimated_completion_date || null,
+          item.actual_completion_date || null,
+          item.notes || null
+        )
+        insertedCount++
+      }
+      return insertedCount
+    })
+    
+    return transaction(items)
+  }
+  
+  // 更新功能点状态和进度
+  updateProgress(id: number, status: FeatureItem['status'], progress: number, notes?: string): boolean {
+    // 先记录进度变更历史
+    const currentItem = this.findById(id)
+    if (currentItem) {
+      const progressDB = new ProgressRecordDB()
+      progressDB.insertRecord({
+        feature_item_id: id,
+        old_status: currentItem.status,
+        new_status: status,
+        old_progress: currentItem.progress_percentage,
+        new_progress: progress,
+        notes: notes || null,
+        updated_by: 'system'
+      })
+    }
+    
+    const stmt = this.db.prepare(`
+      UPDATE feature_items 
+      SET status = ?, progress_percentage = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `)
+    
+    const result = stmt.run(status, progress, notes || null, id)
+    return result.changes > 0
+  }
+  
+  // 根据模块ID查询功能点
+  findByModuleId(moduleId: number): FeatureItem[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM feature_items 
+      WHERE module_id = ? 
+      ORDER BY created_at ASC
+    `)
+    return stmt.all(moduleId) as FeatureItem[]
+  }
+  
+  // 根据ID查询功能点
+  findById(id: number): FeatureItem | null {
+    const stmt = this.db.prepare('SELECT * FROM feature_items WHERE id = ?')
+    return stmt.get(id) as FeatureItem | null
+  }
+  
+  // 根据项目ID查询所有功能点
+  findByProjectId(projectId: number): FeatureItem[] {
+    const stmt = this.db.prepare(`
+      SELECT fi.* FROM feature_items fi
+      JOIN feature_modules fm ON fi.module_id = fm.id
+      WHERE fm.project_id = ?
+      ORDER BY fm.module_order ASC, fi.created_at ASC
+    `)
+    return stmt.all(projectId) as FeatureItem[]
+  }
+
+  // 根据项目ID和期名称查询功能点
+  findByProjectAndPhase(projectId: number, phaseName: string): FeatureItem[] {
+    const stmt = this.db.prepare(`
+      SELECT fi.* FROM feature_items fi
+      JOIN feature_modules fm ON fi.module_id = fm.id
+      JOIN project_phases pp ON fm.phase_id = pp.id
+      WHERE fm.project_id = ? AND pp.name = ?
+      ORDER BY fm.module_order ASC, fi.created_at ASC
+    `)
+    return stmt.all(projectId, phaseName) as FeatureItem[]
+  }
+  
+  // 统计项目进度
+  getProjectStats(projectId: number): {
+    totalItems: number
+    completedItems: number
+    inProgressItems: number
+    pendingItems: number
+    completionRate: number
+  } {
+    const stmt = this.db.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status IN ('completed', 'deployed') THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending
+      FROM feature_items fi
+      JOIN feature_modules fm ON fi.module_id = fm.id
+      WHERE fm.project_id = ?
+    `)
+    
+    const result = stmt.get(projectId) as {
+      total: number
+      completed: number
+      in_progress: number
+      pending: number
+    }
+    
+    return {
+      totalItems: result.total || 0,
+      completedItems: result.completed || 0,
+      inProgressItems: result.in_progress || 0,
+      pendingItems: result.pending || 0,
+      completionRate: result.total > 0 ? Math.round((result.completed / result.total) * 100) : 0
+    }
+  }
+}
+
+// 进度记录数据库操作类
+export class ProgressRecordDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入进度记录
+  insertRecord(record: Omit<ProgressRecord, 'id' | 'created_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO progress_records 
+      (feature_item_id, old_status, new_status, old_progress, new_progress, notes, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      record.feature_item_id,
+      record.old_status || null,
+      record.new_status,
+      record.old_progress || null,
+      record.new_progress || null,
+      record.notes || null,
+      record.updated_by || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 根据功能点ID查询进度记录
+  findByFeatureItemId(featureItemId: number): ProgressRecord[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM progress_records 
+      WHERE feature_item_id = ? 
+      ORDER BY created_at DESC
+    `)
+    return stmt.all(featureItemId) as ProgressRecord[]
+  }
+}
+
 // 导出单例实例
 export const smsRecordDB = new SmsRecordDB()
 export const phoneNumberDB = new PhoneNumberDB()
 export const importRecordDB = new ImportRecordDB()
 export const failedCompanyDB = new FailedCompanyDB()
+export const platformDB = new PlatformDB()
+export const projectDB = new ProjectDB()
+export const projectPhaseDB = new ProjectPhaseDB()
+export const featureModuleDB = new FeatureModuleDB()
+export const featureItemDB = new FeatureItemDB()
+export const progressRecordDB = new ProgressRecordDB()
