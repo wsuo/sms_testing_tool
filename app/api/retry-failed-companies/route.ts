@@ -127,13 +127,23 @@ export async function POST(request: NextRequest) {
           ]
         })
         
-        // seller_company_lang表
+        // seller_company_lang表 - 使用 INSERT ... ON DUPLICATE KEY UPDATE 避免重复记录
         const updateLangSQL = `
-          REPLACE INTO seller_company_lang (
+          INSERT INTO seller_company_lang (
             company_id, language_code, name, province, city, county,
             address, business_scope, contact_person, contact_person_title,
             intro
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            province = VALUES(province),
+            city = VALUES(city),
+            county = VALUES(county),
+            address = VALUES(address),
+            business_scope = VALUES(business_scope),
+            contact_person = VALUES(contact_person),
+            contact_person_title = VALUES(contact_person_title),
+            intro = VALUES(intro)
         `
         
         queries.push({
