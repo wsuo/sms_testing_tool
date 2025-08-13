@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
+import { useAuth } from '@/contexts/auth-context'
+import { AuthDialog } from '@/components/auth-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -25,8 +27,11 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Trash2
+  Trash2,
+  Shield,
+  Lock
 } from 'lucide-react'
+import { ModuleHeader } from '@/components/module-header'
 
 interface TrainingRecord {
   id: number
@@ -77,6 +82,9 @@ interface QuestionSet {
 }
 
 export default function TrainingAdminPage() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
+  
   const [records, setRecords] = useState<TrainingRecord[]>([])
   const [statistics, setStatistics] = useState<Statistics | null>(null)
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([])
@@ -112,8 +120,23 @@ export default function TrainingAdminPage() {
   })
 
   useEffect(() => {
+    // 认证检查完成后再加载数据
+    if (!authLoading) {
+      if (isAuthenticated) {
+        loadData()
+      } else {
+        // 如果未认证，显示认证对话框
+        setShowAuthDialog(true)
+        setLoading(false)
+      }
+    }
+  }, [pagination.page, filters, isAuthenticated, authLoading])
+
+  // 认证成功后的回调
+  const handleAuthSuccess = () => {
+    setShowAuthDialog(false)
     loadData()
-  }, [pagination.page, filters])
+  }
 
   const loadData = async () => {
     try {
@@ -234,26 +257,109 @@ export default function TrainingAdminPage() {
     return 'text-orange-600'
   }
 
-  return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">培训考试统计管理</h1>
-          <p className="text-muted-foreground mt-2">管理和查看员工培训考试记录</p>
-        </div>
+  // 认证加载中的显示
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
         
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={loadData} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-          <Button onClick={() => handleExport('xlsx')} disabled={exporting}>
-            <FileDown className="w-4 h-4 mr-2" />
-            {exporting ? '导出中...' : '导出Excel'}
-          </Button>
+        <ModuleHeader
+          title="培训管理"
+          description="管理和查看员工培训考试记录"
+          icon={Users}
+          showAuthStatus={true}
+        />
+        
+        <div className="pt-24 container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center space-y-4">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-muted-foreground">正在验证身份...</p>
+            </div>
+          </div>
         </div>
       </div>
+    )
+  }
+
+  // 未认证状态的显示
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+        
+        <ModuleHeader
+          title="培训管理"
+          description="管理和查看员工培训考试记录"
+          icon={Users}
+          showAuthStatus={true}
+        />
+        
+        <div className="pt-24 container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <div className="flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-orange-600" />
+                </div>
+                <CardTitle className="text-xl">需要管理员认证</CardTitle>
+                <CardDescription>
+                  此页面需要管理员权限才能访问。请点击下方按钮进行身份验证。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <Button 
+                  onClick={() => setShowAuthDialog(true)}
+                  size="lg"
+                  className="w-full"
+                >
+                  <Lock className="w-4 h-4 mr-2" />
+                  管理员登录
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        
+        {/* 认证对话框 */}
+        <AuthDialog
+          isOpen={showAuthDialog}
+          onClose={() => setShowAuthDialog(false)}
+          onSuccess={handleAuthSuccess}
+          title="培训管理员认证"
+          description="请输入管理员密码以访问培训管理功能"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+      {/* 动态背景装饰 */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+      
+      <ModuleHeader
+        title="培训管理"
+        description="管理和查看员工培训考试记录"
+        icon={Users}
+        showAuthStatus={true}
+      />
+      
+      <div className="pt-24 container mx-auto px-4 py-8 space-y-8">
+        {/* 页面控制按钮 */}
+        <div className="flex items-center justify-between">
+          <div></div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={loadData} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              刷新
+            </Button>
+            <Button onClick={() => handleExport('xlsx')} disabled={exporting}>
+              <FileDown className="w-4 h-4 mr-2" />
+              {exporting ? '导出中...' : '导出Excel'}
+            </Button>
+          </div>
+        </div>
 
       {error && (
         <Alert variant="destructive">
@@ -805,6 +911,7 @@ export default function TrainingAdminPage() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   )
 }
