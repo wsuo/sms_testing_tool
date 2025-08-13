@@ -45,7 +45,7 @@ export function ModuleHeader({
   }
 
   return (
-    <div className={`bg-white/90 backdrop-blur-sm border-b fixed top-0 left-0 right-0 z-40 ${className}`}>
+    <div className={`bg-emerald-50/80 backdrop-blur-xl border-b border-emerald-200/50 fixed top-0 left-0 right-0 z-40 ${className}`}>
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* 左侧：导航和标题 */}
@@ -74,7 +74,7 @@ export function ModuleHeader({
                 className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
               >
                 <Home className="w-4 h-4" />
-                <span className="hidden sm:inline">工具箱</span>
+                <span className="hidden sm:inline">首页</span>
               </Button>
             </div>
 
@@ -88,9 +88,9 @@ export function ModuleHeader({
                 </div>
               )}
               <div>
-                <h1 className="text-xl font-bold text-foreground">{title}</h1>
+                <h1 className="text-xl font-bold text-gray-600">{title}</h1>
                 {description && (
-                  <p className="text-sm text-muted-foreground">{description}</p>
+                  <p className="text-sm text-gray-500">{description}</p>
                 )}
               </div>
             </div>
@@ -102,7 +102,7 @@ export function ModuleHeader({
               {/* 认证状态 */}
               <Badge 
                 variant={isAuthenticated ? "default" : "secondary"}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200"
               >
                 {isAuthenticated ? (
                   <>
@@ -125,7 +125,7 @@ export function ModuleHeader({
                   variant="outline"
                   size="sm"
                   onClick={logout}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 border-gray-300 text-gray-600 hover:bg-gray-50"
                 >
                   <LogOut className="w-4 h-4" />
                   <span className="hidden sm:inline">退出</span>
