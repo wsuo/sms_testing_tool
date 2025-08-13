@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { PlatformFooter } from '@/components/platform-footer'
 import { 
   CheckCircle, 
   XCircle, 
@@ -383,8 +384,9 @@ export default function TrainingResultPage() {
         </div>
 
         {/* 底部提示 */}
-        <div className="text-center mt-8 text-sm text-muted-foreground">
+        <div className="text-center mt-8 text-sm text-muted-foreground space-y-2">
           <p>考试结果已自动保存，如需重新参加考试或查询历史记录请联系管理员</p>
+          <PlatformFooter />
         </div>
       </div>
     </div>

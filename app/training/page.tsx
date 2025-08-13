@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { BookOpen, Clock, Target, Users, ArrowRight, CheckCircle, GraduationCap } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { BookOpen, Clock, Target, Users, ArrowRight, CheckCircle, GraduationCap } from 'lucide-react'
+import { PlatformFooter } from '@/components/platform-footer'
 
 export default function TrainingEntryPage() {
   const [employeeName, setEmployeeName] = useState('')
@@ -89,7 +90,10 @@ export default function TrainingEntryPage() {
         showAuthStatus={false}
       />
       
-      <div className="pt-20 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden pt-24 p-4">
+        {/* 动态背景装饰 */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+        
         <div className="container mx-auto max-w-4xl py-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -276,9 +280,7 @@ export default function TrainingEntryPage() {
         </div>
 
         {/* 底部信息 */}
-        <div className="text-center text-sm text-muted-foreground">
-          <p>© 2025 公司培训系统 - 本系统仅用于内部培训考试</p>
-        </div>
+        <PlatformFooter />
       </div>
     </div>
     </>
