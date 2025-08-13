@@ -49,6 +49,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { ModuleHeader } from "@/components/module-header"
 import { DataImportModal } from "@/components/data-import-modal"
 import { FeatureEditModal } from "@/components/feature-edit-modal"
+import { WithAdminAuth } from "@/components/with-admin-auth"
 
 // 接口定义 - 重新设计数据结构
 interface PhaseStats {
@@ -677,13 +678,15 @@ export default function ProjectProgressPage() {
                                             <Edit className="h-4 w-4 mr-2" />
                                             编辑
                                           </DropdownMenuItem>
-                                          <DropdownMenuItem 
-                                            className="text-red-600"
-                                            onClick={() => handleDeleteFeatureItem(item)}
-                                          >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            删除
-                                          </DropdownMenuItem>
+                                          <WithAdminAuth actionName="删除功能项">
+                                            <DropdownMenuItem 
+                                              className="text-red-600"
+                                              onClick={() => handleDeleteFeatureItem(item)}
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              删除
+                                            </DropdownMenuItem>
+                                          </WithAdminAuth>
                                         </DropdownMenuContent>
                                       </DropdownMenu>
                                     </div>

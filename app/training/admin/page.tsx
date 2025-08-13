@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { AuthDialog } from '@/components/auth-dialog'
+import { WithAdminAuth } from '@/components/with-admin-auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -632,15 +633,17 @@ export default function TrainingAdminPage() {
                               <Eye className="w-3 h-3 mr-1" />
                               查看
                             </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleDeleteRecord(record)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" />
-                              删除
-                            </Button>
+                            <WithAdminAuth actionName="删除考试记录">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleDeleteRecord(record)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                删除
+                              </Button>
+                            </WithAdminAuth>
                           </div>
                         </td>
                       </tr>

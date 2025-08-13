@@ -30,6 +30,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { ModuleHeader } from "@/components/module-header"
+import { WithAdminAuth } from "@/components/with-admin-auth"
 import * as XLSX from 'xlsx'
 
 interface CompanyData {
@@ -1286,14 +1287,16 @@ export default function DataManagementPage() {
                       )}
                     </Badge>
                     {!importResults && (
-                      <Button
-                        onClick={handleImport}
-                        disabled={validationErrors.length > 0 || isProcessing || companyData.length === 0}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <Save className="w-4 h-4 mr-2" />
-                        {isProcessing ? '导入中...' : '开始导入'}
-                      </Button>
+                      <WithAdminAuth actionName="批量导入供应商数据">
+                        <Button
+                          onClick={handleImport}
+                          disabled={validationErrors.length > 0 || isProcessing || companyData.length === 0}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <Save className="w-4 h-4 mr-2" />
+                          {isProcessing ? '导入中...' : '开始导入'}
+                        </Button>
+                      </WithAdminAuth>
                     )}
                     {importResults && (
                       <Button
@@ -1680,13 +1683,15 @@ export default function DataManagementPage() {
             >
               取消
             </Button>
-            <Button 
-              onClick={handleBulkUpdate} 
-              disabled={isBulkUpdating}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isBulkUpdating ? '更新中...' : '确认删除'}
-            </Button>
+            <WithAdminAuth actionName="批量删除重复供应商数据">
+              <Button 
+                onClick={handleBulkUpdate} 
+                disabled={isBulkUpdating}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isBulkUpdating ? '更新中...' : '确认删除'}
+              </Button>
+            </WithAdminAuth>
           </DialogFooter>
         </DialogContent>
       </Dialog>
