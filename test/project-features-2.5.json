@@ -1,0 +1,482 @@
+{
+  "phase": {
+    "name": "2.5期",
+    "description": "2.5期开发阶段",
+    "status": "in_progress"
+  },
+  "platforms": [
+    {
+      "name": "采购端网页",
+      "description": "采购端网页系统，为采购商提供采购服务",
+      "modules": [
+        {
+          "name": "用户管理",
+          "description": "用户注册、登录、个人信息管理"
+        },
+        {
+          "name": "公司管理",
+          "description": "公司资料管理和认证"
+        },
+        {
+          "name": "采购系统",
+          "description": "衣料产品库、购物车功能"
+        },
+        {
+          "name": "支付系统",
+          "description": "PAYPAL自动跳转支付"
+        },
+        {
+          "name": "智能客服",
+          "description": "AI问客优化、AI工作流、对话反馈"
+        },
+        {
+          "name": "会员系统",
+          "description": "VIP会员权益管理"
+        }
+      ],
+      "featureItems": [
+        {
+          "moduleName": "用户管理",
+          "name": "首页筛选功能",
+          "description": "1. 首页增加筛选功能切换入口；2. 首页增加切换到筛选页面对应页功能",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 16,
+          "actualHours": 16,
+          "estimatedDate": "2025-08-15",
+          "actualDate": "2025-08-15",
+          "notes": "第一批已完成"
+        },
+        {
+          "moduleName": "用户管理",
+          "name": "账号设置功能",
+          "description": "增加账号绑定和解绑功能的前端页面",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 12,
+          "actualHours": 12,
+          "estimatedDate": "2025-08-15",
+          "actualDate": "2025-08-15",
+          "notes": "第一批已完成"
+        },
+        {
+          "moduleName": "用户管理",
+          "name": "注册界面优化",
+          "description": "增加会员投资额设置的界面，支持个人信息设置取消操作",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 10,
+          "actualHours": 10,
+          "estimatedDate": "2025-08-15",
+          "actualDate": "2025-08-15",
+          "notes": "第一批已完成"
+        },
+        {
+          "moduleName": "用户管理",
+          "name": "个人信息管理",
+          "description": "个人账号信息管理增加字段（国家、地区等）",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 8,
+          "actualHours": 8,
+          "estimatedDate": "2025-08-15",
+          "actualDate": "2025-08-15",
+          "notes": "第一批已完成"
+        },
+        {
+          "moduleName": "公司管理",
+          "name": "公司资料管理",
+          "description": "1.具有注册信息的公司信息 2.采购商具备一般分类进行注册，起用平台的功能（消价、登记、样品、司接、司采等供应信息的显示）",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 20,
+          "actualHours": 20,
+          "estimatedDate": "2025-08-15",
+          "actualDate": "2025-08-15",
+          "notes": "第一批已完成"
+        },
+        {
+          "moduleName": "采购系统",
+          "name": "衣料产品库",
+          "description": "1. 消价、登记、样品；全分别出现购买、确认是否接受报价；",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 18,
+          "actualHours": 18,
+          "estimatedDate": "2025-08-30",
+          "actualDate": "2025-08-30",
+          "notes": "第三批已完成"
+        },
+        {
+          "moduleName": "采购系统",
+          "name": "购物车",
+          "description": "1. 消价、登记、样品；全分别出现购买、确认是否接受报价；",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 12,
+          "actualHours": 12,
+          "estimatedDate": "2025-08-30",
+          "actualDate": "2025-08-30",
+          "notes": "第三批已完成"
+        },
+        {
+          "moduleName": "支付系统",
+          "name": "PAYPAL自动跳转",
+          "description": "1. paypal 自动跳转功能",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 20,
+          "actualHours": 20,
+          "estimatedDate": "2025-09-30",
+          "actualDate": "2025-09-30",
+          "notes": "最终批已完成"
+        },
+        {
+          "moduleName": "智能客服",
+          "name": "解对话反馈",
+          "description": "1. 解得好解得的不好； 2. 选择解得不好支持反馈具体的文字意见反馈；",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 16,
+          "actualHours": 16,
+          "estimatedDate": "2025-08-30",
+          "actualDate": "2025-08-30",
+          "notes": "第三批已完成"
+        },
+        {
+          "moduleName": "智能客服",
+          "name": "AI仪器查询反馈",
+          "description": "1. 解得好解得的不好； 2. 选择解得不好支持反馈具体的文字意见反馈；",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 16,
+          "actualHours": 16,
+          "estimatedDate": "2025-08-30",
+          "actualDate": "2025-08-30",
+          "notes": "第三批已完成"
+        },
+        {
+          "moduleName": "智能客服",
+          "name": "AI问客优化",
+          "description": "1. 英语语音 FAI测试； 2. 切换解答案mini2.5人数限制；",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 50,
+          "assignee": "苏州团队",
+          "estimatedHours": 30,
+          "actualHours": 15,
+          "estimatedDate": "2025-09-30",
+          "notes": "已开发一半"
+        },
+        {
+          "moduleName": "智能客服",
+          "name": "AI工作流",
+          "description": "1. 在现有的AI客务女士中增加助理功能-div 工作流，这配仅中文，英文支持预留； 2. 增加回复商务有关表流功能；",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 40,
+          "actualHours": 40,
+          "estimatedDate": "2025-09-30",
+          "actualDate": "2025-09-30",
+          "notes": "最终批已完成"
+        },
+        {
+          "moduleName": "会员系统",
+          "name": "会员权益",
+          "description": "2. 开发VIP工具数据、消价次数、样品次数、登记次数、AI查询次数的会员权益及效益设的页面及服金设的",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 70,
+          "assignee": "苏州团队",
+          "estimatedHours": 35,
+          "actualHours": 25,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "会员系统",
+          "name": "VIP功能",
+          "description": "1. 增加地区筛选系统或式查者次数限制； 2. 开发VIP工具数据、消价次数、样品次数、登记次数、AI查询次数等各会员权益设页面；",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 60,
+          "assignee": "苏州团队",
+          "estimatedHours": 40,
+          "actualHours": 24,
+          "estimatedDate": "2025-09-15",
+          "notes": "查者次数可连接后台修改"
+        }
+      ]
+    },
+    {
+      "name": "供应商网页",
+      "description": "供应商网页系统，为供应商提供业务管理服务",
+      "modules": [
+        {
+          "name": "用户管理",
+          "description": "用户注册、登录、个人信息管理"
+        },
+        {
+          "name": "商品管理",
+          "description": "报价管理、供品管理、登记管理"
+        },
+        {
+          "name": "供应商服务",
+          "description": "供应商主页、权限管理"
+        }
+      ],
+      "featureItems": [
+        {
+          "moduleName": "用户管理",
+          "name": "个人资料管理",
+          "description": "增加筛选、微信、WhatsApp、LinkedIn信息显示；",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 80,
+          "assignee": "苏州团队",
+          "estimatedHours": 15,
+          "actualHours": 12,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "用户管理",
+          "name": "AI工资料管理",
+          "description": "增加筛选、微信、WhatsApp、LinkedIn信息显示；",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 80,
+          "assignee": "苏州团队",
+          "estimatedHours": 15,
+          "actualHours": 12,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "商品管理",
+          "name": "报价管理",
+          "description": "采用新报价保护和报价",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 80,
+          "assignee": "苏州团队",
+          "estimatedHours": 15,
+          "actualHours": 12,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "商品管理",
+          "name": "供品管理",
+          "description": "采用新报价保护和报价",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 80,
+          "assignee": "苏州团队",
+          "estimatedHours": 15,
+          "actualHours": 12,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "商品管理",
+          "name": "登记管理",
+          "description": "采用新报价保护和报价",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 80,
+          "assignee": "苏州团队",
+          "estimatedHours": 15,
+          "actualHours": 12,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "供应商服务",
+          "name": "供应商主页",
+          "description": "应用系统各种权限判定：3、消价、登记、样品、会否列出现购买、需要会员验证判断",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 25,
+          "actualHours": 25,
+          "estimatedDate": "2025-08-30",
+          "actualDate": "2025-08-30",
+          "notes": "第三批已完成"
+        }
+      ]
+    },
+    {
+      "name": "供应商小程序",
+      "description": "供应商小程序系统，为供应商提供移动端服务",
+      "modules": [
+        {
+          "name": "会员系统",
+          "description": "VIP会员权益管理"
+        }
+      ],
+      "featureItems": [
+        {
+          "moduleName": "会员系统",
+          "name": "VIP权益管理",
+          "description": "1. 开发VIP工具数据、消价次数、样品次数、登记次数的会员权益及效益权益",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 60,
+          "assignee": "苏州团队",
+          "estimatedHours": 30,
+          "actualHours": 18,
+          "estimatedDate": "2025-09-15",
+          "notes": "已开发大部分"
+        }
+      ]
+    },
+    {
+      "name": "管理后台",
+      "description": "管理后台系统，为管理员提供系统管理功能",
+      "modules": [
+        {
+          "name": "采购商管理",
+          "description": "采购商信息管理、评价管理、权限管理"
+        },
+        {
+          "name": "供应商管理",
+          "description": "供应商信息管理、评价管理、商品管理"
+        }
+      ],
+      "featureItems": [
+        {
+          "moduleName": "采购商管理",
+          "name": "采购商管理-会员延长",
+          "description": "1. 增加地区筛选系统或式查者次数限制；",
+          "priority": "low",
+          "status": "in_progress",
+          "progress": 30,
+          "assignee": "苏州团队",
+          "estimatedHours": 20,
+          "actualHours": 6,
+          "estimatedDate": "2025-09-15",
+          "notes": "查者次数可连接后台修改"
+        },
+        {
+          "moduleName": "采购商管理",
+          "name": "采购商管理-评价",
+          "description": "1. 对采购商完成平台评价； 2. 支持当季购买消费金额评价记录；",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 40,
+          "assignee": "苏州团队",
+          "estimatedHours": 25,
+          "actualHours": 10,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "采购商管理",
+          "name": "采购商管理-AI工管理",
+          "description": "1. 向步采购众个人智慧线路的字段、后台可修改；",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 15,
+          "actualHours": 15,
+          "estimatedDate": "2025-08-15",
+          "actualDate": "2025-08-15",
+          "notes": "第一批已完成"
+        },
+        {
+          "moduleName": "采购商管理",
+          "name": "采购商管理-编辑",
+          "description": "1. 向步采购众业务智慧管理修改的字段、后台可以修改；",
+          "priority": "high",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 15,
+          "actualHours": 15,
+          "estimatedDate": "2025-08-15",
+          "actualDate": "2025-08-15",
+          "notes": "第一批已完成"
+        },
+        {
+          "moduleName": "供应商管理",
+          "name": "供应商管理-AI工管理",
+          "description": "1. 增加筛选、微信、WhatsApp、LinkedIn信息显示；",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 18,
+          "actualHours": 18,
+          "estimatedDate": "2025-08-30",
+          "actualDate": "2025-08-30",
+          "notes": "第三批已完成"
+        },
+        {
+          "moduleName": "供应商管理",
+          "name": "供应商管理-评价管理",
+          "description": "1. 对供应商完成平台评价； 2. 支持当季客户购买消费金额评价记录；",
+          "priority": "medium",
+          "status": "completed",
+          "progress": 100,
+          "assignee": "苏州团队",
+          "estimatedHours": 25,
+          "actualHours": 25,
+          "estimatedDate": "2025-09-15",
+          "actualDate": "2025-09-15",
+          "notes": "第三批已完成"
+        },
+        {
+          "moduleName": "供应商管理",
+          "name": "供应商管理-供品管理",
+          "description": "1. 采用新报价保护和报价分；",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 75,
+          "assignee": "苏州团队",
+          "estimatedHours": 20,
+          "actualHours": 15,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        },
+        {
+          "moduleName": "供应商管理",
+          "name": "供应商管理-登记管理",
+          "description": "1. 采用新报价保护和报价分；",
+          "priority": "medium",
+          "status": "in_progress",
+          "progress": 75,
+          "assignee": "苏州团队",
+          "estimatedHours": 20,
+          "actualHours": 15,
+          "estimatedDate": "2025-09-15",
+          "notes": "第三批开发中"
+        }
+      ]
+    }
+  ]
+}
