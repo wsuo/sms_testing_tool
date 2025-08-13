@@ -1,24 +1,22 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
-import Link from "next/link"
+import React, { useEffect, useState } from 'react'
+import Image from 'next/image'
+import { useAuth } from '@/contexts/auth-context'
+import { ModernToolCard } from '@/components/modern-tool-card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 import { 
   MessageSquare, 
-  Upload, 
+  Kanban, 
+  GraduationCap,
+  Database,
   TrendingUp,
-  Activity,
-  Clock,
-  ArrowRight,
-  CheckCircle,
-  AlertCircle,
-  Kanban,
-  Target,
-  GraduationCap
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+  Users,
+  LogOut,
+  Sparkles
+} from 'lucide-react'
 
 interface DashboardStats {
   smsStats: {
@@ -27,351 +25,254 @@ interface DashboardStats {
     pendingCount: number
   }
   projectStats: {
-    totalProjects: number
     activeProjects: number
     totalItems: number
     completedItems: number
     completionRate: number
   }
-  recentActivity: {
-    type: string
-    message: string
-    timestamp: string
-    status: 'success' | 'warning' | 'error'
-  }[]
 }
 
-export default function PlatformDashboard() {
+export default function ToolboxHomepage() {
+  const { isAuthenticated, isLoading, logout } = useAuth()
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
-    smsStats: {
-      totalSent: 0,
-      successRate: 0,
-      pendingCount: 0
-    },
-    projectStats: {
-      totalProjects: 0,
-      activeProjects: 0,
-      totalItems: 0,
-      completedItems: 0,
-      completionRate: 0
-    },
-    recentActivity: []
+    smsStats: { totalSent: 0, successRate: 0, pendingCount: 0 },
+    projectStats: { activeProjects: 0, totalItems: 0, completedItems: 0, completionRate: 0 }
   })
-  const [isLoading, setIsLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(true)
 
+  // 加载统计数据
   useEffect(() => {
-    loadDashboardData()
+    const loadStats = async () => {
+      try {
+        // 并行加载所有统计数据
+        const [smsResponse, projectResponse] = await Promise.allSettled([
+          fetch('/api/sms-records').then(res => res.ok ? res.json() : null),
+          fetch('/api/project-progress').then(res => res.ok ? res.json() : null)
+        ])
+
+        const smsData = smsResponse.status === 'fulfilled' ? smsResponse.value : null
+        const projectData = projectResponse.status === 'fulfilled' ? projectResponse.value : null
+
+        setDashboardStats({
+          smsStats: smsData ? {
+            totalSent: smsData.data?.records?.length || 0,
+            successRate: 95,
+            pendingCount: 0
+          } : { totalSent: 0, successRate: 0, pendingCount: 0 },
+          projectStats: projectData ? {
+            activeProjects: projectData.data?.projects?.length || 0,
+            totalItems: projectData.data?.stats?.totalItems || 0,
+            completedItems: projectData.data?.stats?.completedItems || 0,
+            completionRate: projectData.data?.stats?.completionRate || 0
+          } : { activeProjects: 0, totalItems: 0, completedItems: 0, completionRate: 0 }
+        })
+      } catch (error) {
+        console.error('加载统计数据失败:', error)
+      } finally {
+        setStatsLoading(false)
+      }
+    }
+
+    loadStats()
   }, [])
 
-  const loadDashboardData = async () => {
-    try {
-      // Load SMS statistics from analytics API
-      const smsResponse = await fetch('/api/analytics?range=week')
-      if (smsResponse.ok) {
-        const smsResult = await smsResponse.json()
-        if (smsResult.success && smsResult.data) {
-          const smsData = smsResult.data
-          // Calculate pending count from status breakdown
-          const pendingStatuses = smsData.statusBreakdown.filter((s: any) => 
-            s.status === '发送中' || s.status === '发送中(已停止查询)'
-          )
-          const pendingCount = pendingStatuses.reduce((sum: number, s: any) => sum + s.count, 0)
-          
-          setDashboardStats(prev => ({
-            ...prev,
-            smsStats: {
-              totalSent: smsData.totalSms || 0,
-              successRate: smsData.successRate || 0,
-              pendingCount: pendingCount
-            }
-          }))
-        }
-      }
-
-      // Load project progress statistics
-      const projectResponse = await fetch('/api/project-progress')
-      if (projectResponse.ok) {
-        const projectResult = await projectResponse.json()
-        if (projectResult.success && projectResult.data) {
-          const projectData = projectResult.data.totalStats
-          
-          setDashboardStats(prev => ({
-            ...prev,
-            projectStats: {
-              totalProjects: projectData.totalProjects || 0,
-              activeProjects: projectData.activeProjects || 0,
-              totalItems: projectData.totalItems || 0,
-              completedItems: projectData.completedItems || 0,
-              completionRate: projectData.completionRate || 0
-            }
-          }))
-        }
-      }
-
-      // Load recent SMS records for activity
-      const recordsResponse = await fetch('/api/sms-records?limit=5&offset=0')
-      if (recordsResponse.ok) {
-        const recordsResult = await recordsResponse.json()
-        if (recordsResult.success && recordsResult.data) {
-          const recentRecords = recordsResult.data.slice(0, 3) // 取最近3条记录
-          const recentActivity = recentRecords.map((record: any) => {
-            let message = ''
-            let type = 'SMS'
-            let status: 'success' | 'warning' | 'error' = 'success'
-            
-            if (record.status === '已送达') {
-              message = `短信成功发送至 ${record.phone_number}`
-              status = 'success'
-            } else if (record.status === '发送失败') {
-              message = `短信发送失败至 ${record.phone_number}`
-              status = 'error'
-            } else {
-              message = `短信发送中至 ${record.phone_number}`
-              status = 'warning'
-            }
-            
-            return {
-              type,
-              message,
-              timestamp: record.created_at,
-              status
-            }
-          })
-          
-          setDashboardStats(prev => ({
-            ...prev,
-            recentActivity
-          }))
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error)
-      // Fallback to empty data
-      setDashboardStats(prev => ({
-        ...prev,
-        smsStats: {
-          totalSent: 0,
-          successRate: 0,
-          pendingCount: 0
-        },
-        projectStats: {
-          totalProjects: 0,
-          activeProjects: 0,
-          totalItems: 0,
-          completedItems: 0,
-          completionRate: 0
-        },
-        recentActivity: []
-      }))
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const testingTools = [
+  // 统一的工具集合 - 所有工具合并到一个数组
+  const allTools = [
     {
       name: "短信管理",
       description: "企业短信发送和监控，支持实时状态跟踪、数据分析和批量管理",
       href: "/sms-testing",
       icon: MessageSquare,
-      stats: `${dashboardStats.smsStats.totalSent} 条本周发送`,
-      color: "bg-blue-500"
+      stats: statsLoading ? "加载中..." : `${dashboardStats.smsStats.totalSent} 条本周发送`,
+      color: "bg-blue-500",
+      requiresAuth: true,
+      category: "通信管理",
+      usageCount: dashboardStats.smsStats.totalSent,
+      trend: 'up' as const,
+      isNew: false
     },
     {
-      name: "数据管理",
-      description: "企业数据导入导出管理，支持Excel格式和数据验证预览",
+      name: "数据管理", 
+      description: "企业数据导入导出管理，支持Excel格式处理和数据验证预览",
       href: "/supplier-import",
-      icon: Upload,
+      icon: Database,
       stats: "支持导入导出",
-      color: "bg-green-500"
+      color: "bg-green-500", 
+      requiresAuth: true,
+      category: "数据处理",
+      usageCount: 45,
+      trend: 'stable' as const,
+      isNew: false
     },
     {
       name: "项目管理",
       description: "项目进度跟踪和管理，支持功能点状态监控和团队协作",
       href: "/project-progress",
       icon: Kanban,
-      stats: `${dashboardStats.projectStats.activeProjects} 个活跃项目`,
-      color: "bg-purple-500"
-    }
-  ]
-
-  const trainingTools = [
+      stats: statsLoading ? "加载中..." : `${dashboardStats.projectStats.activeProjects} 个活跃项目`,
+      color: "bg-purple-500",
+      requiresAuth: true,
+      category: "项目协作",
+      usageCount: dashboardStats.projectStats.activeProjects * 10,
+      trend: 'up' as const,
+      isNew: false
+    },
     {
       name: "培训考试",
       description: "员工在线培训考试系统，支持智能组卷和自动评分",
       href: "/training",
       icon: GraduationCap,
-      stats: "员工入口 - 无需认证",
-      color: "bg-orange-500"
-    }
-  ]
-
-  const adminTools = [
+      stats: "员工入口 - 免费使用",
+      color: "bg-orange-500",
+      requiresAuth: false,
+      category: "教育培训",
+      usageCount: 28,
+      trend: 'up' as const,
+      isNew: false
+    },
     {
       name: "培训管理",
       description: "培训考试数据统计分析，支持详细答题报告和成绩管理",
       href: "/training/admin",
-      icon: GraduationCap,
-      stats: "管理员功能 - 需要认证",
-      color: "bg-red-500"
+      icon: Users,
+      stats: "管理功能 - 需要认证",
+      color: "bg-red-500",
+      requiresAuth: true,
+      category: "教育培训",
+      usageCount: 12,
+      trend: 'stable' as const,
+      isNew: false
+    },
+    {
+      name: "数据监控",
+      description: "实时数据监控和分析，提供全面的业务洞察和性能指标",
+      href: "/monitor",
+      icon: TrendingUp,
+      stats: "实时监控",
+      color: "bg-indigo-500",
+      requiresAuth: true,
+      category: "数据分析",
+      usageCount: 67,
+      trend: 'up' as const,
+      isNew: true
     }
   ]
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
-            ))}
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground">正在加载智慧管理平台...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">智慧管理平台</h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          智能化管理与数据分析平台，提供短信管理、数据处理、培训考试和项目跟踪服务
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+      {/* 动态背景装饰 */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30" />
+      
+      {/* 页面头部 */}
+      <div className="bg-emerald-50/80 backdrop-blur-xl border-b border-emerald-200/50 sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            {/* 品牌标识 */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl overflow-hidden bg-white shadow-lg backdrop-blur-sm">
+                <Image
+                  src="/logo.png"
+                  alt="长颈羚数字科技"
+                  width={48}
+                  height={48}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-600">智慧管理平台</h1>
+                <p className="text-sm text-gray-500">长颈羚数字科技</p>
+              </div>
+            </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总短信发送量</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.smsStats.totalSent}</div>
-            <p className="text-xs text-muted-foreground">本周</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">短信成功率</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.smsStats.successRate.toFixed(1)}%</div>
-            <Progress value={dashboardStats.smsStats.successRate} className="mt-2" />
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">活跃项目</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.projectStats.activeProjects}</div>
-            <p className="text-xs text-muted-foreground">总计 {dashboardStats.projectStats.totalProjects} 个项目</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">功能完成率</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.projectStats.completionRate}%</div>
-            <Progress value={dashboardStats.projectStats.completionRate} className="mt-2" />
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">待处理消息</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.smsStats.pendingCount}</div>
-            <p className="text-xs text-muted-foreground">等待状态更新</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Testing Tools Grid */}
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">功能模块</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-          {testingTools.map((tool) => {
-            const Icon = tool.icon
-            return (
-              <Card key={tool.name} className="hover:shadow-lg transition-shadow cursor-pointer">
-                <Link href={tool.href}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${tool.color} text-white`}>
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{tool.name}</CardTitle>
-                          <CardDescription className="text-sm">{tool.stats}</CardDescription>
-                        </div>
-                      </div>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">{tool.description}</p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )
-          })}
+            {/* 用户状态 */}
+            <div className="flex items-center gap-3">
+              {isAuthenticated && (
+                <>
+                  <Badge variant="default" className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    管理员已登录
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={logout}
+                    className="flex items-center gap-2 border-gray-300 text-gray-600 hover:bg-gray-50"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    退出登录
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">最近活动</h2>
-        <Card>
-          <CardContent className="p-6">
-            {dashboardStats.recentActivity.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">暂无最近活动</p>
-            ) : (
-              <div className="space-y-4">
-                {dashboardStats.recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
-                    <div className="flex-shrink-0">
-                      {activity.status === 'success' && (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      )}
-                      {activity.status === 'warning' && (
-                        <AlertCircle className="h-5 w-5 text-yellow-500" />
-                      )}
-                      {activity.status === 'error' && (
-                        <AlertCircle className="h-5 w-5 text-red-500" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {activity.type}
-                        </Badge>
-                        <span className="text-sm font-medium">{activity.message}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(activity.timestamp).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* 主要内容 */}
+      <div className="container mx-auto px-4 py-12 space-y-16">
+        {/* 欢迎区域 */}
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/70 backdrop-blur-sm rounded-full border border-gray-200">
+            <Sparkles className="w-4 h-4 text-yellow-600" />
+            <span className="text-sm font-medium text-gray-600">选择您需要的工具开始工作</span>
+          </div>
+          <h2 className="text-4xl font-bold text-gray-600">
+            长颈羚数字化管理工具集
+          </h2>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            集成多种专业工具，助力企业数字化转型，提升工作效率
+          </p>
+        </div>
+
+        {/* 工具集合 - 统一网格布局 */}
+        <section className="space-y-8">
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-3">
+              <h3 className="text-3xl font-bold text-gray-500">数字化管理工具</h3>
+              <Badge variant="secondary" className="text-sm bg-gray-100 text-gray-600 border-gray-200">
+                {allTools.length} 个工具
+              </Badge>
+            </div>
+            <p className="text-gray-600 max-w-3xl mx-auto">
+              每个工具都经过精心设计，专注解决特定的业务需求，让您的工作更加高效便捷
+            </p>
+          </div>
+          
+          {/* 统一的3列网格布局 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            {allTools.map((tool) => (
+              <ModernToolCard key={tool.href} {...tool} />
+            ))}
+          </div>
+        </section>
+
+        {/* 底部信息 */}
+        <footer className="text-center pt-8 space-y-4">
+          <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
+          <p className="text-sm text-gray-500">
+            © 2025 长颈羚数字管理平台 - 企业级管理解决方案
+          </p>
+          <p className="text-xs text-gray-400">
+            开发者：wsuo | 联系邮箱：wangsuoo@qq.com
+          </p>
+          <div className="flex items-center justify-center gap-4 text-xs text-gray-400">
+            <span>🔒 安全认证</span>
+            <span>⚡ 高性能</span>
+            <span>🎯 专业工具</span>
+            <span>🚀 持续更新</span>
+          </div>
+        </footer>
       </div>
     </div>
   )
