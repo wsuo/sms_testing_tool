@@ -145,15 +145,15 @@ export function AdminVerificationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader className="text-center">
-          <DialogTitle className="flex items-center justify-center gap-2 text-amber-600">
-            <Shield className="w-5 h-5" />
+      <DialogContent className="sm:max-w-md max-w-[95vw] mx-auto p-4 sm:p-6">
+        <DialogHeader className="text-center space-y-3">
+          <DialogTitle className="flex items-center justify-center gap-2 text-amber-600 text-lg sm:text-xl">
+            <Shield className="w-5 h-5 flex-shrink-0" />
             管理员安全验证
           </DialogTitle>
-          <DialogDescription className="space-y-2">
+          <DialogDescription className="space-y-2 text-sm">
             <div>执行「{actionName}」需要管理员验证</div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-muted-foreground">
               验证码将发送到管理员邮箱，有效期5分钟
             </div>
           </DialogDescription>
@@ -162,15 +162,15 @@ export function AdminVerificationDialog({
         <div className="space-y-4">
           {/* 发送验证码区域 */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm">
-                <Mail className="w-4 h-4 text-blue-500" />
-                <span>发送到：wangsuoo@qq.com</span>
+                <Mail className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <span className="truncate">发送到：wangsuoo@qq.com</span>
               </div>
               {lastSendTime && (
-                <Badge variant="outline" className="text-xs">
-                  <Clock className="w-3 h-3 mr-1" />
-                  {formatTime(lastSendTime)}
+                <Badge variant="outline" className="text-xs self-start sm:self-auto">
+                  <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
+                  <span className="truncate">{formatTime(lastSendTime)}</span>
                 </Badge>
               )}
             </div>
@@ -178,30 +178,30 @@ export function AdminVerificationDialog({
             <Button
               onClick={handleSendCode}
               disabled={!canResend || isSending}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full bg-blue-600 hover:bg-blue-700 min-h-[44px] touch-manipulation"
               variant={isVerificationSent ? "outline" : "default"}
             >
               {isSending ? (
                 <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  发送中...
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin flex-shrink-0" />
+                  <span>发送中...</span>
                 </>
               ) : isVerificationSent ? (
                 canResend ? (
                   <>
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    重新发送验证码
+                    <RefreshCw className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>重新发送验证码</span>
                   </>
                 ) : (
                   <>
-                    <Clock className="w-4 h-4 mr-2" />
-                    {resendCountdown}秒后可重发
+                    <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>{resendCountdown}秒后可重发</span>
                   </>
                 )
               ) : (
                 <>
-                  <Mail className="w-4 h-4 mr-2" />
-                  发送验证码
+                  <Mail className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span>发送验证码</span>
                 </>
               )}
             </Button>
@@ -214,7 +214,9 @@ export function AdminVerificationDialog({
                 <label className="text-sm font-medium">请输入6位验证码</label>
                 <Input
                   ref={inputRef}
-                  type="text"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   placeholder="输入6位数字验证码"
                   value={verificationInput}
                   onChange={(e) => {
@@ -224,7 +226,7 @@ export function AdminVerificationDialog({
                   }}
                   onKeyPress={handleKeyPress}
                   disabled={isVerifying}
-                  className="text-center text-lg tracking-widest font-mono"
+                  className="text-center text-lg tracking-widest font-mono min-h-[44px] touch-manipulation"
                   maxLength={6}
                 />
               </div>
@@ -232,17 +234,17 @@ export function AdminVerificationDialog({
               <Button
                 onClick={handleVerifyCode}
                 disabled={verificationInput.length !== 6 || isVerifying}
-                className="w-full bg-green-600 hover:bg-green-700"
+                className="w-full bg-green-600 hover:bg-green-700 min-h-[44px] touch-manipulation"
               >
                 {isVerifying ? (
                   <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    验证中...
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin flex-shrink-0" />
+                    <span>验证中...</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    验证并继续
+                    <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>验证并继续</span>
                   </>
                 )}
               </Button>
@@ -252,14 +254,14 @@ export function AdminVerificationDialog({
           {/* 错误提示 */}
           {error && (
             <Alert variant="destructive">
-              <AlertTriangle className="w-4 h-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <AlertDescription className="text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
           {/* 提示信息 */}
           <Alert>
-            <Shield className="w-4 h-4" />
+            <Shield className="w-4 h-4 flex-shrink-0" />
             <AlertDescription className="text-xs space-y-1">
               <div>• 验证码有效期为5分钟</div>
               <div>• 验证通过后在当前页面12小时内有效</div>
