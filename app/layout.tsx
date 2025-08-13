@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import './instrumentation-client' // 导入 Sentry 客户端配置
 import { Toaster } from '@/components/ui/toaster'
-import { PlatformNavigation } from '@/components/platform-navigation'
+import { AuthProvider } from '@/contexts/auth-context'
 
 export const metadata: Metadata = {
   title: '智慧管理平台 - 企业一体化管理系统',
@@ -17,11 +17,12 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="min-h-screen bg-background">
-        <PlatformNavigation />
-        <main className="flex-1">
-          {children}
-        </main>
-        <Toaster />
+        <AuthProvider>
+          <main className="flex-1">
+            {children}
+          </main>
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   )
