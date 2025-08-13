@@ -203,7 +203,7 @@ export default function TrainingExamPage() {
           showAuthStatus={false}
         />
         
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 flex items-center justify-center pt-16">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 flex items-center justify-center pt-28">
           <div className="text-center space-y-6">
             <div className="relative">
               <div className="w-16 h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto" />
@@ -232,7 +232,7 @@ export default function TrainingExamPage() {
         showAuthStatus={false}
       />
       
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden pt-28">
         {/* 动态背景装饰 */}
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
         
@@ -240,8 +240,67 @@ export default function TrainingExamPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-              {/* 主要答题区域 - 在左侧，占更多空间 */}
-              <div className="flex-1 lg:max-w-4xl order-1">
+              {/* 题目导航侧边栏 - 在左侧，固定宽度 */}
+              <div className="lg:w-80 lg:flex-shrink-0 order-1">
+                <Card className="bg-white/95 backdrop-blur-xl border-emerald-200/50 shadow-lg">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm text-gray-600 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-emerald-600" />
+                      答题进度
+                    </CardTitle>
+                    <CardDescription className="text-xs text-gray-500">
+                      点击题号快速跳转
+                    </CardDescription>
+                  </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-6 gap-1.5">
+                        {examData.questions.map((_, index) => {
+                          const questionId = examData.questions[index].id
+                          const isAnswered = answers.hasOwnProperty(questionId)
+                          const isCurrent = index === currentQuestionIndex
+                          
+                          return (
+                            <button
+                              key={index}
+                              onClick={() => goToQuestion(index)}
+                              className={`
+                                w-full h-9 text-xs rounded-lg flex items-center justify-center font-medium transition-all duration-200 transform hover:scale-105
+                                ${isCurrent 
+                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg' 
+                                  : isAnswered 
+                                    ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300' 
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                                }
+                              `}
+                            >
+                              {index + 1}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      
+                      <div className="mt-4 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg">
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" />
+                            <span className="text-emerald-700 font-medium">当前题目</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-green-100 rounded-full border border-green-300" />
+                            <span className="text-green-700">已作答</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300" />
+                            <span className="text-gray-600">未作答</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                </Card>
+              </div>
+
+              {/* 主要答题区域 - 在右侧，占更多空间 */}
+              <div className="flex-1 order-2">
                 <div className="space-y-4">
                   {/* 进度状态卡片 */}
                   <Card className="bg-white/95 backdrop-blur-xl border-emerald-200/50 shadow-lg">
@@ -308,11 +367,7 @@ export default function TrainingExamPage() {
                     </CardHeader>
                     
                     <CardContent>
-                      <RadioGroup 
-                        value={answers[currentQuestion.id] || ''}
-                        onValueChange={(value) => handleAnswerSelect(currentQuestion.id, value)}
-                        className="space-y-3"
-                      >
+                      <div className="space-y-3">
                         {[
                           { key: 'A', text: currentQuestion.optionA },
                           { key: 'B', text: currentQuestion.optionB },
@@ -322,22 +377,15 @@ export default function TrainingExamPage() {
                           const isSelected = answers[currentQuestion.id] === option.key
                           return (
                             <div 
-                              key={option.key} 
+                              key={option.key}
+                              onClick={() => handleAnswerSelect(currentQuestion.id, option.key)}
                               className={`flex items-start space-x-3 p-3 lg:p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer ${
                                 isSelected 
                                   ? 'border-emerald-300 bg-emerald-50 shadow-sm' 
                                   : 'border-gray-200 hover:border-emerald-200 hover:bg-emerald-50/30'
                               }`}
                             >
-                              <RadioGroupItem 
-                                value={option.key} 
-                                id={`option-${option.key}`}
-                                className="mt-0.5 data-[state=checked]:border-emerald-500 data-[state=checked]:text-emerald-500" 
-                              />
-                              <Label 
-                                htmlFor={`option-${option.key}`}
-                                className="flex-1 cursor-pointer leading-relaxed text-sm lg:text-base"
-                              >
+                              <div className="flex-1 cursor-pointer leading-relaxed text-sm lg:text-base">
                                 <span className={`font-medium mr-2 lg:mr-3 inline-flex items-center justify-center w-5 h-5 lg:w-6 lg:h-6 rounded-full text-xs ${
                                   isSelected 
                                     ? 'bg-emerald-500 text-white' 
@@ -348,11 +396,11 @@ export default function TrainingExamPage() {
                                 <span className={isSelected ? 'text-emerald-700 font-medium' : 'text-gray-700'}>
                                   {option.text}
                                 </span>
-                              </Label>
+                              </div>
                             </div>
                           )
                         })}
-                      </RadioGroup>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -445,67 +493,6 @@ export default function TrainingExamPage() {
                       </CardContent>
                     </Card>
                   )}
-                </div>
-              </div>
-
-              {/* 题目导航侧边栏 - 在右侧，固定宽度 */}
-              <div className="lg:w-80 lg:flex-shrink-0 order-2">
-                <div className="lg:sticky lg:top-4">
-                  <Card className="bg-white/95 backdrop-blur-xl border-emerald-200/50 shadow-lg">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm text-gray-600 flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-emerald-600" />
-                        答题进度
-                      </CardTitle>
-                      <CardDescription className="text-xs text-gray-500">
-                        点击题号快速跳转
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-6 gap-1.5">
-                        {examData.questions.map((_, index) => {
-                          const questionId = examData.questions[index].id
-                          const isAnswered = answers.hasOwnProperty(questionId)
-                          const isCurrent = index === currentQuestionIndex
-                          
-                          return (
-                            <button
-                              key={index}
-                              onClick={() => goToQuestion(index)}
-                              className={`
-                                w-7 h-7 text-xs rounded-lg flex items-center justify-center font-medium transition-all duration-200 transform hover:scale-105
-                                ${isCurrent 
-                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg' 
-                                  : isAnswered 
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300' 
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
-                                }
-                              `}
-                            >
-                              {index + 1}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      
-                      <div className="mt-4 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg">
-                        <div className="space-y-2 text-xs">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" />
-                            <span className="text-emerald-700 font-medium">当前题目</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-green-100 rounded-full border border-green-300" />
-                            <span className="text-green-700">已作答</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300" />
-                            <span className="text-gray-600">未作答</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
               </div>
             </div>
