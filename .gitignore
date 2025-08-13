@@ -100,3 +100,8 @@ docs/
 # Claude AI directories
 .claude/
 .augment/
+
+# Test exports and sample data
+*.csv
+*测试*.csv
+*导出*.csv
