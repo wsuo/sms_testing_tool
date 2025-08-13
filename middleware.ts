@@ -12,37 +12,47 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // 员工培训答题入口无需认证，允许直接访问
-  if (pathname === '/training' || pathname.startsWith('/training/exam') || pathname.startsWith('/training/result')) {
+  // 公开页面路径 - 无需认证即可访问
+  const publicPages = [
+    '/',
+    '/training',
+    '/training/exam',
+    '/training/result'
+  ]
+
+  // 检查是否为公开页面
+  if (publicPages.some(page => pathname === page || pathname.startsWith(page + '/'))) {
     return NextResponse.next()
   }
 
-  // API路由的培训模块部分无需认证
-  if (pathname.startsWith('/api/training/') && !pathname.includes('/admin')) {
-    return NextResponse.next()
-  }
+  // API路由认证检查
+  if (pathname.startsWith('/api/')) {
+    // 公开API路由 - 无需认证
+    const publicApiRoutes = [
+      '/api/auth/login',
+      '/api/training/start',
+      '/api/training/submit'
+    ]
 
-  // 检查是否已认证
-  const authToken = request.cookies.get('platform-auth')?.value
-  const platformPassword = process.env.PLATFORM_PASSWORD || 'admin123'
+    // 检查是否为公开API路由
+    if (publicApiRoutes.some(route => pathname.startsWith(route))) {
+      return NextResponse.next()
+    }
 
-  // 需要认证的页面：管理员培训统计页面和其他管理功能
-  const requiresAuth = pathname.startsWith('/training/admin') || 
-                      pathname.startsWith('/sms-testing') || 
-                      pathname.startsWith('/supplier-import') ||
-                      pathname.startsWith('/project-progress') ||
-                      pathname.startsWith('/monitor') ||
-                      (pathname.startsWith('/api/') && pathname.includes('admin'))
+    // 需要认证的API路由
+    const authToken = request.cookies.get('platform-auth')?.value
+    const platformPassword = process.env.PLATFORM_PASSWORD || 'admin123'
 
-  if (requiresAuth) {
     if (!authToken || authToken !== platformPassword) {
-      // 重定向到认证页面，并携带回调URL
-      const loginUrl = new URL('/auth/login', request.url)
-      loginUrl.searchParams.set('redirect', pathname)
-      return NextResponse.redirect(loginUrl)
+      return NextResponse.json(
+        { success: false, message: '需要管理员认证' },
+        { status: 401 }
+      )
     }
   }
 
+  // 前端页面路径 - 在前端处理认证检查，不在middleware中阻止访问
+  // 这样用户可以看到页面并通过对话框进行认证
   return NextResponse.next()
 }
 
@@ -51,7 +61,6 @@ export const config = {
   matcher: [
     /*
      * 匹配所有请求路径，除了：
-     * - api/training (员工培训API，无需认证)
      * - _next/static (静态文件)
      * - _next/image (图片优化)
      * - favicon.ico (网站图标)
