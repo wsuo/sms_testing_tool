@@ -3,6 +3,7 @@ import './globals.css'
 import './instrumentation-client' // 导入 Sentry 客户端配置
 import { Toaster } from '@/components/ui/toaster'
 import { AuthProvider } from '@/contexts/auth-context'
+import { AdminAuthProvider } from '@/contexts/admin-auth-context'
 
 export const metadata: Metadata = {
   title: '智慧管理平台 - 企业一体化管理系统',
@@ -18,10 +19,12 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className="min-h-screen bg-background">
         <AuthProvider>
-          <main className="flex-1">
-            {children}
-          </main>
-          <Toaster />
+          <AdminAuthProvider>
+            <main className="flex-1">
+              {children}
+            </main>
+            <Toaster />
+          </AdminAuthProvider>
         </AuthProvider>
       </body>
     </html>
