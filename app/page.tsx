@@ -173,23 +173,23 @@ export default function ToolboxHomepage() {
         <div className="relative z-10 text-center space-y-8">
           {/* Logo区域 */}
           <div className="space-y-4">
-            <div className="relative mx-auto w-20 h-20">
+            <div className="relative mx-auto w-16 h-16 sm:w-20 sm:h-20">
               {/* 外圈旋转动画 */}
               <div className="absolute inset-0 border-4 border-emerald-200 rounded-full animate-spin"></div>
               <div className="absolute inset-2 border-4 border-teal-300 rounded-full animate-spin animate-reverse"></div>
               <div className="absolute inset-4 border-4 border-cyan-400 rounded-full animate-pulse"></div>
               {/* 中心图标 */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full shadow-lg animate-bounce delay-300"></div>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full shadow-lg animate-bounce delay-300"></div>
               </div>
             </div>
             
             {/* 品牌标题 */}
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent animate-pulse">
+              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent animate-pulse">
                 AgriTech Solutions
               </h1>
-              <p className="text-lg text-gray-600 font-medium">
+              <p className="text-base sm:text-lg text-gray-600 font-medium px-4">
                 农业科技智慧管理平台
               </p>
             </div>
@@ -242,11 +242,11 @@ export default function ToolboxHomepage() {
       
       {/* 页面头部 */}
       <div className="bg-emerald-50/80 backdrop-blur-xl border-b border-emerald-200/50 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             {/* 品牌标识 */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl overflow-hidden bg-white shadow-lg backdrop-blur-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-white shadow-lg backdrop-blur-sm">
                 <Image
                   src="/logo.png"
                   alt="长颈羚数字科技"
@@ -256,16 +256,16 @@ export default function ToolboxHomepage() {
                 />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-600">智慧管理平台</h1>
-                <p className="text-sm text-gray-500">长颈羚数字科技</p>
+                <h1 className="text-lg sm:text-2xl font-bold text-gray-600">智慧管理平台</h1>
+                <p className="text-xs sm:text-sm text-gray-500">长颈羚数字科技</p>
               </div>
             </div>
 
             {/* 用户状态 */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {isAuthenticated && (
                 <>
-                  <Badge variant="default" className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+                  <Badge variant="default" className="hidden sm:flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                     管理员已登录
                   </Badge>
@@ -273,10 +273,10 @@ export default function ToolboxHomepage() {
                     variant="outline"
                     size="sm"
                     onClick={logout}
-                    className="flex items-center gap-2 border-gray-300 text-gray-600 hover:bg-gray-50"
+                    className="flex items-center gap-1 sm:gap-2 border-gray-300 text-gray-600 hover:bg-gray-50 min-h-[44px] touch-manipulation"
                   >
-                    <LogOut className="w-4 h-4" />
-                    退出登录
+                    <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">退出登录</span>
                   </Button>
                 </>
               )}
@@ -315,8 +315,8 @@ export default function ToolboxHomepage() {
             </p>
           </div>
           
-          {/* 统一的3列网格布局 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          {/* 统一的移动端响应式网格布局 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {allTools.map((tool) => (
               <ModernToolCard key={tool.href} {...tool} />
             ))}
