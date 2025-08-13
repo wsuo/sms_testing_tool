@@ -12,7 +12,8 @@ import {
   Settings,
   Menu,
   X,
-  Kanban
+  Kanban,
+  GraduationCap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -33,22 +34,28 @@ const navigationItems: NavigationItem[] = [
     description: "平台概览和快速访问"
   },
   {
-    name: "短信测试",
+    name: "短信管理",
     href: "/sms-testing",
     icon: MessageSquare,
-    description: "发送和监控短信消息"
+    description: "短信发送和状态监控"
   },
   {
     name: "数据管理",
     href: "/supplier-import",
     icon: Upload,
-    description: "导入和导出公司数据"
+    description: "数据导入导出和处理"
   },
   {
-    name: "项目进度",
+    name: "项目管理",
     href: "/project-progress",
     icon: Kanban,
-    description: "项目开发进度管理和跟踪"
+    description: "项目进度跟踪和管理"
+  },
+  {
+    name: "培训管理",
+    href: "/training",
+    icon: GraduationCap,
+    description: "员工培训考试管理"
   }
 ]
 
@@ -99,8 +106,8 @@ export function PlatformNavigation({ className }: PlatformNavigationProps) {
                 <Settings className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold">测试平台</h1>
-                <p className="text-xs text-muted-foreground">智能测试与数据分析平台</p>
+                <h1 className="text-lg font-semibold">智慧管理平台</h1>
+                <p className="text-xs text-muted-foreground">企业一体化管理系统</p>
               </div>
             </Link>
           </div>
@@ -125,7 +132,7 @@ export function PlatformNavigation({ className }: PlatformNavigationProps) {
                     <div className="h-6 w-6 rounded bg-primary flex items-center justify-center">
                       <Settings className="h-3 w-3 text-primary-foreground" />
                     </div>
-                    <span className="font-semibold">测试平台</span>
+                    <span className="font-semibold">智慧管理平台</span>
                   </div>
                 </div>
                 <nav className="flex flex-col gap-2">

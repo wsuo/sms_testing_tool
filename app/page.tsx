@@ -12,7 +12,8 @@ import {
   CheckCircle,
   AlertCircle,
   Kanban,
-  Target
+  Target,
+  GraduationCap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -169,8 +170,8 @@ export default function PlatformDashboard() {
 
   const testingTools = [
     {
-      name: "短信测试",
-      description: "发送和监控短信消息，支持实时状态跟踪、数据分析和自动化测试",
+      name: "短信管理",
+      description: "企业短信发送和监控，支持实时状态跟踪、数据分析和批量管理",
       href: "/sms-testing",
       icon: MessageSquare,
       stats: `${dashboardStats.smsStats.totalSent} 条本周发送`,
@@ -178,19 +179,41 @@ export default function PlatformDashboard() {
     },
     {
       name: "数据管理",
-      description: "导入和导出公司数据，支持Excel格式和数据验证预览",
+      description: "企业数据导入导出管理，支持Excel格式和数据验证预览",
       href: "/supplier-import",
       icon: Upload,
       stats: "支持导入导出",
       color: "bg-green-500"
     },
     {
-      name: "项目进度",
-      description: "项目开发进度管理和跟踪，支持功能点状态监控和团队协作",
+      name: "项目管理",
+      description: "项目进度跟踪和管理，支持功能点状态监控和团队协作",
       href: "/project-progress",
       icon: Kanban,
       stats: `${dashboardStats.projectStats.activeProjects} 个活跃项目`,
       color: "bg-purple-500"
+    }
+  ]
+
+  const trainingTools = [
+    {
+      name: "培训考试",
+      description: "员工在线培训考试系统，支持智能组卷和自动评分",
+      href: "/training",
+      icon: GraduationCap,
+      stats: "员工入口 - 无需认证",
+      color: "bg-orange-500"
+    }
+  ]
+
+  const adminTools = [
+    {
+      name: "培训管理",
+      description: "培训考试数据统计分析，支持详细答题报告和成绩管理",
+      href: "/training/admin",
+      icon: GraduationCap,
+      stats: "管理员功能 - 需要认证",
+      color: "bg-red-500"
     }
   ]
 
@@ -213,9 +236,9 @@ export default function PlatformDashboard() {
     <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">测试平台</h1>
+        <h1 className="text-4xl font-bold tracking-tight">智慧管理平台</h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          智能测试与数据分析平台，提供短信测试、数据管理和性能分析服务
+          智能化管理与数据分析平台，提供短信管理、数据处理、培训考试和项目跟踪服务
         </p>
       </div>
 
@@ -280,7 +303,7 @@ export default function PlatformDashboard() {
       {/* Testing Tools Grid */}
       <div className="space-y-4">
         <h2 className="text-2xl font-semibold">功能模块</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
           {testingTools.map((tool) => {
             const Icon = tool.icon
             return (

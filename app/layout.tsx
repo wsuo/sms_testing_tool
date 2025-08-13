@@ -5,8 +5,8 @@ import { Toaster } from '@/components/ui/toaster'
 import { PlatformNavigation } from '@/components/platform-navigation'
 
 export const metadata: Metadata = {
-  title: 'Testing Platform - Comprehensive Testing Tools',
-  description: '综合测试平台 - 包含短信测试、供应商导入、数据分析等多种测试工具',
+  title: '智慧管理平台 - 企业一体化管理系统',
+  description: '智慧管理平台 - 集成短信管理、数据处理、培训考试、项目跟踪等多功能企业管理工具',
 }
 
 export default function RootLayout({
