@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/auth-context'
 import { ModernToolCard } from '@/components/modern-tool-card'
+import { PlatformFooter } from '@/components/platform-footer'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -160,10 +161,75 @@ export default function ToolboxHomepage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-muted-foreground">正在加载智慧管理平台...</p>
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center relative overflow-hidden">
+        {/* 动态背景装饰 */}
+        <div className="absolute inset-0">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-teal-200/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-200/20 rounded-full blur-3xl animate-pulse delay-500"></div>
+        </div>
+        
+        {/* 主要内容 */}
+        <div className="relative z-10 text-center space-y-8">
+          {/* Logo区域 */}
+          <div className="space-y-4">
+            <div className="relative mx-auto w-20 h-20">
+              {/* 外圈旋转动画 */}
+              <div className="absolute inset-0 border-4 border-emerald-200 rounded-full animate-spin"></div>
+              <div className="absolute inset-2 border-4 border-teal-300 rounded-full animate-spin animate-reverse"></div>
+              <div className="absolute inset-4 border-4 border-cyan-400 rounded-full animate-pulse"></div>
+              {/* 中心图标 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full shadow-lg animate-bounce delay-300"></div>
+              </div>
+            </div>
+            
+            {/* 品牌标题 */}
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent animate-pulse">
+                AgriTech Solutions
+              </h1>
+              <p className="text-lg text-gray-600 font-medium">
+                农业科技智慧管理平台
+              </p>
+            </div>
+          </div>
+          
+          {/* 加载状态文字 */}
+          <div className="space-y-3">
+            <p className="text-emerald-700 text-lg font-medium animate-pulse">
+              正在初始化系统...
+            </p>
+            
+            {/* 进度指示器 */}
+            <div className="w-64 mx-auto">
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full animate-pulse-slow relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* 功能模块提示 */}
+            <div className="grid grid-cols-2 gap-4 mt-8 text-sm text-gray-500 max-w-sm mx-auto">
+              <div className="flex items-center space-x-2 animate-fadeIn">
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
+                <span>短信测试</span>
+              </div>
+              <div className="flex items-center space-x-2 animate-fadeIn delay-200">
+                <div className="w-2 h-2 bg-teal-400 rounded-full animate-ping delay-100"></div>
+                <span>数据监控</span>
+              </div>
+              <div className="flex items-center space-x-2 animate-fadeIn delay-400">
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-ping delay-200"></div>
+                <span>项目管理</span>
+              </div>
+              <div className="flex items-center space-x-2 animate-fadeIn delay-600">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping delay-300"></div>
+                <span>数据分析</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -172,7 +238,7 @@ export default function ToolboxHomepage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
       {/* 动态背景装饰 */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30" />
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
       
       {/* 页面头部 */}
       <div className="bg-emerald-50/80 backdrop-blur-xl border-b border-emerald-200/50 sticky top-0 z-40">
@@ -260,9 +326,7 @@ export default function ToolboxHomepage() {
         {/* 底部信息 */}
         <footer className="text-center pt-8 space-y-4">
           <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
-          <p className="text-sm text-gray-500">
-            © 2025 长颈羚数字管理平台 - 企业级管理解决方案
-          </p>
+          <PlatformFooter className="text-sm text-gray-500" />
           <p className="text-xs text-gray-400">
             开发者：wsuo | 联系邮箱：wangsuoo@qq.com
           </p>
