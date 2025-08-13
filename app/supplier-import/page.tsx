@@ -885,7 +885,10 @@ export default function DataManagementPage() {
   }
 
   return (
-    <div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+      {/* 动态背景装饰 */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+      
       <ModuleHeader
         title="数据管理"
         description="企业数据导入导出管理系统"
@@ -893,7 +896,7 @@ export default function DataManagementPage() {
         showAuthStatus={true}
       />
       
-      <div className="pt-20 container mx-auto px-4 py-8">
+      <div className="pt-24 container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1104,8 +1107,8 @@ export default function DataManagementPage() {
                             <TableCell className="text-green-600">{record.success_count}</TableCell>
                             <TableCell className="text-red-600">{record.error_count}</TableCell>
                             <TableCell>
-                              <Badge variant={record.success_rate >= 0.9 ? 'default' : record.success_rate >= 0.7 ? 'secondary' : 'destructive'}>
-                                {Math.round(record.success_rate * 100)}%
+                              <Badge variant={record.success_rate >= 90 ? 'default' : record.success_rate >= 70 ? 'secondary' : 'destructive'}>
+                                {Math.round(record.success_rate)}%
                               </Badge>
                             </TableCell>
                             <TableCell>{record.duration_seconds}s</TableCell>
@@ -1541,6 +1544,7 @@ export default function DataManagementPage() {
           </AlertDescription>
         </Alert>
       </div>
+      </div>
 
       {/* Export Options Modal */}
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
@@ -1686,7 +1690,6 @@ export default function DataManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
     </div>
   )
 }
