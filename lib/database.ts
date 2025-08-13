@@ -229,6 +229,55 @@ function initializeTables() {
       FOREIGN KEY (feature_item_id) REFERENCES feature_items (id)
     )
   `
+
+  // 培训模块相关表
+  // 创建试卷表
+  const createQuestionSetsTable = `
+    CREATE TABLE IF NOT EXISTS question_sets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      total_questions INTEGER DEFAULT 50,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `
+
+  // 创建题目表
+  const createQuestionsTable = `
+    CREATE TABLE IF NOT EXISTS questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      set_id INTEGER NOT NULL,
+      question_number INTEGER NOT NULL,
+      section TEXT,
+      question_text TEXT NOT NULL,
+      option_a TEXT NOT NULL,
+      option_b TEXT NOT NULL,
+      option_c TEXT NOT NULL,
+      option_d TEXT NOT NULL,
+      correct_answer TEXT NOT NULL,
+      explanation TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (set_id) REFERENCES question_sets (id)
+    )
+  `
+
+  // 创建培训记录表
+  const createTrainingRecordsTable = `
+    CREATE TABLE IF NOT EXISTS training_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_name TEXT NOT NULL,
+      set_id INTEGER NOT NULL,
+      answers TEXT NOT NULL, -- JSON格式存储答案
+      score INTEGER NOT NULL,
+      total_questions INTEGER NOT NULL,
+      started_at DATETIME NOT NULL,
+      completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ip_address TEXT,
+      session_duration INTEGER, -- 答题时长（秒）
+      FOREIGN KEY (set_id) REFERENCES question_sets (id)
+    )
+  `
   
   // 创建索引以提升查询性能
   const createIndexes = [
@@ -250,7 +299,13 @@ function initializeTables() {
     'CREATE INDEX IF NOT EXISTS idx_feature_modules_phase_id ON feature_modules (phase_id)',
     'CREATE INDEX IF NOT EXISTS idx_feature_items_module_id ON feature_items (module_id)',
     'CREATE INDEX IF NOT EXISTS idx_feature_items_status ON feature_items (status)',
-    'CREATE INDEX IF NOT EXISTS idx_progress_records_feature_item_id ON progress_records (feature_item_id)'
+    'CREATE INDEX IF NOT EXISTS idx_progress_records_feature_item_id ON progress_records (feature_item_id)',
+    // 培训模块相关索引
+    'CREATE INDEX IF NOT EXISTS idx_questions_set_id ON questions (set_id)',
+    'CREATE INDEX IF NOT EXISTS idx_questions_question_number ON questions (question_number)',
+    'CREATE INDEX IF NOT EXISTS idx_training_records_employee_name ON training_records (employee_name)',
+    'CREATE INDEX IF NOT EXISTS idx_training_records_set_id ON training_records (set_id)',
+    'CREATE INDEX IF NOT EXISTS idx_training_records_completed_at ON training_records (completed_at)'
   ]
   
   try {
@@ -285,6 +340,16 @@ function initializeTables() {
 
     db.exec(createProgressRecordsTable)
     console.log('Progress records table created/verified')
+
+    // 创建培训模块相关表
+    db.exec(createQuestionSetsTable)
+    console.log('Question sets table created/verified')
+
+    db.exec(createQuestionsTable)
+    console.log('Questions table created/verified')
+
+    db.exec(createTrainingRecordsTable)
+    console.log('Training records table created/verified')
     
     // 执行数据库迁移
     runMigrations()
@@ -591,6 +656,56 @@ export interface ProgressRecord {
   notes?: string
   updated_by?: string
   created_at?: string
+}
+
+// 培训模块类型定义
+// 试卷类型定义
+export interface QuestionSet {
+  id?: number
+  name: string
+  description?: string
+  total_questions: number
+  created_at?: string
+  updated_at?: string
+}
+
+// 题目类型定义
+export interface Question {
+  id?: number
+  set_id: number
+  question_number: number
+  section?: string
+  question_text: string
+  option_a: string
+  option_b: string
+  option_c: string
+  option_d: string
+  correct_answer: string
+  explanation?: string
+  created_at?: string
+}
+
+// 培训记录类型定义
+export interface TrainingRecord {
+  id?: number
+  employee_name: string
+  set_id: number
+  answers: string // JSON格式存储答案
+  score: number
+  total_questions: number
+  started_at: string
+  completed_at?: string
+  ip_address?: string
+  session_duration?: number
+}
+
+// 答题答案类型
+export interface AnswerItem {
+  questionId: number
+  questionNumber: number
+  selectedAnswer: string
+  correctAnswer: string
+  isCorrect: boolean
 }
 
 // 数据库操作类
@@ -2004,6 +2119,401 @@ export class ProgressRecordDB {
   }
 }
 
+// 培训模块数据库操作类
+
+// 试卷数据库操作类
+export class QuestionSetDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入试卷
+  insertQuestionSet(set: Omit<QuestionSet, 'id' | 'created_at' | 'updated_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO question_sets (name, description, total_questions)
+      VALUES (?, ?, ?)
+    `)
+    
+    const result = stmt.run(set.name, set.description || null, set.total_questions)
+    return result.lastInsertRowid as number
+  }
+  
+  // 查询所有试卷
+  findAll(): QuestionSet[] {
+    const stmt = this.db.prepare('SELECT * FROM question_sets ORDER BY created_at DESC')
+    return stmt.all() as QuestionSet[]
+  }
+  
+  // 根据ID查询试卷
+  findById(id: number): QuestionSet | null {
+    const stmt = this.db.prepare('SELECT * FROM question_sets WHERE id = ?')
+    return stmt.get(id) as QuestionSet | null
+  }
+  
+  // 随机获取一套试卷
+  getRandomSet(): QuestionSet | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM question_sets 
+      ORDER BY RANDOM() 
+      LIMIT 1
+    `)
+    return stmt.get() as QuestionSet | null
+  }
+  
+  // 统计试卷数量
+  count(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM question_sets')
+    const result = stmt.get() as { count: number }
+    return result.count
+  }
+}
+
+// 题目数据库操作类
+export class QuestionDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入题目
+  insertQuestion(question: Omit<Question, 'id' | 'created_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO questions 
+      (set_id, question_number, section, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      question.set_id,
+      question.question_number,
+      question.section || null,
+      question.question_text,
+      question.option_a,
+      question.option_b,
+      question.option_c,
+      question.option_d,
+      question.correct_answer,
+      question.explanation || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 批量插入题目
+  insertBatch(questions: Omit<Question, 'id' | 'created_at'>[]): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO questions 
+      (set_id, question_number, section, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const transaction = this.db.transaction((questions: Omit<Question, 'id' | 'created_at'>[]) => {
+      let insertedCount = 0
+      for (const question of questions) {
+        stmt.run(
+          question.set_id,
+          question.question_number,
+          question.section || null,
+          question.question_text,
+          question.option_a,
+          question.option_b,
+          question.option_c,
+          question.option_d,
+          question.correct_answer,
+          question.explanation || null
+        )
+        insertedCount++
+      }
+      return insertedCount
+    })
+    
+    return transaction(questions)
+  }
+  
+  // 根据试卷ID查询所有题目
+  findBySetId(setId: number): Question[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM questions 
+      WHERE set_id = ? 
+      ORDER BY question_number ASC
+    `)
+    return stmt.all(setId) as Question[]
+  }
+  
+  // 根据ID查询题目
+  findById(id: number): Question | null {
+    const stmt = this.db.prepare('SELECT * FROM questions WHERE id = ?')
+    return stmt.get(id) as Question | null
+  }
+  
+  // 根据试卷ID统计题目数量
+  countBySetId(setId: number): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM questions WHERE set_id = ?')
+    const result = stmt.get(setId) as { count: number }
+    return result.count
+  }
+  
+  // 清空试卷的所有题目
+  deleteBySetId(setId: number): number {
+    const stmt = this.db.prepare('DELETE FROM questions WHERE set_id = ?')
+    const result = stmt.run(setId)
+    return result.changes
+  }
+}
+
+// 培训记录数据库操作类
+export class TrainingRecordDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 插入培训记录
+  insertRecord(record: Omit<TrainingRecord, 'id' | 'completed_at'>): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO training_records 
+      (employee_name, set_id, answers, score, total_questions, started_at, ip_address, session_duration)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const result = stmt.run(
+      record.employee_name,
+      record.set_id,
+      record.answers,
+      record.score,
+      record.total_questions,
+      record.started_at,
+      record.ip_address || null,
+      record.session_duration || null
+    )
+    
+    return result.lastInsertRowid as number
+  }
+  
+  // 查询所有培训记录
+  findAll(limit = 100, offset = 0): TrainingRecord[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM training_records 
+      ORDER BY completed_at DESC 
+      LIMIT ? OFFSET ?
+    `)
+    return stmt.all(limit, offset) as TrainingRecord[]
+  }
+  
+  // 根据员工姓名查询记录
+  findByEmployeeName(employeeName: string): TrainingRecord[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM training_records 
+      WHERE employee_name = ? 
+      ORDER BY completed_at DESC
+    `)
+    return stmt.all(employeeName) as TrainingRecord[]
+  }
+  
+  // 复合条件查询培训记录
+  findWithFilters(filters: {
+    employeeName?: string
+    setId?: number
+    minScore?: number
+    maxScore?: number
+    dateRange?: 'today' | 'week' | 'month' | 'all'
+    limit?: number
+    offset?: number
+  }): TrainingRecord[] {
+    const conditions: string[] = []
+    const params: any[] = []
+    
+    // 员工姓名筛选
+    if (filters.employeeName && filters.employeeName.trim()) {
+      conditions.push('employee_name LIKE ?')
+      params.push(`%${filters.employeeName.trim()}%`)
+    }
+    
+    // 试卷ID筛选
+    if (filters.setId) {
+      conditions.push('set_id = ?')
+      params.push(filters.setId)
+    }
+    
+    // 分数范围筛选
+    if (filters.minScore !== undefined) {
+      conditions.push('score >= ?')
+      params.push(filters.minScore)
+    }
+    
+    if (filters.maxScore !== undefined) {
+      conditions.push('score <= ?')
+      params.push(filters.maxScore)
+    }
+    
+    // 日期筛选
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      switch (filters.dateRange) {
+        case 'today':
+          conditions.push("date(completed_at) = date('now')")
+          break
+        case 'week':
+          conditions.push("completed_at >= datetime('now', '-7 days')")
+          break
+        case 'month':
+          conditions.push("completed_at >= datetime('now', '-30 days')")
+          break
+      }
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    const limit = filters.limit || 100
+    const offset = filters.offset || 0
+    
+    const query = `
+      SELECT * FROM training_records 
+      ${whereClause}
+      ORDER BY completed_at DESC 
+      LIMIT ? OFFSET ?
+    `
+    
+    params.push(limit, offset)
+    
+    const stmt = this.db.prepare(query)
+    return stmt.all(...params) as TrainingRecord[]
+  }
+  
+  // 统计培训记录数量
+  countWithFilters(filters: {
+    employeeName?: string
+    setId?: number
+    minScore?: number
+    maxScore?: number
+    dateRange?: 'today' | 'week' | 'month' | 'all'
+  }): number {
+    const conditions: string[] = []
+    const params: any[] = []
+    
+    // 员工姓名筛选
+    if (filters.employeeName && filters.employeeName.trim()) {
+      conditions.push('employee_name LIKE ?')
+      params.push(`%${filters.employeeName.trim()}%`)
+    }
+    
+    // 试卷ID筛选
+    if (filters.setId) {
+      conditions.push('set_id = ?')
+      params.push(filters.setId)
+    }
+    
+    // 分数范围筛选
+    if (filters.minScore !== undefined) {
+      conditions.push('score >= ?')
+      params.push(filters.minScore)
+    }
+    
+    if (filters.maxScore !== undefined) {
+      conditions.push('score <= ?')
+      params.push(filters.maxScore)
+    }
+    
+    // 日期筛选
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      switch (filters.dateRange) {
+        case 'today':
+          conditions.push("date(completed_at) = date('now')")
+          break
+        case 'week':
+          conditions.push("completed_at >= datetime('now', '-7 days')")
+          break
+        case 'month':
+          conditions.push("completed_at >= datetime('now', '-30 days')")
+          break
+      }
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    
+    const query = `SELECT COUNT(*) as count FROM training_records ${whereClause}`
+    
+    const stmt = this.db.prepare(query)
+    const result = stmt.get(...params) as { count: number }
+    return result.count
+  }
+  
+  // 获取培训统计数据
+  getTrainingStats(): {
+    totalRecords: number
+    totalEmployees: number
+    averageScore: number
+    passRate: number
+    totalQuestions: number
+  } {
+    const stmt = this.db.prepare(`
+      SELECT 
+        COUNT(*) as total_records,
+        COUNT(DISTINCT employee_name) as total_employees,
+        AVG(score) as avg_score,
+        AVG(CAST(total_questions as REAL)) as avg_total_questions,
+        SUM(CASE WHEN score >= 60 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as pass_rate
+      FROM training_records
+    `)
+    
+    const result = stmt.get() as {
+      total_records: number
+      total_employees: number
+      avg_score: number
+      avg_total_questions: number
+      pass_rate: number
+    }
+    
+    return {
+      totalRecords: result.total_records || 0,
+      totalEmployees: result.total_employees || 0,
+      averageScore: Math.round(result.avg_score || 0),
+      passRate: Math.round(result.pass_rate || 0),
+      totalQuestions: Math.round(result.avg_total_questions || 0)
+    }
+  }
+  
+  // 获取分数分布统计
+  getScoreDistribution(): { scoreRange: string; count: number }[] {
+    const stmt = this.db.prepare(`
+      SELECT 
+        CASE 
+          WHEN score >= 90 THEN '90-100分'
+          WHEN score >= 80 THEN '80-89分'
+          WHEN score >= 70 THEN '70-79分'
+          WHEN score >= 60 THEN '60-69分'
+          ELSE '60分以下'
+        END as score_range,
+        COUNT(*) as count
+      FROM training_records
+      GROUP BY score_range
+      ORDER BY MIN(score) DESC
+    `)
+    
+    const results = stmt.all() as { score_range: string; count: number }[]
+    return results.map(row => ({
+      scoreRange: row.score_range,
+      count: row.count
+    }))
+  }
+  
+  // 根据ID查找单个记录
+  findById(id: number): TrainingRecord | null {
+    const stmt = this.db.prepare('SELECT * FROM training_records WHERE id = ?')
+    const result = stmt.get(id) as TrainingRecord | undefined
+    return result || null
+  }
+  
+  // 删除培训记录
+  deleteRecord(id: number): boolean {
+    const stmt = this.db.prepare('DELETE FROM training_records WHERE id = ?')
+    const result = stmt.run(id)
+    return result.changes > 0
+  }
+}
+
 // 导出单例实例
 export const smsRecordDB = new SmsRecordDB()
 export const phoneNumberDB = new PhoneNumberDB()
@@ -2015,3 +2525,8 @@ export const projectPhaseDB = new ProjectPhaseDB()
 export const featureModuleDB = new FeatureModuleDB()
 export const featureItemDB = new FeatureItemDB()
 export const progressRecordDB = new ProgressRecordDB()
+
+// 培训模块数据库实例
+export const questionSetDB = new QuestionSetDB()
+export const questionDB = new QuestionDB()
+export const trainingRecordDB = new TrainingRecordDB()
