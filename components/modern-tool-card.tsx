@@ -116,16 +116,20 @@ export function ModernToolCard({
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
       >
-        {/* 主卡片容器 - 玻璃态效果 */}
+        {/* 主卡片容器 - Apple风格毛玻璃效果 */}
         <div className={cn(
           "relative w-full h-full rounded-2xl overflow-hidden",
-          "backdrop-blur-xl bg-white/75 border border-emerald-200/40",
+          "backdrop-blur-2xl bg-white/20 border border-white/30",
           "shadow-lg transition-all duration-500",
+          "backdrop-saturate-150 backdrop-brightness-110",
           isHovered && `shadow-xl ${gradientColors.shadow}`
         )}>
           
-          {/* 淡绿色蒙版层 - 营造泛着背景色的效果 */}
-          <div className="absolute inset-0 bg-emerald-50/20" />
+          {/* Apple风格毛玻璃底层 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/20 to-white/10" />
+          
+          {/* 背景色调渗透层 */}
+          <div className="absolute inset-0 bg-emerald-50/15 mix-blend-multiply" />
           
           {/* 动态渐变背景 */}
           <div className={cn(
@@ -172,7 +176,7 @@ export function ModernToolCard({
                 {/* 认证状态 */}
                 <Badge 
                   variant={requiresAuth ? (isAuthenticated ? "default" : "secondary") : "outline"} 
-                  className="text-xs backdrop-blur-sm bg-white/70 border-emerald-200 text-gray-600"
+                  className="text-xs backdrop-blur-lg bg-white/40 border-white/50 text-gray-700"
                 >
                   {requiresAuth ? (
                     isAuthenticated ? (
