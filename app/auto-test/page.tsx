@@ -14,6 +14,7 @@ import { Play, Pause, Square, Plus, Trash2, Clock, Settings, Calendar, Timer } f
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import PhoneNumberSelector from "@/components/phone-number-selector"
+import { ModuleHeader } from "@/components/module-header"
 
 interface AutoTestPlan {
   id: string
@@ -235,14 +236,18 @@ export default function AutoTestPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">自动化测试</h1>
-            <Link href="/">
-              <Button variant="outline">返回首页</Button>
-            </Link>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+        {/* 动态背景装饰 */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+        
+        <ModuleHeader
+          title="自动测试"
+          description="调度和管理自动化测试工作流"
+          icon={Timer}
+          showAuthStatus={true}
+        />
+        
+        <div className="pt-24 max-w-6xl mx-auto space-y-6 px-4 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
@@ -262,15 +267,22 @@ export default function AutoTestPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">自动测试</h1>
-            <p className="text-muted-foreground mt-1">调度和管理自动化测试工作流</p>
-          </div>
-          <div className="flex items-center gap-2">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+      {/* 动态背景装饰 */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30" />
+      
+      <ModuleHeader
+        title="自动测试"
+        description="调度和管理自动化测试工作流"
+        icon={Timer}
+        showAuthStatus={true}
+      />
+      
+      <div className="pt-24 container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
             <Button onClick={() => setShowCreateForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
               创建计划
@@ -530,6 +542,7 @@ export default function AutoTestPage() {
           </AlertDescription>
         </Alert>
       </div>
+    </div>
     </div>
   )
 }

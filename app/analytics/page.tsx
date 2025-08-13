@@ -10,6 +10,7 @@ import { BarChart, TrendingUp, PieChart, Users, MessageSquare, Clock, Calendar, 
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { FailureAnalysis } from "@/components/analytics/failure-analysis"
+import { ModuleHeader } from "@/components/module-header"
 
 interface AnalyticsData {
   totalSms: number
@@ -79,25 +80,31 @@ export default function AnalyticsPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
-              <p className="text-muted-foreground mt-1">查看全面的测试分析和性能报告</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+        {/* 动态背景装饰 */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+        
+        <ModuleHeader
+          title="数据分析"
+          description="查看全面的测试分析和性能报告"
+          icon={BarChart}
+          showAuthStatus={false}
+        />
+        
+        <div className="pt-24 container mx-auto px-4 py-8">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardContent className="p-6">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-6">
-                  <div className="animate-pulse">
-                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         </div>
       </div>
@@ -106,34 +113,47 @@ export default function AnalyticsPage() {
 
   if (!analyticsData) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
-              <p className="text-muted-foreground mt-1">查看全面的测试分析和性能报告</p>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+        {/* 动态背景装饰 */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+        
+        <ModuleHeader
+          title="数据分析"
+          description="查看全面的测试分析和性能报告"
+          icon={BarChart}
+          showAuthStatus={false}
+        />
+        
+        <div className="pt-24 container mx-auto px-4 py-8">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <Card>
+              <CardContent className="p-12 text-center">
+                <p className="text-gray-500">暂无分析数据</p>
+              </CardContent>
+            </Card>
           </div>
-          <Card>
-            <CardContent className="p-12 text-center">
-              <p className="text-gray-500">暂无分析数据</p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">数据分析</h1>
-            <p className="text-muted-foreground mt-1">查看全面的测试分析和性能报告</p>
-          </div>
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+      {/* 动态背景装饰 */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30" />
+      
+      <ModuleHeader
+        title="数据分析"
+        description="查看全面的测试分析和性能报告"
+        icon={BarChart}
+        showAuthStatus={false}
+      />
+      
+      <div className="pt-24 container mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
             <Select value={dateRange} onValueChange={setDateRange}>
               <SelectTrigger className="w-32">
                 <SelectValue />
@@ -396,6 +416,7 @@ export default function AnalyticsPage() {
           totalFailures={analyticsData.statusBreakdown.find(s => s.status === '发送失败')?.count || 0}
         />
       </div>
+    </div>
     </div>
   )
 }

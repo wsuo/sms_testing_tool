@@ -162,7 +162,10 @@ export default function SmsTestingPage() {
   }
 
   return (
-    <div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+      {/* 动态背景装饰 */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
+      
       <ModuleHeader
         title="短信管理"
         description="企业短信发送和监控系统"
@@ -170,8 +173,8 @@ export default function SmsTestingPage() {
         showAuthStatus={true}
       />
       
-      <div className="pt-20 container mx-auto px-4 py-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="pt-24 container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto space-y-6">
         {/* 401 Error Alert */}
         {tokenManager.show401Error && (
           <Alert variant="destructive">
@@ -313,9 +316,9 @@ export default function SmsTestingPage() {
               </AlertDescription>
             </Alert>
           </div>
+          </div>
         </div>
       </div>
-    </div>
       
       {/* Configuration Modal */}
       <ConfigurationModal
