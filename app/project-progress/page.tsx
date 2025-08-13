@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
+import { ModuleHeader } from "@/components/module-header"
 import { DataImportModal } from "@/components/data-import-modal"
 import { FeatureEditModal } from "@/components/feature-edit-modal"
 
@@ -396,15 +397,17 @@ export default function ProjectProgressPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
+    <div>
+      <ModuleHeader
+        title="项目管理"
+        description="项目进度跟踪和管理系统"
+        icon={Kanban}
+        showAuthStatus={true}
+      />
+      
+      <div className="pt-20 container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">项目进度管理</h1>
-          <p className="text-muted-foreground">
-            按期数管理各业务平台的功能模块和开发进度
-          </p>
-        </div>
         <div className="flex items-center gap-2">
           {/* 期数选择器 - 主要筛选维度 */}
           <Select value={selectedPhase} onValueChange={setSelectedPhase}>
@@ -721,6 +724,7 @@ export default function ProjectProgressPage() {
         featureItem={selectedFeatureItem}
         onSuccess={handleEditSuccess}
       />
+    </div>
     </div>
   )
 }

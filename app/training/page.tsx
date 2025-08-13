@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { ModuleHeader } from '@/components/module-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { BookOpen, Clock, Target, Users, ArrowRight, CheckCircle } from 'lucide-react'
+import { BookOpen, Clock, Target, Users, ArrowRight, CheckCircle, GraduationCap } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 export default function TrainingEntryPage() {
@@ -80,8 +81,16 @@ export default function TrainingEntryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="container mx-auto max-w-4xl py-8">
+    <>
+      <ModuleHeader
+        title="培训考试"
+        description="员工在线培训考试系统"
+        icon={GraduationCap}
+        showAuthStatus={false}
+      />
+      
+      <div className="pt-20 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="container mx-auto max-w-4xl py-8">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
@@ -272,5 +281,6 @@ export default function TrainingEntryPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

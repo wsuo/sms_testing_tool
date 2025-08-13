@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { ModuleHeader } from "@/components/module-header"
 import * as XLSX from 'xlsx'
 
 interface CompanyData {
@@ -884,14 +885,18 @@ export default function DataManagementPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div>
+      <ModuleHeader
+        title="数据管理"
+        description="企业数据导入导出管理系统"
+        icon={Database}
+        showAuthStatus={true}
+      />
+      
+      <div className="pt-20 container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">数据管理</h1>
-            <p className="text-muted-foreground mt-1">导入和导出公司数据，支持Excel格式和中英文双语信息</p>
-          </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleExportTemplate}>
               <FileText className="w-4 h-4 mr-2" />
@@ -1681,6 +1686,7 @@ export default function DataManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   )
 }

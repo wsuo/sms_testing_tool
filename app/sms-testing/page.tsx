@@ -2,9 +2,10 @@
 
 import React, { useEffect } from "react"
 import Link from "next/link"
-import { Settings, BarChart, Timer } from "lucide-react"
+import { Settings, BarChart, Timer, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ModuleHeader } from "@/components/module-header"
 import BulkSendModal from "@/components/bulk-send-modal"
 import smsMonitorService from "@/lib/sms-monitor-service"
 
@@ -161,7 +162,15 @@ export default function SmsTestingPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div>
+      <ModuleHeader
+        title="短信管理"
+        description="企业短信发送和监控系统"
+        icon={MessageSquare}
+        showAuthStatus={true}
+      />
+      
+      <div className="pt-20 container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* 401 Error Alert */}
         {tokenManager.show401Error && (
@@ -192,10 +201,6 @@ export default function SmsTestingPage() {
         
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">SMS Testing</h1>
-            <p className="text-muted-foreground mt-1">Send and monitor SMS messages with real-time status tracking</p>
-          </div>
           <div className="flex items-center gap-2">
             <Link href="/analytics">
               <Button variant="outline" size="sm">
@@ -310,6 +315,7 @@ export default function SmsTestingPage() {
           </div>
         </div>
       </div>
+    </div>
       
       {/* Configuration Modal */}
       <ConfigurationModal

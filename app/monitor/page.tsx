@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, RefreshCw, Search, Filter, Download, BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Trash2, MessageSquare, RotateCcw, BarChart } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { ModuleHeader } from "@/components/module-header"
 import Link from "next/link"
 import smsMonitorService, { SmsStatusUpdate } from "@/lib/sms-monitor-service"
 
@@ -670,14 +671,18 @@ export default function SmsMonitorPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div>
+      <ModuleHeader
+        title="数据监控"
+        description="实时数据监控和分析系统"
+        icon={TrendingUp}
+        showAuthStatus={true}
+      />
+      
+      <div className="pt-20 container mx-auto px-4 py-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">短信监控</h1>
-            <p className="text-muted-foreground mt-1">实时短信状态监控和统计（自动更新）</p>
-          </div>
           <div className="flex items-center gap-2">
             {/* 全局时间筛选 */}
             <div className="flex items-center gap-2 mr-4">
@@ -1095,6 +1100,7 @@ export default function SmsMonitorPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
     </div>
   )
 }
