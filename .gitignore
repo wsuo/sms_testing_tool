@@ -97,3 +97,6 @@ data/
 
 # Documentation folder
 docs/
+# Claude AI directories
+.claude/
+.augment/
