@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { trainingRecordDB } from '@/lib/database'
+import { trainingRecordDB, systemConfigDB } from '@/lib/database'
 
 // 删除培训记录
 export async function DELETE(
@@ -73,6 +73,9 @@ export async function GET(
       )
     }
     
+    // 获取合格分数线
+    const passScore = systemConfigDB.getTrainingPassScore()
+    
     // 获取记录详情
     const record = trainingRecordDB.findById(recordId)
     if (!record) {
@@ -97,7 +100,7 @@ export async function GET(
         employeeName: record.employee_name,
         score: record.score,
         totalQuestions: record.total_questions,
-        passed: record.score >= 60,
+        passed: record.score >= passScore, // 使用动态合格分数线
         sessionDuration: record.session_duration,
         startedAt: record.started_at,
         completedAt: record.completed_at,

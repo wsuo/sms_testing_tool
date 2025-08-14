@@ -278,6 +278,17 @@ function initializeTables() {
       FOREIGN KEY (set_id) REFERENCES question_sets (id)
     )
   `
+
+  // 创建系统配置表
+  const createSystemConfigTable = `
+    CREATE TABLE IF NOT EXISTS system_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `
   
   // 创建索引以提升查询性能
   const createIndexes = [
@@ -350,6 +361,12 @@ function initializeTables() {
 
     db.exec(createTrainingRecordsTable)
     console.log('Training records table created/verified')
+
+    db.exec(createSystemConfigTable)
+    console.log('System config table created/verified')
+    
+    // 初始化默认配置
+    initDefaultConfig()
     
     // 执行数据库迁移
     runMigrations()
@@ -2530,3 +2547,99 @@ export const progressRecordDB = new ProgressRecordDB()
 export const questionSetDB = new QuestionSetDB()
 export const questionDB = new QuestionDB()
 export const trainingRecordDB = new TrainingRecordDB()
+
+// 系统配置数据库操作类
+export class SystemConfigDB {
+  private db: Database.Database
+  
+  constructor() {
+    this.db = getDatabase()
+  }
+  
+  // 获取配置项
+  getConfig(key: string): string | null {
+    const stmt = this.db.prepare('SELECT value FROM system_config WHERE key = ?')
+    const result = stmt.get(key) as { value: string } | undefined
+    return result?.value || null
+  }
+  
+  // 设置配置项
+  setConfig(key: string, value: string, description?: string): boolean {
+    const stmt = this.db.prepare(`
+      INSERT INTO system_config (key, value, description, updated_at) 
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET 
+        value = excluded.value,
+        description = COALESCE(excluded.description, description),
+        updated_at = CURRENT_TIMESTAMP
+    `)
+    
+    const result = stmt.run(key, value, description)
+    return result.changes > 0
+  }
+  
+  // 获取所有配置
+  getAllConfigs(): Array<{ key: string; value: string; description: string | null }> {
+    const stmt = this.db.prepare('SELECT key, value, description FROM system_config ORDER BY key')
+    return stmt.all() as Array<{ key: string; value: string; description: string | null }>
+  }
+  
+  // 删除配置项
+  deleteConfig(key: string): boolean {
+    const stmt = this.db.prepare('DELETE FROM system_config WHERE key = ?')
+    const result = stmt.run(key)
+    return result.changes > 0
+  }
+  
+  // 获取培训合格分数
+  getTrainingPassScore(): number {
+    const score = this.getConfig('training_pass_score')
+    return score ? parseInt(score, 10) : 60 // 默认60分
+  }
+  
+  // 设置培训合格分数
+  setTrainingPassScore(score: number): boolean {
+    if (score < 0 || score > 100) {
+      throw new Error('分数必须在0-100之间')
+    }
+    return this.setConfig('training_pass_score', score.toString(), '培训考试合格分数线')
+  }
+  
+  // 获取考试时间限制（分钟）
+  getExamTimeLimit(): number {
+    const minutes = this.getConfig('exam_time_limit')
+    return minutes ? parseInt(minutes, 10) : 35 // 默认35分钟
+  }
+  
+  // 设置考试时间限制（分钟）
+  setExamTimeLimit(minutes: number): boolean {
+    if (minutes <= 0 || minutes > 300) {
+      throw new Error('时间限制必须在1-300分钟之间')
+    }
+    return this.setConfig('exam_time_limit', minutes.toString(), '考试时间限制（分钟）')
+  }
+}
+
+// 初始化默认配置
+function initDefaultConfig() {
+  try {
+    const configDB = new SystemConfigDB()
+    
+    // 检查是否已经存在配置，如果不存在则初始化默认值
+    if (!configDB.getConfig('training_pass_score')) {
+      configDB.setConfig('training_pass_score', '60', '培训考试合格分数线（0-100分）')
+      console.log('Default training pass score config initialized: 60')
+    }
+    
+    if (!configDB.getConfig('exam_time_limit')) {
+      configDB.setConfig('exam_time_limit', '35', '考试时间限制（分钟）')
+      console.log('Default exam time limit config initialized: 35 minutes')
+    }
+    
+  } catch (error) {
+    console.error('Failed to initialize default config:', error)
+  }
+}
+
+// 导出系统配置数据库实例
+export const systemConfigDB = new SystemConfigDB()

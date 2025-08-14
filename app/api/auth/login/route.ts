@@ -14,10 +14,21 @@ export async function POST(request: NextRequest) {
     const platformPassword = process.env.PLATFORM_PASSWORD || 'admin123'
 
     if (password === platformPassword) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         message: '认证成功'
       })
+
+      // 设置认证Cookie
+      response.cookies.set('platform-auth', platformPassword, {
+        httpOnly: false, // 允许前端JavaScript访问，用于检查认证状态
+        secure: process.env.NODE_ENV === 'production', // 生产环境使用HTTPS
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7天过期
+        path: '/'
+      })
+
+      return response
     } else {
       return NextResponse.json(
         { success: false, message: '密码错误' },

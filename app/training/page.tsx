@@ -18,6 +18,7 @@ export default function TrainingEntryPage() {
   const [error, setError] = useState('')
   const [availableSets, setAvailableSets] = useState<any[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
+  const [passScore, setPassScore] = useState(60) // 动态合格分数
   
   const router = useRouter()
 
@@ -27,15 +28,28 @@ export default function TrainingEntryPage() {
 
   const loadAvailableSets = async () => {
     try {
-      const response = await fetch('/api/training/start')
-      if (response.ok) {
-        const result = await response.json()
+      // 并行加载题库信息和合格分数
+      const [setsResponse, configResponse] = await Promise.all([
+        fetch('/api/training/start'),
+        fetch('/api/config?key=training_pass_score')
+      ])
+      
+      if (setsResponse.ok) {
+        const result = await setsResponse.json()
         if (result.success) {
           setAvailableSets(result.data.questionSets || [])
         }
       }
+      
+      // 加载合格分数配置
+      if (configResponse.ok) {
+        const configResult = await configResponse.json()
+        if (configResult.success) {
+          setPassScore(parseInt(configResult.data.value) || 60)
+        }
+      }
     } catch (error) {
-      console.error('加载题库信息失败:', error)
+      console.error('加载页面信息失败:', error)
     } finally {
       setLoadingStats(false)
     }
@@ -137,7 +151,7 @@ export default function TrainingEntryPage() {
                   <Users className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium">评分标准</p>
-                    <p className="text-sm text-muted-foreground">满分100分，60分及以上为合格，系统自动评分</p>
+                    <p className="text-sm text-muted-foreground">满分100分，{passScore}分及以上为合格，系统自动评分</p>
                   </div>
                 </div>
               </CardContent>

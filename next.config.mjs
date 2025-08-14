@@ -23,6 +23,8 @@ const nextConfig = {
         },
       },
     },
+    // 优化路由滚动行为，减少fixed元素相关警告
+    scrollRestoration: true,
   },
   // 优化编译配置
   webpack: (config, { dev, isServer }) => {

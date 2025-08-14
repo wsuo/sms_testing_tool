@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { trainingRecordDB, questionSetDB } from '@/lib/database'
+import { trainingRecordDB, questionSetDB, systemConfigDB } from '@/lib/database'
 
 // 获取培训记录统计数据
 export async function GET(request: NextRequest) {
@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
     
     const offset = (page - 1) * pageSize
     
+    // 获取合格分数线
+    const passScore = systemConfigDB.getTrainingPassScore()
+
     const filters = {
       employeeName,
       setId,
@@ -58,7 +61,7 @@ export async function GET(request: NextRequest) {
         } : null,
         score: record.score,
         totalQuestions: record.total_questions,
-        passed: record.score >= 60,
+        passed: record.score >= passScore, // 使用动态合格分数线
         sessionDuration: record.session_duration,
         startedAt: record.started_at,
         completedAt: record.completed_at,

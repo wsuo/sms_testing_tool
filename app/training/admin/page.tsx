@@ -31,7 +31,10 @@ import {
   Clock,
   Trash2,
   Shield,
-  Lock
+  Lock,
+  Settings,
+  Save,
+  Info
 } from 'lucide-react'
 import { ModuleHeader } from '@/components/module-header'
 
@@ -104,6 +107,19 @@ export default function TrainingAdminPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
   
+  // 分数配置模态框相关状态
+  const [showConfigDialog, setShowConfigDialog] = useState(false)
+  const [passScore, setPassScore] = useState(60)
+  const [newPassScore, setNewPassScore] = useState('')
+  
+  // 时间限制配置模态框相关状态
+  const [showTimeDialog, setShowTimeDialog] = useState(false)
+  const [timeLimit, setTimeLimit] = useState(35)
+  const [newTimeLimit, setNewTimeLimit] = useState('')
+  
+  const [savingConfig, setSavingConfig] = useState(false)
+  const [configMessage, setConfigMessage] = useState('')
+  
   // 筛选条件
   const [filters, setFilters] = useState({
     employeeName: '',
@@ -145,14 +161,18 @@ export default function TrainingAdminPage() {
       setLoading(true)
       setError('')
       
-      const params = new URLSearchParams({
-        page: pagination.page.toString(),
-        pageSize: pagination.pageSize.toString(),
-        ...Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== ''))
-      })
+      // 并行加载数据和配置
+      const [dataResponse, configResponse, timeLimitResponse] = await Promise.all([
+        fetch(`/api/training/records?${new URLSearchParams({
+          page: pagination.page.toString(),
+          pageSize: pagination.pageSize.toString(),
+          ...Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== ''))
+        })}`),
+        fetch('/api/config?key=training_pass_score'),
+        fetch('/api/config?key=exam_time_limit')
+      ])
       
-      const response = await fetch(`/api/training/records?${params}`)
-      const result = await response.json()
+      const result = await dataResponse.json()
       
       if (result.success) {
         setRecords(result.data.records)
@@ -166,6 +186,22 @@ export default function TrainingAdminPage() {
       } else {
         setError(result.message || '加载数据失败')
       }
+      
+      // 加载配置
+      if (configResponse.ok) {
+        const configResult = await configResponse.json()
+        if (configResult.success) {
+          setPassScore(parseInt(configResult.data.value))
+        }
+      }
+      
+      if (timeLimitResponse.ok) {
+        const timeLimitResult = await timeLimitResponse.json()
+        if (timeLimitResult.success) {
+          setTimeLimit(parseInt(timeLimitResult.data.value))
+        }
+      }
+      
     } catch (error) {
       setError('网络连接失败')
     } finally {
@@ -207,6 +243,106 @@ export default function TrainingAdminPage() {
       setError(error instanceof Error ? error.message : '导出失败')
     } finally {
       setExporting(false)
+    }
+  }
+
+  // 保存合格分数配置
+  const handleSavePassScore = async () => {
+    const score = parseInt(newPassScore)
+    
+    if (!newPassScore || isNaN(score) || score < 0 || score > 100) {
+      setConfigMessage('请输入0-100之间的有效分数')
+      return
+    }
+    
+    try {
+      setSavingConfig(true)
+      setConfigMessage('')
+      
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key: 'training_pass_score',
+          value: score.toString(),
+          description: '培训考试合格分数线（0-100分）'
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setPassScore(score)
+        setNewPassScore('')
+        setConfigMessage('合格分数已更新，新的分数线将立即生效！')
+        
+        // 3秒后清除消息并关闭对话框
+        setTimeout(() => {
+          setConfigMessage('')
+          setShowConfigDialog(false)
+        }, 2000)
+        
+        // 重新加载数据以反映新的分数线
+        loadData()
+      } else {
+        setConfigMessage(result.message || '保存失败，请重试')
+      }
+    } catch (error) {
+      setConfigMessage('网络连接失败，请检查后重试')
+    } finally {
+      setSavingConfig(false)
+    }
+  }
+
+  // 保存考试时限配置
+  const handleSaveTimeLimit = async () => {
+    const minutes = parseInt(newTimeLimit)
+    
+    if (!newTimeLimit || isNaN(minutes) || minutes <= 0 || minutes > 300) {
+      setConfigMessage('请输入1-300之间的有效时间（分钟）')
+      return
+    }
+    
+    try {
+      setSavingConfig(true)
+      setConfigMessage('')
+      
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key: 'exam_time_limit',
+          value: minutes.toString(),
+          description: '考试时间限制（分钟）'
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setTimeLimit(minutes)
+        setNewTimeLimit('')
+        setConfigMessage('考试时限已更新，新的时限将立即生效！')
+        
+        // 3秒后清除消息并关闭对话框
+        setTimeout(() => {
+          setConfigMessage('')
+          setShowTimeDialog(false)
+        }, 2000)
+        
+        // 重新加载数据以反映新的时限
+        loadData()
+      } else {
+        setConfigMessage(result.message || '保存失败，请重试')
+      }
+    } catch (error) {
+      setConfigMessage('网络连接失败，请检查后重试')
+    } finally {
+      setSavingConfig(false)
     }
   }
 
@@ -412,7 +548,7 @@ export default function TrainingAdminPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{statistics.passRate}%</div>
-              <p className="text-xs text-muted-foreground">≥60分通过</p>
+              <p className="text-xs text-muted-foreground">≥{passScore}分通过</p>
             </CardContent>
           </Card>
           
@@ -428,6 +564,40 @@ export default function TrainingAdminPage() {
           </Card>
         </div>
       )}
+
+      {/* 系统配置按钮 */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Settings className="w-4 h-4" />
+            <span className="text-sm">合格分数线: <span className="font-semibold text-orange-600">{passScore}分</span></span>
+          </div>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="w-4 h-4" />
+            <span className="text-sm">考试时限: <span className="font-semibold text-blue-600">{timeLimit}分钟</span></span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowConfigDialog(true)}
+            className="border-orange-300 text-orange-700 hover:bg-orange-50"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            配置合格分数
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTimeDialog(true)}
+            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+          >
+            <Clock className="w-4 h-4 mr-2" />
+            配置考试时限
+          </Button>
+        </div>
+      </div>
 
       {/* 分数分布统计 */}
       {statistics?.scoreDistribution && statistics.scoreDistribution.length > 0 && (
@@ -872,7 +1042,215 @@ export default function TrainingAdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 删除确认对话框 */}
+      {/* 合格分数配置对话框 */}
+      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-800">
+              <Settings className="w-5 h-5" />
+              配置考试合格分数线
+            </DialogTitle>
+            <DialogDescription className="text-orange-700">
+              设置培训考试的合格分数线，新配置将立即对所有考试生效
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* 当前配置显示 */}
+            <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
+              <div>
+                <p className="text-sm text-orange-800 font-medium">当前合格分数线</p>
+                <p className="text-xs text-orange-600 mt-1">{passScore}分及以上为合格</p>
+              </div>
+              <div className="text-2xl font-bold text-orange-600">{passScore}<span className="text-sm font-medium ml-1">分</span></div>
+            </div>
+
+            {/* 新配置输入 */}
+            <div className="space-y-3">
+              <Label htmlFor="newPassScore" className="text-sm font-medium text-gray-800">
+                新合格分数线
+              </Label>
+              <Input
+                id="newPassScore"
+                type="number"
+                min="0"
+                max="100"
+                placeholder={`当前: ${passScore}分`}
+                value={newPassScore}
+                onChange={(e) => setNewPassScore(e.target.value)}
+                className="border-orange-300 focus:border-orange-500 focus:ring-orange-500"
+                disabled={savingConfig}
+              />
+              <p className="text-xs text-gray-600">
+                输入0-100之间的分数
+              </p>
+            </div>
+
+            {/* 配置说明 */}
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Shield className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-amber-800">
+                  <p className="font-medium mb-1">重要说明：</p>
+                  <ul className="space-y-1">
+                    <li>• 修改后立即对所有新考试生效</li>
+                    <li>• 历史记录通过状态会重新计算</li>
+                    <li>• 请根据培训难度合理设置</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* 消息提示 */}
+            {configMessage && (
+              <div className={`p-3 rounded-lg text-sm ${
+                configMessage.includes('更新') 
+                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                {configMessage}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowConfigDialog(false)
+                setNewPassScore('')
+                setConfigMessage('')
+              }}
+              disabled={savingConfig}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleSavePassScore}
+              disabled={savingConfig || !newPassScore}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {savingConfig ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  保存配置
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 考试时限配置对话框 */}
+      <Dialog open={showTimeDialog} onOpenChange={setShowTimeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-800">
+              <Clock className="w-5 h-5" />
+              配置考试时间限制
+            </DialogTitle>
+            <DialogDescription className="text-blue-700">
+              设置培训考试的时间限制，超时将自动提交试卷
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* 当前配置显示 */}
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+              <div>
+                <p className="text-sm text-blue-800 font-medium">当前考试时限</p>
+                <p className="text-xs text-blue-600 mt-1">超时将自动提交试卷</p>
+              </div>
+              <div className="text-2xl font-bold text-blue-600">{timeLimit}<span className="text-sm font-medium ml-1">分钟</span></div>
+            </div>
+
+            {/* 新配置输入 */}
+            <div className="space-y-3">
+              <Label htmlFor="newTimeLimit" className="text-sm font-medium text-gray-800">
+                新时间限制（分钟）
+              </Label>
+              <Input
+                id="newTimeLimit"
+                type="number"
+                min="1"
+                max="300"
+                placeholder={`当前: ${timeLimit}分钟`}
+                value={newTimeLimit}
+                onChange={(e) => setNewTimeLimit(e.target.value)}
+                className="border-blue-300 focus:border-blue-500 focus:ring-blue-500"
+                disabled={savingConfig}
+              />
+              <p className="text-xs text-gray-600">
+                输入1-300之间的分钟数
+              </p>
+            </div>
+
+            {/* 配置说明 */}
+            <div className="p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-cyan-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-cyan-800">
+                  <p className="font-medium mb-1">重要说明：</p>
+                  <ul className="space-y-1">
+                    <li>• 考试开始后将显示倒计时</li>
+                    <li>• 时间到达后自动提交试卷</li>
+                    <li>• 新设置对后续考试立即生效</li>
+                    <li>• 建议根据题目数量合理设置时间</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* 消息提示 */}
+            {configMessage && (
+              <div className={`p-3 rounded-lg text-sm ${
+                configMessage.includes('更新') 
+                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                {configMessage}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowTimeDialog(false)
+                setNewTimeLimit('')
+                setConfigMessage('')
+              }}
+              disabled={savingConfig}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleSaveTimeLimit}
+              disabled={savingConfig || !newTimeLimit}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {savingConfig ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  保存配置
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>

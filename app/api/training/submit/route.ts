@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { questionDB, trainingRecordDB } from '@/lib/database'
+import { questionDB, trainingRecordDB, systemConfigDB } from '@/lib/database'
 
 interface AnswerItem {
   questionId: number
@@ -17,6 +17,8 @@ interface AnswerItem {
 
 // 提交答题结果
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  
   try {
     const {
       sessionId,
@@ -26,6 +28,8 @@ export async function POST(request: NextRequest) {
       answers // 格式: { questionId: selectedAnswer }
     } = await request.json()
     
+    console.log(`[${new Date().toISOString()}] 收到答题提交:`, { sessionId, employeeName, setId, answersCount: Object.keys(answers).length })
+    
     // 验证必要参数
     if (!sessionId || !employeeName || !setId || !startedAt || !answers) {
       return NextResponse.json(
@@ -34,10 +38,13 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.log('收到答题提交:', { sessionId, employeeName, setId, answersCount: Object.keys(answers).length })
+    // 获取合格分数线
+    const passScore = systemConfigDB.getTrainingPassScore()
     
     // 获取试卷的所有题目
+    const questionStartTime = Date.now()
     const questions = questionDB.findBySetId(setId)
+    console.log(`获取题目耗时: ${Date.now() - questionStartTime}ms, 题目数量: ${questions.length}`)
     
     if (questions.length === 0) {
       return NextResponse.json(
@@ -47,6 +54,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 评分处理
+    const scoringStartTime = Date.now()
     const answerResults: AnswerItem[] = []
     let correctCount = 0
     
@@ -72,6 +80,7 @@ export async function POST(request: NextRequest) {
         explanation: question.explanation || ''
       })
     }
+    console.log(`评分处理耗时: ${Date.now() - scoringStartTime}ms`)
     
     // 计算分数 (满分100分)
     const score = Math.round((correctCount / questions.length) * 100)
@@ -87,6 +96,7 @@ export async function POST(request: NextRequest) {
                'unknown'
     
     // 保存答题记录
+    const dbStartTime = Date.now()
     const recordData = {
       employee_name: employeeName.trim(),
       set_id: setId,
@@ -99,8 +109,10 @@ export async function POST(request: NextRequest) {
     }
     
     const recordId = trainingRecordDB.insertRecord(recordData)
+    console.log(`数据库写入耗时: ${Date.now() - dbStartTime}ms`)
     
-    console.log(`答题记录已保存: ID=${recordId}, 员工=${employeeName}, 分数=${score}/${questions.length}`)
+    const totalTime = Date.now() - startTime
+    console.log(`[${new Date().toISOString()}] 答题记录已保存: ID=${recordId}, 员工=${employeeName}, 分数=${score}/${questions.length}, 总耗时=${totalTime}ms`)
     
     // 返回答题结果
     return NextResponse.json({
@@ -115,11 +127,11 @@ export async function POST(request: NextRequest) {
         wrongAnswers: questions.length - correctCount,
         accuracy: Math.round((correctCount / questions.length) * 100),
         sessionDuration,
-        passed: score >= 60, // 60分及格
+        passed: score >= passScore, // 使用动态合格分数线
         answerDetails: answerResults,
         completedAt: endTime.toISOString()
       },
-      message: score >= 60 ? '恭喜你通过了培训考试！' : '很遗憾，你的成绩未达到及格线，建议继续学习后重新参加考试。'
+      message: score >= passScore ? '恭喜你通过了培训考试！' : `很遗憾，你的成绩未达到及格线（${passScore}分），建议继续学习后重新参加考试。`
     })
     
   } catch (error) {
@@ -148,6 +160,9 @@ export async function GET(request: NextRequest) {
       )
     }
     
+    // 获取合格分数线
+    const passScore = systemConfigDB.getTrainingPassScore()
+    
     const records = trainingRecordDB.findByEmployeeName(employeeName)
     
     return NextResponse.json({
@@ -158,7 +173,7 @@ export async function GET(request: NextRequest) {
           id: record.id,
           score: record.score,
           totalQuestions: record.total_questions,
-          passed: record.score >= 60,
+          passed: record.score >= passScore, // 使用动态合格分数线
           sessionDuration: record.session_duration,
           completedAt: record.completed_at,
           setId: record.set_id

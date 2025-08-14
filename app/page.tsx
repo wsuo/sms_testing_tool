@@ -236,12 +236,12 @@ export default function ToolboxHomepage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50/70 to-gray-50 relative overflow-hidden">
       {/* 动态背景装饰 */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxwYXR0ZXJuIGlkPSJhIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KICAgIDwvcGF0dGVybj4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none" />
       
       {/* 页面头部 */}
-      <div className="bg-emerald-50/80 backdrop-blur-xl border-b border-emerald-200/50 sticky top-0 z-40">
+      <div className="bg-emerald-50/40 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             {/* 品牌标识 */}
@@ -265,7 +265,7 @@ export default function ToolboxHomepage() {
             <div className="flex items-center gap-2 sm:gap-3">
               {isAuthenticated && (
                 <>
-                  <Badge variant="default" className="hidden sm:flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+                  <Badge variant="default" className="hidden sm:flex items-center gap-2 bg-gray-100 text-gray-700 border-gray-200">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                     管理员已登录
                   </Badge>

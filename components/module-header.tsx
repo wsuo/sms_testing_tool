@@ -45,7 +45,7 @@ export function ModuleHeader({
   }
 
   return (
-    <div className={`bg-emerald-50/80 backdrop-blur-xl border-b border-emerald-200/50 fixed top-0 left-0 right-0 z-40 ${className}`}>
+    <div className={`bg-emerald-50/80 backdrop-blur-xl border-b border-emerald-200/50 fixed top-0 left-0 right-0 z-40 ${className}`} data-scroll-ignore="true">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* 左侧：导航和标题 */}

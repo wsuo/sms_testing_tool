@@ -59,6 +59,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsAuthenticated(true)
         localStorage.setItem('platform-authenticated', 'true')
         
+        // 作为备用，前端也设置Cookie（后端现在也会设置）
+        const platformPassword = process.env.NEXT_PUBLIC_PLATFORM_PASSWORD || 'admin123'
+        document.cookie = `platform-auth=${password}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+        
         return { success: true }
       } else {
         return { success: false, message: result.message || '认证失败' }

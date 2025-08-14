@@ -1,13 +1,15 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { PlatformFooter } from '@/components/platform-footer'
+import { TrainingResultNavigator } from '@/components/training-result-navigator'
 import { 
   CheckCircle, 
   XCircle, 
@@ -19,7 +21,9 @@ import {
   RotateCcw,
   Home,
   TrendingUp,
-  Calendar
+  Calendar,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react'
 
 interface ExamResult {
@@ -53,10 +57,12 @@ interface AnswerDetail {
 
 export default function TrainingResultPage() {
   const [result, setResult] = useState<ExamResult | null>(null)
-  const [showDetails, setShowDetails] = useState(false)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   
   const router = useRouter()
+  const timelineRef = useRef<HTMLDivElement>(null)
+  const questionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
 
   useEffect(() => {
     // 从localStorage加载结果数据
@@ -110,6 +116,55 @@ export default function TrainingResultPage() {
     return 'bg-orange-100 text-orange-800 border-orange-200'
   }
 
+  // 导航到指定题目
+  const handleQuestionSelect = (questionIndex: number) => {
+    setCurrentQuestionIndex(questionIndex)
+    const questionElement = questionRefs.current[questionIndex]
+    if (questionElement && timelineRef.current) {
+      // 平滑滚动到指定题目
+      const timelineContainer = timelineRef.current
+      const containerRect = timelineContainer.getBoundingClientRect()
+      const questionRect = questionElement.getBoundingClientRect()
+      
+      const scrollTop = timelineContainer.scrollTop + questionRect.top - containerRect.top - 20
+      
+      timelineContainer.scrollTo({
+        top: scrollTop,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  // 监听滚动位置，更新当前题目索引
+  const handleScroll = () => {
+    if (!timelineRef.current || !result) return
+    
+    const timelineContainer = timelineRef.current
+    const containerRect = timelineContainer.getBoundingClientRect()
+    const containerCenter = containerRect.top + containerRect.height / 2
+    
+    let closestIndex = 0
+    let minDistance = Infinity
+    
+    result.answerDetails.forEach((_, index) => {
+      const questionElement = questionRefs.current[index]
+      if (questionElement) {
+        const questionRect = questionElement.getBoundingClientRect()
+        const questionCenter = questionRect.top + questionRect.height / 2
+        const distance = Math.abs(questionCenter - containerCenter)
+        
+        if (distance < minDistance) {
+          minDistance = distance
+          closestIndex = index
+        }
+      }
+    })
+    
+    if (closestIndex !== currentQuestionIndex) {
+      setCurrentQuestionIndex(closestIndex)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -140,7 +195,7 @@ export default function TrainingResultPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* 结果概览 */}
         <div className="text-center mb-8">
           <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${
@@ -256,121 +311,224 @@ export default function TrainingResultPage() {
           </Card>
         </div>
 
-        {/* 答题详情 */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                答题详情分析
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={() => setShowDetails(!showDetails)}
-              >
-                {showDetails ? '隐藏详情' : '查看详情'}
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          
-          {showDetails && (
-            <CardContent>
-              <div className="space-y-6 max-h-96 overflow-y-auto">
-                {result.answerDetails.map((detail) => (
-                  <div 
-                    key={detail.questionId} 
-                    className={`p-4 rounded-lg border-l-4 ${
-                      detail.isCorrect 
-                        ? 'border-green-500 bg-green-50' 
-                        : 'border-red-500 bg-red-50'
-                    }`}
-                  >
-                    {/* 题目标题 */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-                        detail.isCorrect 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {detail.questionNumber}
-                      </div>
-                      <div className="flex items-center">
-                        {detail.isCorrect ? (
-                          <CheckCircle className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-500" />
-                        )}
-                        <span className={`ml-2 font-medium ${
-                          detail.isCorrect ? 'text-green-700' : 'text-red-700'
-                        }`}>
-                          {detail.isCorrect ? '回答正确' : '回答错误'}
-                        </span>
-                      </div>
-                    </div>
+        {/* 答题详情分析 - 两列布局 */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+          {/* 左侧导航 */}
+          <div className="lg:col-span-3">
+            <TrainingResultNavigator
+              answerDetails={result.answerDetails}
+              currentQuestionIndex={currentQuestionIndex}
+              onQuestionSelect={handleQuestionSelect}
+              employeeName={result.employeeName}
+              score={result.score}
+              totalQuestions={result.totalQuestions}
+              correctAnswers={result.correctAnswers}
+              className="sticky top-4"
+            />
+          </div>
 
-                    {/* 题目内容 */}
-                    <div className="mb-3">
-                      <p className="font-medium text-gray-900 mb-3">{detail.questionText}</p>
-                      
-                      {/* 选项列表 */}
-                      <div className="grid grid-cols-1 gap-2">
-                        {['A', 'B', 'C', 'D'].map((option) => {
-                          const optionText = detail[`option${option}` as keyof AnswerDetail] as string
-                          const isSelected = detail.selectedAnswer === option
-                          const isCorrect = detail.correctAnswer === option
-                          
-                          return (
-                            <div
-                              key={option}
-                              className={`p-2 rounded border flex items-center gap-2 ${
-                                isCorrect
-                                  ? 'bg-green-100 border-green-300 text-green-800'
-                                  : isSelected && !isCorrect
-                                  ? 'bg-red-100 border-red-300 text-red-800'
-                                  : 'bg-gray-50 border-gray-200'
-                              }`}
-                            >
-                              <span className={`font-medium w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                                isCorrect
-                                  ? 'bg-green-200 text-green-800'
-                                  : isSelected && !isCorrect
-                                  ? 'bg-red-200 text-red-800'
-                                  : 'bg-gray-200'
-                              }`}>
-                                {option}
-                              </span>
-                              <span className="flex-1">{optionText}</span>
-                              {isSelected && (
-                                <Badge variant={isCorrect ? "default" : "destructive"} className="text-xs">
-                                  您的选择
-                                </Badge>
-                              )}
-                              {isCorrect && (
-                                <Badge variant="outline" className="text-xs bg-green-100 text-green-800">
-                                  正确答案
-                                </Badge>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* 解释说明 */}
-                    {detail.explanation && (
-                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                        <p className="text-sm text-blue-800">
-                          <span className="font-medium">解析：</span>
-                          {detail.explanation}
-                        </p>
-                      </div>
-                    )}
+          {/* 右侧时间轴 */}
+          <div className="lg:col-span-9">
+            <Card className="flex flex-col" style={{height: '800px'}}>
+              <CardHeader className="pb-4 border-b flex-shrink-0">
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-emerald-600" />
+                    答题详情时间轴
                   </div>
-                ))}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>第 {currentQuestionIndex + 1} / {result.totalQuestions} 题</span>
+                  </div>
+                </CardTitle>
+                <CardDescription>
+                  点击左侧题号或使用鼠标滚轮浏览所有答题详情
+                </CardDescription>
+              </CardHeader>
+              
+              <div className="flex-1 relative min-h-0">
+                <div 
+                  ref={timelineRef}
+                  className="absolute inset-0 overflow-y-auto px-4 py-6"
+                  onScroll={handleScroll}
+                >
+                  <div className="relative space-y-6">
+                    {/* 时间轴线 */}
+                    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-emerald-300" />
+                    
+                    {result.answerDetails.map((detail, index) => (
+                      <div
+                        key={detail.questionId}
+                        ref={el => { questionRefs.current[index] = el }}
+                        className={`relative pl-12 transition-all duration-200`}
+                      >
+                        {/* 时间轴节点 */}
+                        <div className={`absolute left-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-white border-2 transition-all duration-200 ${
+                          detail.isCorrect 
+                            ? 'border-green-400 text-green-600' 
+                            : 'border-red-400 text-red-600'
+                        } ${index === currentQuestionIndex ? 'scale-110 shadow-lg' : 'shadow-sm'}`}>
+                          {detail.questionNumber}
+                        </div>
+                        
+                        {/* 题目卡片 */}
+                        <Card className={`overflow-hidden border transition-all duration-200 ${
+                          detail.isCorrect 
+                            ? 'border-green-200 bg-green-50' 
+                            : 'border-red-200 bg-red-50'
+                        } hover:shadow-md`}>
+                          {/* 题目头部 */}
+                          <CardHeader className={`pb-3 border-b ${
+                            detail.isCorrect 
+                              ? 'bg-green-100 border-green-200' 
+                              : 'bg-red-100 border-red-200'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {detail.isCorrect ? (
+                                  <CheckCircle className="w-5 h-5 text-green-600" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-red-600" />
+                                )}
+                                <div>
+                                  <div className={`font-semibold ${
+                                    detail.isCorrect ? 'text-green-800' : 'text-red-800'
+                                  }`}>
+                                    {detail.isCorrect ? '✓ 回答正确' : '✗ 回答错误'}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    正确: <span className="font-medium text-green-700">{detail.correctAnswer}</span> | 
+                                    您选: <span className={`font-medium ${
+                                      detail.selectedAnswer === detail.correctAnswer ? 'text-green-700' : 'text-red-700'
+                                    }`}>
+                                      {detail.selectedAnswer || '未作答'}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              <Badge 
+                                variant={detail.isCorrect ? "default" : "destructive"}
+                                className="text-xs px-2 py-1"
+                              >
+                                第 {detail.questionNumber} 题
+                              </Badge>
+                            </div>
+                          </CardHeader>
+
+                          <CardContent className="p-4 space-y-4">
+                            {/* 题目内容 */}
+                            <div>
+                              <h4 className="font-medium text-base text-gray-900 mb-3 leading-relaxed">
+                                {detail.questionText}
+                              </h4>
+                              
+                              {/* 选项列表 */}
+                              <div className="space-y-2">
+                                {['A', 'B', 'C', 'D'].map((option) => {
+                                  const optionText = detail[`option${option}` as keyof AnswerDetail] as string
+                                  const isSelected = detail.selectedAnswer === option
+                                  const isCorrect = detail.correctAnswer === option
+                                  
+                                  return (
+                                    <div
+                                      key={option}
+                                      className={`relative p-3 rounded-lg border transition-all duration-100 ${
+                                        isCorrect
+                                          ? 'bg-green-100 border-green-300'
+                                          : isSelected && !isCorrect
+                                          ? 'bg-red-100 border-red-300'
+                                          : 'bg-white border-gray-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold border ${
+                                          isCorrect
+                                            ? 'bg-green-500 text-white border-green-600'
+                                            : isSelected && !isCorrect
+                                            ? 'bg-red-500 text-white border-red-600'
+                                            : 'bg-gray-100 text-gray-700 border-gray-300'
+                                        }`}>
+                                          {option}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm text-gray-900 leading-relaxed">
+                                            {optionText}
+                                          </p>
+                                        </div>
+                                        
+                                        {/* 状态标识 */}
+                                        <div className="flex gap-1">
+                                          {isSelected && (
+                                            <Badge 
+                                              variant={isCorrect ? "default" : "destructive"} 
+                                              className="text-xs px-1.5 py-0.5"
+                                            >
+                                              选择
+                                            </Badge>
+                                          )}
+                                          {isCorrect && (
+                                            <Badge 
+                                              variant="outline" 
+                                              className="text-xs px-1.5 py-0.5 bg-green-50 border-green-300 text-green-800"
+                                            >
+                                              正解
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+
+                            {/* 解析说明 */}
+                            {detail.explanation && (
+                              <div className="p-3 bg-blue-50 rounded">
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-shrink-0 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">?</span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <h5 className="font-medium text-blue-900 mb-1 text-sm">解析</h5>
+                                    <p className="text-blue-800 text-sm leading-relaxed">
+                                      {detail.explanation}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* 滚动提示 */}
+                <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-8 h-8 p-0 bg-white shadow-md"
+                    onClick={() => handleQuestionSelect(Math.max(0, currentQuestionIndex - 1))}
+                    disabled={currentQuestionIndex === 0}
+                  >
+                    <ArrowUp className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-8 h-8 p-0 bg-white shadow-md"
+                    onClick={() => handleQuestionSelect(Math.min(result.answerDetails.length - 1, currentQuestionIndex + 1))}
+                    disabled={currentQuestionIndex === result.answerDetails.length - 1}
+                  >
+                    <ArrowDown className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-          )}
-        </Card>
+            </Card>
+          </div>
+        </div>
 
         {/* 操作按钮 */}
         <div className="flex items-center justify-center gap-4">

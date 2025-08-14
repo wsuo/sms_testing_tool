@@ -151,11 +151,12 @@ export function AdminVerificationDialog({
             <Shield className="w-5 h-5 flex-shrink-0" />
             管理员安全验证
           </DialogTitle>
-          <DialogDescription className="space-y-2 text-sm">
-            <div>执行「{actionName}」需要管理员验证</div>
-            <div className="text-muted-foreground">
+          <DialogDescription className="text-sm text-center space-y-1">
+            执行「{actionName}」需要管理员验证
+            <br />
+            <span className="text-muted-foreground">
               验证码将发送到管理员邮箱，有效期5分钟
-            </div>
+            </span>
           </DialogDescription>
         </DialogHeader>
 
