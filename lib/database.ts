@@ -2622,17 +2622,38 @@ export class SystemConfigDB {
 
 // 初始化默认配置
 function initDefaultConfig() {
+  if (!db) return
+  
   try {
-    const configDB = new SystemConfigDB()
+    // 直接使用数据库连接，而不是实例化SystemConfigDB类
+    const getConfig = (key: string): string | null => {
+      const stmt = db!.prepare('SELECT value FROM system_config WHERE key = ?')
+      const result = stmt.get(key) as { value: string } | undefined
+      return result?.value || null
+    }
+    
+    const setConfig = (key: string, value: string, description?: string): boolean => {
+      const stmt = db!.prepare(`
+        INSERT INTO system_config (key, value, description, updated_at) 
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET 
+          value = excluded.value,
+          description = COALESCE(excluded.description, description),
+          updated_at = CURRENT_TIMESTAMP
+      `)
+      
+      const result = stmt.run(key, value, description)
+      return result.changes > 0
+    }
     
     // 检查是否已经存在配置，如果不存在则初始化默认值
-    if (!configDB.getConfig('training_pass_score')) {
-      configDB.setConfig('training_pass_score', '60', '培训考试合格分数线（0-100分）')
+    if (!getConfig('training_pass_score')) {
+      setConfig('training_pass_score', '60', '培训考试合格分数线（0-100分）')
       console.log('Default training pass score config initialized: 60')
     }
     
-    if (!configDB.getConfig('exam_time_limit')) {
-      configDB.setConfig('exam_time_limit', '35', '考试时间限制（分钟）')
+    if (!getConfig('exam_time_limit')) {
+      setConfig('exam_time_limit', '35', '考试时间限制（分钟）')
       console.log('Default exam time limit config initialized: 35 minutes')
     }
     
