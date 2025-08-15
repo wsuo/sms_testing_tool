@@ -5,11 +5,27 @@ import { projectPhaseDB, projectDB } from '@/lib/database'
 export async function GET() {
   try {
     // 查询所有项目的所有阶段，获取唯一期数名称
-    const allProjects = projectDB.findAll()
+    const allProjects = await projectDB.findAll()
     const uniquePhases = new Set<string>()
     
+    // 确保 allProjects 是数组
+    if (!Array.isArray(allProjects)) {
+      console.warn('projectDB.findAll() 返回的不是数组:', allProjects)
+      return NextResponse.json({
+        success: true,
+        data: []
+      })
+    }
+    
     for (const project of allProjects) {
-      const phases = projectPhaseDB.findByProjectId(project.id!)
+      const phases = await projectPhaseDB.findByProjectId(project.id!)
+      
+      // 确保 phases 是数组
+      if (!Array.isArray(phases)) {
+        console.warn(`projectPhaseDB.findByProjectId(${project.id}) 返回的不是数组:`, phases)
+        continue
+      }
+      
       phases.forEach(phase => {
         if (phase.name) {
           uniquePhases.add(phase.name)
@@ -99,11 +115,27 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 查找所有包含此期数的项目
-    const allProjects = projectDB.findAll()
+    const allProjects = await projectDB.findAll()
     let deletedCount = 0
     
+    // 确保 allProjects 是数组
+    if (!Array.isArray(allProjects)) {
+      console.warn('projectDB.findAll() 返回的不是数组:', allProjects)
+      return NextResponse.json({
+        success: false,
+        error: '无法获取项目列表'
+      }, { status: 500 })
+    }
+    
     for (const project of allProjects) {
-      const phases = projectPhaseDB.findByProjectId(project.id!)
+      const phases = await projectPhaseDB.findByProjectId(project.id!)
+      
+      // 确保 phases 是数组
+      if (!Array.isArray(phases)) {
+        console.warn(`projectPhaseDB.findByProjectId(${project.id}) 返回的不是数组:`, phases)
+        continue
+      }
+      
       const targetPhase = phases.find(p => p.name === phaseName)
       
       if (targetPhase) {

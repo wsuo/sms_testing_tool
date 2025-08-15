@@ -4,7 +4,7 @@ import { phoneNumberDB } from '@/lib/database'
 // GET - 获取运营商列表
 export async function GET(request: NextRequest) {
   try {
-    const carriers = phoneNumberDB.getUniqueCarriers()
+    const carriers = await phoneNumberDB.getUniqueCarriers()
     
     return NextResponse.json({
       success: true,

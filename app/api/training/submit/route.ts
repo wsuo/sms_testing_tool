@@ -39,11 +39,11 @@ export async function POST(request: NextRequest) {
     }
     
     // 获取合格分数线
-    const passScore = systemConfigDB.getTrainingPassScore()
+    const passScore = await systemConfigDB.getTrainingPassScore()
     
     // 获取试卷的所有题目
     const questionStartTime = Date.now()
-    const questions = questionDB.findBySetId(setId)
+    const questions = await questionDB.findBySetId(setId)
     console.log(`获取题目耗时: ${Date.now() - questionStartTime}ms, 题目数量: ${questions.length}`)
     
     if (questions.length === 0) {
@@ -97,18 +97,22 @@ export async function POST(request: NextRequest) {
     
     // 保存答题记录
     const dbStartTime = Date.now()
+    
+    // 转换日期格式为MySQL兼容格式
+    const mysqlStartedAt = new Date(startedAt).toISOString().slice(0, 19).replace('T', ' ')
+    
     const recordData = {
       employee_name: employeeName.trim(),
       set_id: setId,
       answers: JSON.stringify(answerResults),
       score,
       total_questions: questions.length,
-      started_at: startedAt,
+      started_at: mysqlStartedAt,
       ip_address: ip,
       session_duration: sessionDuration
     }
     
-    const recordId = trainingRecordDB.insertRecord(recordData)
+    const recordId = await trainingRecordDB.insertRecord(recordData)
     console.log(`数据库写入耗时: ${Date.now() - dbStartTime}ms`)
     
     const totalTime = Date.now() - startTime
@@ -161,9 +165,9 @@ export async function GET(request: NextRequest) {
     }
     
     // 获取合格分数线
-    const passScore = systemConfigDB.getTrainingPassScore()
+    const passScore = await systemConfigDB.getTrainingPassScore()
     
-    const records = trainingRecordDB.findByEmployeeName(employeeName)
+    const records = await trainingRecordDB.findByEmployeeName(employeeName)
     
     return NextResponse.json({
       success: true,

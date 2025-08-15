@@ -23,12 +23,37 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取所有活跃平台
-    const platforms = platformDB.findAll()
+    const platforms = await platformDB.findAll()
+    
+    // 确保 platforms 是数组
+    if (!Array.isArray(platforms)) {
+      console.warn('platformDB.findAll() 返回的不是数组:', platforms)
+      return NextResponse.json({
+        success: true,
+        data: {
+          platformTree: [],
+          stats: {
+            totalPlatforms: 0,
+            totalModules: 0,
+            totalItems: 0,
+            completedItems: 0,
+            completionRate: 0
+          }
+        }
+      })
+    }
+    
     stats.totalPlatforms = platforms.length
 
     for (const platform of platforms) {
       // 获取该平台的所有项目
-      const projects = projectDB.findByPlatformId(platform.id!)
+      const projects = await projectDB.findByPlatformId(platform.id!)
+      
+      // 确保 projects 是数组
+      if (!Array.isArray(projects)) {
+        console.warn(`projectDB.findByPlatformId(${platform.id}) 返回的不是数组:`, projects)
+        continue
+      }
       
       let platformModules: any[] = []
       let platformStats = {
@@ -40,7 +65,13 @@ export async function GET(request: NextRequest) {
 
       for (const project of projects) {
         // 获取项目的阶段（期数）
-        const phases = projectPhaseDB.findByProjectId(project.id!)
+        const phases = await projectPhaseDB.findByProjectId(project.id!)
+        
+        // 确保 phases 是数组
+        if (!Array.isArray(phases)) {
+          console.warn(`projectPhaseDB.findByProjectId(${project.id}) 返回的不是数组:`, phases)
+          continue
+        }
         
         // 如果指定了期数，只处理该期数的数据
         let targetPhases = phases
@@ -50,11 +81,23 @@ export async function GET(request: NextRequest) {
 
         for (const phase of targetPhases) {
           // 获取该阶段的模块
-          const modules = featureModuleDB.findByPhaseId(phase.id!)
+          const modules = await featureModuleDB.findByPhaseId(phase.id!)
+          
+          // 确保 modules 是数组
+          if (!Array.isArray(modules)) {
+            console.warn(`featureModuleDB.findByPhaseId(${phase.id}) 返回的不是数组:`, modules)
+            continue
+          }
           
           for (const module of modules) {
             // 获取模块的功能点
-            const featureItems = featureItemDB.findByModuleId(module.id!)
+            const featureItems = await featureItemDB.findByModuleId(module.id!)
+            
+            // 确保 featureItems 是数组
+            if (!Array.isArray(featureItems)) {
+              console.warn(`featureItemDB.findByModuleId(${module.id}) 返回的不是数组:`, featureItems)
+              continue
+            }
             
             // 计算模块统计
             const completedItems = featureItems.filter(

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     console.log('导出培训数据，筛选条件:', { employeeName, setId, minScore, maxScore, dateRange, format })
     
     // 获取所有符合条件的培训记录 (不分页)
-    const records = trainingRecordDB.findWithFilters({
+    const records = await trainingRecordDB.findWithFilters({
       employeeName,
       setId,
       minScore,
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
     
     // 获取试卷信息映射
-    const questionSets = questionSetDB.findAll()
+    const questionSets = await questionSetDB.findAll()
     const setMap = questionSets.reduce((map, set) => {
       map[set.id!] = set
       return map
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     // 准备导出数据
     const exportData = records.map((record, index) => {
       const questionSet = setMap[record.set_id]
-      const answers = JSON.parse(record.answers)
+      const answers = typeof record.answers === 'string' ? JSON.parse(record.answers) : record.answers
       
       // 计算正确题数和错误题数
       const correctCount = answers.filter((a: any) => a.isCorrect).length
@@ -98,19 +98,18 @@ export async function GET(request: NextRequest) {
     XLSX.utils.book_append_sheet(workbook, mainWorksheet, '培训记录')
     
     // 创建统计汇总工作表
-    const stats = trainingRecordDB.getTrainingStats()
-    const scoreDistribution = trainingRecordDB.getScoreDistribution()
+    const stats = await trainingRecordDB.getTrainingStats()
+    const scoreDistribution = await trainingRecordDB.getScoreDistribution()
     
     const summaryData = [
       { '统计项': '总记录数', '数值': stats.totalRecords, '单位': '条' },
-      { '统计项': '参与人数', '数值': stats.totalEmployees, '单位': '人' },
+      { '统计项': '通过人数', '数值': stats.passedCount, '单位': '人' },
+      { '统计项': '失败人数', '数值': stats.failedCount, '单位': '人' },
       { '统计项': '平均分数', '数值': stats.averageScore, '单位': '分' },
-      { '统计项': '通过率', '数值': stats.passRate, '单位': '%' },
-      { '统计项': '平均题目数', '数值': stats.totalQuestions, '单位': '题' },
       { '统计项': '', '数值': '', '单位': '' }, // 空行
       { '统计项': '分数分布', '数值': '', '单位': '' },
       ...scoreDistribution.map(dist => ({
-        '统计项': dist.scoreRange,
+        '统计项': dist.score_range,
         '数值': dist.count,
         '单位': '人'
       }))

@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     
     if (key) {
       // 获取单个配置项
-      const value = systemConfigDB.getConfig(key)
+      const value = await systemConfigDB.getConfig(key)
       if (value === null) {
         return NextResponse.json(
           { success: false, message: '配置项不存在' },
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       })
     } else {
       // 获取所有配置项
-      const configs = systemConfigDB.getAllConfigs()
+      const configs = await systemConfigDB.getAllConfigs()
       return NextResponse.json({
         success: true,
         data: configs
@@ -64,13 +64,13 @@ export async function POST(request: NextRequest) {
         )
       }
       
-      const success = systemConfigDB.setTrainingPassScore(numValue)
+      const success = await systemConfigDB.setTrainingPassScore(numValue)
       if (!success) {
         throw new Error('更新合格分数配置失败')
       }
     } else {
       // 更新其他配置
-      const success = systemConfigDB.setConfig(key, value.toString(), description)
+      const success = await systemConfigDB.setConfig(key, value.toString(), description)
       if (!success) {
         throw new Error('更新配置失败')
       }
@@ -118,7 +118,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
     
-    const success = systemConfigDB.deleteConfig(key)
+    const success = await systemConfigDB.deleteConfig(key)
     if (!success) {
       return NextResponse.json(
         { success: false, message: '配置项不存在或删除失败' },

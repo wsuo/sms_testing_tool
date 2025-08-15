@@ -4,10 +4,11 @@ import { trainingRecordDB, systemConfigDB } from '@/lib/database'
 // 删除培训记录
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const recordId = parseInt(params.id)
+    const { id } = await params
+    const recordId = parseInt(id)
     
     if (!recordId || isNaN(recordId)) {
       return NextResponse.json(
@@ -19,7 +20,7 @@ export async function DELETE(
     console.log('删除培训记录:', recordId)
     
     // 检查记录是否存在
-    const record = trainingRecordDB.findById(recordId)
+    const record = await trainingRecordDB.findById(recordId)
     if (!record) {
       return NextResponse.json(
         { success: false, message: '记录不存在' },
@@ -28,7 +29,7 @@ export async function DELETE(
     }
     
     // 删除记录
-    const success = trainingRecordDB.deleteRecord(recordId)
+    const success = await trainingRecordDB.deleteRecord(recordId)
     
     if (success) {
       console.log(`培训记录已删除: ID=${recordId}, 员工=${record.employee_name}`)
@@ -61,10 +62,11 @@ export async function DELETE(
 // 获取单个培训记录详情
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const recordId = parseInt(params.id)
+    const { id } = await params
+    const recordId = parseInt(id)
     
     if (!recordId || isNaN(recordId)) {
       return NextResponse.json(
@@ -74,10 +76,10 @@ export async function GET(
     }
     
     // 获取合格分数线
-    const passScore = systemConfigDB.getTrainingPassScore()
+    const passScore = await systemConfigDB.getTrainingPassScore()
     
     // 获取记录详情
-    const record = trainingRecordDB.findById(recordId)
+    const record = await trainingRecordDB.findById(recordId)
     if (!record) {
       return NextResponse.json(
         { success: false, message: '记录不存在' },

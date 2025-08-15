@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 检查记录是否可以重发
-    const canResendResult = smsRecordDB.canResend(out_id)
+    const canResendResult = await smsRecordDB.canResend(out_id)
     if (!canResendResult.canResend) {
       return NextResponse.json(
         { 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取原记录信息
-    const originalRecord = smsRecordDB.findByOutId(out_id)
+    const originalRecord = await smsRecordDB.findByOutId(out_id)
     if (!originalRecord) {
       return NextResponse.json(
         { 
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     // 创建新的重发记录（新记录的重试次数初始为0）
     try {
-      const newRecordId = smsRecordDB.insertRecord({
+      const newRecordId = await smsRecordDB.insertRecord({
         out_id: newOutId,
         phone_number: originalRecord.phone_number,
         carrier: originalRecord.carrier,
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       })
 
       // 增加原记录的重试计数（记录用户进行了一次重发操作）
-      const incrementSuccess = smsRecordDB.incrementRetryCount(out_id)
+      const incrementSuccess = await smsRecordDB.incrementRetryCount(out_id)
       if (!incrementSuccess) {
         console.warn('更新原记录重试计数失败，但重发成功')
       }
@@ -144,8 +144,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取更新后的原记录
-    const updatedOriginalRecord = smsRecordDB.findByOutId(out_id)
-    const newRecord = smsRecordDB.findByOutId(newOutId)
+    const updatedOriginalRecord = await smsRecordDB.findByOutId(out_id)
+    const newRecord = await smsRecordDB.findByOutId(newOutId)
 
     return NextResponse.json({
       success: true,
@@ -179,17 +179,17 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
     
-    const resendableRecords = smsRecordDB.findResendableRecords(limit, offset)
+    const resendableRecords = await smsRecordDB.findResendableRecords(limit, offset)
     
     // 为每条记录检查是否可以重发
-    const recordsWithCanResend = resendableRecords.map(record => {
-      const canResendResult = smsRecordDB.canResend(record.out_id)
+    const recordsWithCanResend = await Promise.all(resendableRecords.map(async record => {
+      const canResendResult = await smsRecordDB.canResend(record.out_id)
       return {
         ...record,
         can_resend: canResendResult.canResend,
         resend_reason: canResendResult.reason
       }
-    })
+    }))
     
     return NextResponse.json({
       success: true,

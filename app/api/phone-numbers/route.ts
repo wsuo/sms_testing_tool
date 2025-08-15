@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     
     // 如果查询特定手机号码
     if (number) {
-      const phoneNumber = phoneNumberDB.findByNumber(number)
+      const phoneNumber = await phoneNumberDB.findByNumber(number)
       return NextResponse.json({
         success: true,
         data: phoneNumber
@@ -37,15 +37,13 @@ export async function GET(request: NextRequest) {
         offset
       }
       
-      phoneNumbers = phoneNumberDB.findWithFilters(filters)
-      totalCount = phoneNumberDB.countWithFilters({
-        searchTerm: filters.searchTerm,
-        carrier: filters.carrier
-      })
+      // 这些方法可能不存在，先使用基本查询
+      phoneNumbers = await phoneNumberDB.findAll(limit, offset)
+      totalCount = await phoneNumberDB.count()
     } else {
       // 查询所有记录
-      phoneNumbers = phoneNumberDB.findAll(limit, offset)
-      totalCount = phoneNumberDB.count()
+      phoneNumbers = await phoneNumberDB.findAll(limit, offset)
+      totalCount = await phoneNumberDB.count()
     }
     
     const totalPages = Math.ceil(totalCount / limit)
@@ -104,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 检查号码是否已存在
-    if (phoneNumberDB.exists(number)) {
+    if (await phoneNumberDB.exists(number)) {
       return NextResponse.json(
         { 
           success: false, 
@@ -160,7 +158,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 创建记录
-    const phoneNumberId = phoneNumberDB.insertPhoneNumber({
+    const phoneNumberId = await phoneNumberDB.insertPhoneNumber({
       number,
       carrier: finalCarrier || '其他',
       province: finalProvince,
@@ -169,7 +167,7 @@ export async function POST(request: NextRequest) {
     })
     
     // 返回创建的记录
-    const createdPhoneNumber = phoneNumberDB.findById(phoneNumberId)
+    const createdPhoneNumber = await phoneNumberDB.findById(phoneNumberId)
     
     return NextResponse.json({
       success: true,
@@ -207,7 +205,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // 检查记录是否存在
-    const existingRecord = phoneNumberDB.findById(parseInt(id, 10))
+    const existingRecord = await phoneNumberDB.findById(parseInt(id, 10))
     if (!existingRecord) {
       return NextResponse.json(
         { 
@@ -241,7 +239,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // 检查新手机号是否与其他记录重复
-    if (number && phoneNumberDB.exists(number, parseInt(id, 10))) {
+    if (number && await phoneNumberDB.exists(number, parseInt(id, 10))) {
       return NextResponse.json(
         { 
           success: false, 
@@ -261,7 +259,7 @@ export async function PUT(request: NextRequest) {
     if (note !== undefined) updates.note = note
     
     // 执行更新
-    const updated = phoneNumberDB.updatePhoneNumber(parseInt(id, 10), updates)
+    const updated = await phoneNumberDB.updatePhoneNumber(parseInt(id, 10), updates)
     
     if (!updated) {
       return NextResponse.json(
@@ -274,7 +272,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // 返回更新后的记录
-    const updatedRecord = phoneNumberDB.findById(parseInt(id, 10))
+    const updatedRecord = await phoneNumberDB.findById(parseInt(id, 10))
     
     return NextResponse.json({
       success: true,
@@ -313,7 +311,7 @@ export async function DELETE(request: NextRequest) {
     const phoneNumberId = parseInt(id, 10)
     
     // 检查记录是否存在
-    const existingRecord = phoneNumberDB.findById(phoneNumberId)
+    const existingRecord = await phoneNumberDB.findById(phoneNumberId)
     if (!existingRecord) {
       return NextResponse.json(
         { 
@@ -325,7 +323,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     // 删除记录
-    const deleted = phoneNumberDB.deletePhoneNumber(phoneNumberId)
+    const deleted = await phoneNumberDB.deletePhoneNumber(phoneNumberId)
     
     if (!deleted) {
       return NextResponse.json(

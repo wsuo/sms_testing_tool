@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const dateFilter = getDateFilter(range)
     
     // 获取基础统计数据
-    const allRecords = smsRecordDB.findWithFilters({ dateRange: dateFilter as any, limit: 10000 })
+    const allRecords = await smsRecordDB.findWithFilters({ dateRange: dateFilter as any, limit: 10000 })
     const totalSms = allRecords.length
     const successCount = allRecords.filter(r => r.status === '已送达').length
     const failedCount = allRecords.filter(r => r.status === '发送失败').length

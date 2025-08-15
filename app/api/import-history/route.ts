@@ -8,14 +8,14 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0')
     
     // 获取导入历史记录
-    const records = importRecordDB.findAll(limit, offset)
-    const totalCount = importRecordDB.count()
+    const records = await importRecordDB.findAll(limit, offset)
+    const totalCount = await importRecordDB.count()
     
     // 为每个记录添加失败数据数量
-    const recordsWithFailedCount = records.map(record => ({
+    const recordsWithFailedCount = await Promise.all(records.map(async record => ({
       ...record,
-      failed_count: record.id ? failedCompanyDB.countByImportRecordId(record.id) : 0
-    }))
+      failed_count: record.id ? await failedCompanyDB.countByImportRecordId(record.id) : 0
+    })))
     
     return NextResponse.json({
       success: true,
@@ -50,7 +50,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     // 删除导入记录（会级联删除失败的公司数据）
-    const deleted = importRecordDB.deleteRecord(id)
+    const deleted = await importRecordDB.deleteRecord(id)
     
     if (deleted) {
       return NextResponse.json({ success: true, message: '导入记录已删除' })

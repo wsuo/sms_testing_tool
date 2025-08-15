@@ -11,8 +11,8 @@ export async function GET(request: NextRequest) {
     if (projectId) {
       // 获取特定项目的详细统计
       const projectIdNum = parseInt(projectId)
-      const stats = featureItemDB.getProjectStats(projectIdNum)
-      const project = projectDB.findById(projectIdNum)
+      const stats = await featureItemDB.getProjectStats(projectIdNum)
+      const project = await projectDB.findById(projectIdNum)
       
       if (!project) {
         return NextResponse.json({
@@ -30,11 +30,11 @@ export async function GET(request: NextRequest) {
       })
     } else {
       // 获取所有项目的汇总统计
-      const projects = projectDB.findAll()
-      const allStats = projects.map(project => ({
+      const projects = await projectDB.findAll()
+      const allStats = await Promise.all(projects.map(async project => ({
         project,
-        stats: featureItemDB.getProjectStats(project.id!)
-      }))
+        stats: await featureItemDB.getProjectStats(project.id!)
+      })))
 
       const totalStats = {
         totalProjects: projects.length,

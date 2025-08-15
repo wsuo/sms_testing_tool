@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 获取题库中的所有题目及其正确答案
-    const questions = questionDB.findBySetId(setId)
+    const questions = await questionDB.findBySetId(setId)
     
     if (!questions || questions.length === 0) {
       return NextResponse.json(

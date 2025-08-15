@@ -4,7 +4,7 @@ import { platformDB } from '@/lib/database'
 // 获取所有平台
 export async function GET() {
   try {
-    const platforms = platformDB.findAll()
+    const platforms = await platformDB.findAll()
 
     return NextResponse.json({
       success: true,

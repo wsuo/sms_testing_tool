@@ -13,12 +13,12 @@ export async function GET(request: NextRequest) {
     
     if (importRecordId) {
       // 获取指定导入记录的失败公司
-      companies = failedCompanyDB.findByImportRecordId(parseInt(importRecordId))
-      totalCount = failedCompanyDB.countByImportRecordId(parseInt(importRecordId))
+      companies = await failedCompanyDB.findByImportRecordId(parseInt(importRecordId))
+      totalCount = await failedCompanyDB.countByImportRecordId(parseInt(importRecordId))
     } else {
       // 获取所有失败公司
-      companies = failedCompanyDB.findAll(limit, offset)
-      totalCount = failedCompanyDB.count()
+      companies = await failedCompanyDB.findAll(limit, offset)
+      totalCount = await failedCompanyDB.count()
     }
     
     return NextResponse.json({
@@ -54,7 +54,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     // 删除失败公司记录
-    const deleted = failedCompanyDB.deleteCompany(id)
+    const deleted = await failedCompanyDB.deleteCompany(id)
     
     if (deleted) {
       return NextResponse.json({ success: true, message: '失败公司记录已删除' })

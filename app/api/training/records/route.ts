@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * pageSize
     
     // 获取合格分数线
-    const passScore = systemConfigDB.getTrainingPassScore()
+    const passScore = await systemConfigDB.getTrainingPassScore()
 
     const filters = {
       employeeName,
@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
     }
     
     // 获取培训记录
-    const records = trainingRecordDB.findWithFilters(filters)
-    const totalRecords = trainingRecordDB.countWithFilters({
+    const records = await trainingRecordDB.findWithFilters(filters)
+    const totalRecords = await trainingRecordDB.countWithFilters({
       employeeName,
       setId,
       minScore,
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     })
     
     // 获取试卷信息映射
-    const questionSets = questionSetDB.findAll()
+    const questionSets = await questionSetDB.findAll()
     const setMap = questionSets.reduce((map, set) => {
       map[set.id!] = set
       return map
@@ -66,13 +66,13 @@ export async function GET(request: NextRequest) {
         startedAt: record.started_at,
         completedAt: record.completed_at,
         ipAddress: record.ip_address,
-        answers: JSON.parse(record.answers)
+        answers: typeof record.answers === 'string' ? JSON.parse(record.answers) : record.answers
       }
     })
     
     // 获取统计数据
-    const stats = trainingRecordDB.getTrainingStats()
-    const scoreDistribution = trainingRecordDB.getScoreDistribution()
+    const stats = await trainingRecordDB.getTrainingStats()
+    const scoreDistribution = await trainingRecordDB.getScoreDistribution()
     
     return NextResponse.json({
       success: true,

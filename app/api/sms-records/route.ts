@@ -26,17 +26,9 @@ export async function GET(request: NextRequest) {
     // 向后兼容的特定查询
     if (outId) {
       // 根据OutId查询单个记录
-      const record = smsRecordDB.findByOutId(outId)
+      const record = await smsRecordDB.findByOutId(outId)
       records = record ? [record] : []
       totalCount = records.length
-    } else if (phoneNumber) {
-      // 根据手机号查询
-      records = smsRecordDB.findByPhoneNumber(phoneNumber, limit)
-      totalCount = smsRecordDB.countByPhoneNumber(phoneNumber)
-    } else if (status) {
-      // 根据状态查询
-      records = smsRecordDB.findByStatus(status, limit, offset)
-      totalCount = smsRecordDB.countByStatus(status)
     } else if (searchTerm || statusFilter || carrierFilter || templateFilter || dateFilter) {
       // 使用新的复合筛选查询
       const filters = {
@@ -49,8 +41,8 @@ export async function GET(request: NextRequest) {
         offset
       }
       
-      records = smsRecordDB.findWithFilters(filters)
-      totalCount = smsRecordDB.countWithFilters({
+      records = await smsRecordDB.findWithFilters(filters)
+      totalCount = await smsRecordDB.countWithFilters({
         searchTerm: filters.searchTerm,
         status: filters.status,
         carrier: filters.carrier,
@@ -59,8 +51,8 @@ export async function GET(request: NextRequest) {
       })
     } else {
       // 查询所有记录
-      records = smsRecordDB.findAll(limit, offset)
-      totalCount = smsRecordDB.count()
+      records = await smsRecordDB.findAll(limit, offset)
+      totalCount = await smsRecordDB.count()
     }
     
     const totalPages = Math.ceil(totalCount / limit)
@@ -107,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 检查记录是否已存在
-    const existingRecord = smsRecordDB.findByOutId(body.out_id)
+    const existingRecord = await smsRecordDB.findByOutId(body.out_id)
     if (existingRecord) {
       return NextResponse.json(
         { 
@@ -119,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 创建记录
-    const recordId = smsRecordDB.insertRecord({
+    const recordId = await smsRecordDB.insertRecord({
       out_id: body.out_id,
       phone_number: body.phone_number,
       carrier: body.carrier,
@@ -134,7 +126,7 @@ export async function POST(request: NextRequest) {
     })
     
     // 返回创建的记录
-    const createdRecord = smsRecordDB.findByOutId(body.out_id)
+    const createdRecord = await smsRecordDB.findByOutId(body.out_id)
     
     return NextResponse.json({
       success: true,
@@ -181,7 +173,7 @@ export async function PUT(request: NextRequest) {
     if (body.auto_refresh_enabled !== undefined) updates.auto_refresh_enabled = body.auto_refresh_enabled
     
     // 执行更新
-    const updated = smsRecordDB.updateStatus(body.out_id, updates)
+    const updated = await smsRecordDB.updateStatus(body.out_id, updates)
     
     if (!updated) {
       return NextResponse.json(
@@ -194,7 +186,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // 返回更新后的记录
-    const updatedRecord = smsRecordDB.findByOutId(body.out_id)
+    const updatedRecord = await smsRecordDB.findByOutId(body.out_id)
     
     return NextResponse.json({
       success: true,
@@ -235,12 +227,12 @@ export async function DELETE(request: NextRequest) {
     
     if (recordId) {
       // 按ID删除
-      deleted = smsRecordDB.deleteRecord(parseInt(recordId, 10))
+      deleted = await smsRecordDB.deleteRecord(parseInt(recordId, 10))
     } else if (outId) {
       // 按OutId删除 - 先查找记录ID
-      const record = smsRecordDB.findByOutId(outId)
+      const record = await smsRecordDB.findByOutId(outId)
       if (record) {
-        deleted = smsRecordDB.deleteRecord(record.id!)
+        deleted = await smsRecordDB.deleteRecord(record.id!)
       }
     }
     

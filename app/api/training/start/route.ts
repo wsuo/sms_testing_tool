@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 随机获取一套试卷
-    const questionSet = questionSetDB.getRandomSet()
+    const questionSet = await questionSetDB.getRandomSet()
     
     if (!questionSet) {
       return NextResponse.json(
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 获取试卷的所有题目
-    const questions = questionDB.findBySetId(questionSet.id!)
+    const questions = await questionDB.findBySetId(questionSet.id!)
     
     if (questions.length === 0) {
       return NextResponse.json(
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     
     if (setId) {
       // 获取指定试卷信息
-      const questionSet = questionSetDB.findById(parseInt(setId))
+      const questionSet = await questionSetDB.findById(parseInt(setId))
       
       if (!questionSet) {
         return NextResponse.json(
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
         )
       }
       
-      const questionsCount = questionDB.countBySetId(questionSet.id!)
+      const questionsCount = await questionDB.countBySetId(questionSet.id!)
       
       return NextResponse.json({
         success: true,
@@ -103,11 +103,11 @@ export async function GET(request: NextRequest) {
       })
     } else {
       // 获取所有试卷列表
-      const questionSets = questionSetDB.findAll()
-      const setsWithCount = questionSets.map(set => ({
+      const questionSets = await questionSetDB.findAll()
+      const setsWithCount = await Promise.all(questionSets.map(async (set) => ({
         ...set,
-        questionsCount: questionDB.countBySetId(set.id!)
-      }))
+        questionsCount: await questionDB.countBySetId(set.id!)
+      })))
       
       return NextResponse.json({
         success: true,
