@@ -9,7 +9,12 @@
     "dev:watch": "concurrently \"npm run build\" \"nodemon --watch . --ext ts,tsx,js,jsx --ignore .next --ignore node_modules --exec 'npm run dev'\"",
     "start:build": "npm run build && npm start",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "migrate:export": "npx tsx scripts/export-sqlite-data.ts",
+    "migrate:create-schema": "npx tsx scripts/create-mysql-schema.ts",
+    "migrate:data": "npx tsx scripts/migrate-data-to-mysql.ts",
+    "migrate:verify": "npx tsx scripts/verify-migration.ts",
+    "migrate:all": "npm run migrate:export && npm run migrate:create-schema && npm run migrate:data && npm run migrate:verify"
   },
   "dependencies": {
     "@alicloud/dysmsapi20170525": "^4.1.2",
@@ -51,6 +56,7 @@
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.2.1",
     "embla-carousel-react": "8.5.1",
     "input-otp": "1.4.1",
     "jsdom": "^26.1.0",
@@ -81,6 +87,7 @@
     "nodemon": "^3.1.10",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.20.4",
     "typescript": "^5"
   }
 }
