@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ModuleHeader } from "@/components/module-header"
 import BulkSendModal from "@/components/bulk-send-modal"
-import smsMonitorService from "@/lib/sms-monitor-service"
 
 // Import custom hooks
 import { useTokenManagement } from "@/hooks/useTokenManagement"
@@ -69,9 +68,6 @@ export default function SmsTestingPage() {
     // Load SMS history from database
     smsStatus.loadSmsHistory()
     
-    // 加载待监控的SMS记录到后台服务
-    smsMonitorService.loadPendingMessages()
-    
     // Restore user state
     const restored = userState.restoreUserState()
     if (restored) {
@@ -83,13 +79,7 @@ export default function SmsTestingPage() {
       }
     }
     
-    // 设置SMS状态更新监听器
-    const unsubscribe = smsStatus.setupSmsMonitorListener()
-    
-    // 清理函数
-    return () => {
-      unsubscribe()
-    }
+    // 不再需要手动设置监听器，后台服务会自动处理
   }, [])
 
   // 保存用户状态当状态变化时
@@ -293,7 +283,7 @@ export default function SmsTestingPage() {
               isRefreshing={smsStatus.isRefreshing}
               resendingOutIds={smsStatus.resendingOutIds}
               isLoadingSmsHistory={smsStatus.isLoadingSmsHistory}
-              onRefreshStatuses={smsStatus.refreshStatuses}
+              onRefreshStatuses={smsStatus.refreshPendingStatuses}
               onResendSms={handleResendSms}
               canResend={smsStatus.canResend}
               monitoringStatus={monitoringStatus}
@@ -341,16 +331,29 @@ export default function SmsTestingPage() {
         onOpenChange={setShowBulkSendModal}
         selectedTemplate={smsTemplates.selectedTemplate}
         templateParams={smsTemplates.templateParams}
-        onSendComplete={(results) => {
+        onSendComplete={async (results) => {
           // 批量发送完成后，刷新SMS状态列表
           smsStatus.loadSmsHistory()
           // 添加发送成功的记录到后台监控服务
-          results.forEach(result => {
+          for (const result of results) {
             if (result.status === 'success') {
-              // 传递手机号码和优先级，批量SMS使用稍低优先级
-              smsMonitorService.addSmsForMonitoring(result.outId, result.phone, 2)
+              try {
+                await fetch('/api/background-monitor', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    action: 'add_sms',
+                    outId: result.outId,
+                    phoneNumber: result.phone
+                  })
+                })
+              } catch (error) {
+                console.error('Failed to add bulk SMS to background monitoring:', error)
+              }
             }
-          })
+          }
         }}
       />
     </div>

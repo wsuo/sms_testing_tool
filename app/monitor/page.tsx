@@ -11,7 +11,6 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { ModuleHeader } from "@/components/module-header"
 import Link from "next/link"
-import smsMonitorService, { SmsStatusUpdate } from "@/lib/sms-monitor-service"
 
 interface SmsRecord {
   id: number
@@ -90,7 +89,23 @@ export default function SmsMonitorPage() {
     try {
       // 如果是手动刷新，先触发后台服务检查
       if (triggerCheck) {
-        await smsMonitorService.triggerManualCheck()
+        // 触发后台监控服务处理待查询的SMS
+        try {
+          const response = await fetch('/api/background-monitor', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'process_pending' })
+          })
+          
+          if (response.ok) {
+            const result = await response.json()
+            console.log('后台监控处理结果:', result.message)
+          }
+        } catch (error) {
+          console.error('触发后台监控失败:', error)
+        }
       }
       
       const offset = (page - 1) * itemsPerPage
@@ -128,12 +143,14 @@ export default function SmsMonitorPage() {
           setTotalPages(result.totalPages)
           setCurrentPage(result.currentPage)
           
-          // 获取所有记录用于统计信息（应用时间筛选条件）
-          const allRecordsResponse = await fetch(`/api/sms-records?limit=10000&offset=0`)
-          if (allRecordsResponse.ok) {
-            const allRecordsResult = await allRecordsResponse.json()
-            if (allRecordsResult.success && allRecordsResult.data) {
-              calculateStats(allRecordsResult.data, dateFilter)
+          // 只在首次加载或手动刷新时获取统计数据
+          if (page === 1 && (records.length === 0 || triggerCheck)) {
+            const allRecordsResponse = await fetch(`/api/sms-records?limit=10000&offset=0&dateFilter=${dateFilter}`)
+            if (allRecordsResponse.ok) {
+              const allRecordsResult = await allRecordsResponse.json()
+              if (allRecordsResult.success && allRecordsResult.data) {
+                calculateStats(allRecordsResult.data, dateFilter)
+              }
             }
           }
           
@@ -219,7 +236,7 @@ export default function SmsMonitorPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [toast, itemsPerPage, searchTerm, statusFilter, carrierFilter, templateFilter, dateFilter])
+  }, [toast, itemsPerPage]) // 移除所有筛选条件依赖
 
   // 查询阿里云SMS状态
   const checkSmsStatus = async (outId: string, phoneNumber: string) => {
@@ -356,21 +373,30 @@ export default function SmsMonitorPage() {
     })
   }
 
-  // Filter records - 暂时保留客户端筛选，后续可优化为服务端筛选
-  useEffect(() => {
-    // 当筛选条件改变时重置到第一页并重新加载数据
+  // 加载数据的函数 - 直接使用当前状态
+  const loadData = useCallback((page: number = currentPage, forceRefresh: boolean = false) => {
+    loadRecords(page, forceRefresh)
+  }, [loadRecords, currentPage])
+
+  // Filter records - 改为单独的函数调用
+  const applyFilters = useCallback(() => {
     if (currentPage !== 1) {
       setCurrentPage(1)
-      loadRecords(1)
+      // 当页码变为1时，useEffect会自动触发loadData
     } else {
-      loadRecords(currentPage)
+      loadData(1)
     }
-  }, [searchTerm, statusFilter, carrierFilter, templateFilter, dateFilter, loadRecords])
+  }, [currentPage, loadData])
+
+  // 筛选条件变化时的处理
+  useEffect(() => {
+    applyFilters()
+  }, [searchTerm, statusFilter, carrierFilter, templateFilter, dateFilter, applyFilters])
 
   // 当页码改变时加载对应页面数据
   useEffect(() => {
-    loadRecords(currentPage)
-  }, [currentPage, loadRecords])
+    loadData(currentPage)
+  }, [currentPage, loadData])
 
   // Get unique carriers and templates for filter options
   const getFilterOptions = () => {
@@ -404,44 +430,8 @@ export default function SmsMonitorPage() {
   }
 
   useEffect(() => {
-    loadRecords()
-    
-    // 设置SMS状态更新监听器
-    const unsubscribe = smsMonitorService.onStatusUpdate((updates: SmsStatusUpdate[]) => {
-      // 优化：直接更新相关记录状态，避免全量刷新
-      if (updates.length > 0) {
-        setRecords(prevRecords => {
-          return prevRecords.map(record => {
-            const update = updates.find(u => u.outId === record.out_id)
-            if (update) {
-              return {
-                ...record,
-                status: update.status,
-                error_code: update.errorCode,
-                receive_date: update.receiveDate,
-                updated_at: new Date().toISOString()
-              }
-            }
-            return record
-          })
-        })
-        
-        // 显示状态更新通知（减少频率，避免过于干扰）
-        if (updates.length <= 2 && updates.some(u => u.status === '已送达' || u.status === '发送失败')) {
-          toast({
-            title: "状态已更新",
-            description: `${updates.length} 条记录状态已更新`,
-            variant: "default",
-          })
-        }
-      }
-    })
-    
-    // 清理函数
-    return () => {
-      unsubscribe()
-    }
-  }, [loadRecords, toast])
+    loadData(1) // 初始加载第一页
+  }, [loadData])
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -554,7 +544,7 @@ export default function SmsMonitorPage() {
         })
         
         // 重新加载当前页以更新分页信息
-        loadRecords(currentPage)
+        loadData(currentPage, true)
       } else {
         throw new Error(result.error || '删除失败')
       }
@@ -611,11 +601,21 @@ export default function SmsMonitorPage() {
 
         // 添加新记录到后台监控服务
         if (result.data.new_record) {
-          smsMonitorService.addSmsForMonitoring(
-            result.data.new_out_id, 
-            result.data.new_record.phone_number.trim(), 
-            1
-          )
+          try {
+            await fetch('/api/background-monitor', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ 
+                action: 'add_sms',
+                outId: result.data.new_out_id,
+                phoneNumber: result.data.new_record.phone_number.trim()
+              })
+            })
+          } catch (error) {
+            console.error('添加SMS到后台监控失败:', error)
+          }
         }
 
         // 优化：直接更新记录状态，避免全量刷新
@@ -711,7 +711,10 @@ export default function SmsMonitorPage() {
             </Link>
             <Button 
               variant="outline" 
-              onClick={() => loadRecords(1, true)}
+              onClick={() => {
+                // 使用新的批量查询API进行手动刷新
+                loadData(1, true)
+              }}
               disabled={isLoading}
               title="刷新记录并主动查询阿里云最新状态"
             >

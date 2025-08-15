@@ -1566,9 +1566,9 @@ export default function DataManagementPage() {
 
           <div className="space-y-4 py-4">
             <RadioGroup value={exportType} onValueChange={(value) => setExportType(value as 'sample' | 'custom' | 'all')}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="sample" id="sample" />
-                <Label htmlFor="sample" className="flex-1">
+              <div className="flex items-start space-x-3">
+                <RadioGroupItem value="sample" id="sample" className="mt-0.5" />
+                <Label htmlFor="sample" className="flex-1 cursor-pointer">
                   <div>
                     <div className="font-medium">示例数据 (推荐)</div>
                     <div className="text-sm text-muted-foreground">导出前100条数据，快速预览</div>
@@ -1576,9 +1576,9 @@ export default function DataManagementPage() {
                 </Label>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="custom" id="custom" />
-                <Label htmlFor="custom" className="flex-1">
+              <div className="flex items-start space-x-3">
+                <RadioGroupItem value="custom" id="custom" className="mt-0.5" />
+                <Label htmlFor="custom" className="flex-1 cursor-pointer">
                   <div>
                     <div className="font-medium">自定义数量</div>
                     <div className="text-sm text-muted-foreground">指定导出数量，最多10000条</div>
@@ -1587,8 +1587,8 @@ export default function DataManagementPage() {
               </div>
 
               {exportType === 'custom' && (
-                <div className="ml-6 mt-2">
-                  <Label htmlFor="limit">导出数量</Label>
+                <div className="ml-7 mt-2">
+                  <Label htmlFor="limit" className="text-sm font-medium">导出数量</Label>
                   <Input
                     id="limit"
                     type="number"
@@ -1596,14 +1596,15 @@ export default function DataManagementPage() {
                     max="10000"
                     value={exportLimit}
                     onChange={(e) => setExportLimit(Math.min(10000, Math.max(1, parseInt(e.target.value) || 1)))}
-                    className="mt-1"
+                    className="mt-1 w-32"
+                    placeholder="请输入数量"
                   />
                 </div>
               )}
 
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="all" id="all" />
-                <Label htmlFor="all" className="flex-1">
+              <div className="flex items-start space-x-3">
+                <RadioGroupItem value="all" id="all" className="mt-0.5" />
+                <Label htmlFor="all" className="flex-1 cursor-pointer">
                   <div>
                     <div className="font-medium">全部数据</div>
                     <div className="text-sm text-muted-foreground text-orange-600">
