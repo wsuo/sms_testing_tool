@@ -153,6 +153,7 @@ export default function TrainingExamPage() {
           sessionId: examData.sessionId,
           employeeName: examData.employeeName,
           setId: examData.questionSet.id,
+          categoryId: examData.category?.id, // 新增类别ID
           startedAt: examData.startedAt,
           answers,
           autoSubmitted: true // 标记为自动提交
@@ -294,6 +295,7 @@ export default function TrainingExamPage() {
           sessionId: examData.sessionId,
           employeeName: examData.employeeName,
           setId: examData.questionSet.id,
+          categoryId: examData.category?.id, // 新增类别ID
           startedAt: examData.startedAt,
           answers
         })

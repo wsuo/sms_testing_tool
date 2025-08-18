@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { questionSetDB, questionDB } from '@/lib/database'
+import { questionSetDB, questionDB, examCategoryDB } from '@/lib/database'
 
-// 开始答题 - 随机分配试卷
+// 开始答题 - 支持按类别随机分配试卷
 export async function POST(request: NextRequest) {
   try {
-    const { employeeName } = await request.json()
+    const { employeeName, categoryId } = await request.json()
     
     if (!employeeName || !employeeName.trim()) {
       return NextResponse.json(
@@ -12,13 +12,32 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    if (!categoryId) {
+      return NextResponse.json(
+        { success: false, message: '请选择考核类别' },
+        { status: 400 }
+      )
+    }
     
-    // 随机获取一套试卷
-    const questionSet = await questionSetDB.getRandomSet()
+    // 验证考核类别是否存在
+    const category = await examCategoryDB.findById(categoryId)
+    if (!category) {
+      return NextResponse.json(
+        { success: false, message: '考核类别不存在' },
+        { status: 400 }
+      )
+    }
+    
+    // 根据类别随机获取一套试卷
+    const questionSet = await questionSetDB.getRandomSetByCategory(categoryId)
     
     if (!questionSet) {
       return NextResponse.json(
-        { success: false, message: '暂无可用题库，请联系管理员' },
+        { 
+          success: false, 
+          message: `暂无 "${category.name}" 类别的可用题库，请联系管理员` 
+        },
         { status: 404 }
       )
     }
@@ -51,6 +70,13 @@ export async function POST(request: NextRequest) {
       data: {
         sessionId: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // 生成会话ID
         employeeName: employeeName.trim(),
+        category: {
+          id: category.id,
+          name: category.name,
+          description: category.description,
+          color: category.color,
+          icon: category.icon
+        },
         questionSet: {
           id: questionSet.id,
           name: questionSet.name,
@@ -75,11 +101,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 获取试卷信息
+// 获取试卷信息 - 支持按类别筛选
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const setId = searchParams.get('setId')
+    const categoryId = searchParams.get('categoryId')
     
     if (setId) {
       // 获取指定试卷信息
@@ -93,25 +120,54 @@ export async function GET(request: NextRequest) {
       }
       
       const questionsCount = await questionDB.countBySetId(questionSet.id!)
+      const category = questionSet.category_id ? await examCategoryDB.findById(questionSet.category_id) : null
       
       return NextResponse.json({
         success: true,
         data: {
-          questionSet,
+          questionSet: {
+            ...questionSet,
+            category: category ? {
+              id: category.id,
+              name: category.name,
+              color: category.color,
+              icon: category.icon
+            } : null
+          },
           questionsCount
         }
       })
     } else {
-      // 获取所有试卷列表
-      const questionSets = await questionSetDB.findAll()
-      const setsWithCount = await Promise.all(questionSets.map(async (set) => ({
-        ...set,
-        questionsCount: await questionDB.countBySetId(set.id!)
-      })))
+      // 获取题库列表，支持按类别筛选
+      const categories = await examCategoryDB.getActiveCategories()
+      let questionSets
+      
+      if (categoryId && categoryId !== 'all') {
+        questionSets = await questionSetDB.findByCategory(parseInt(categoryId))
+      } else {
+        questionSets = await questionSetDB.findAll()
+      }
+      
+      const setsWithCount = await Promise.all(questionSets.map(async (set) => {
+        const questionsCount = await questionDB.countBySetId(set.id!)
+        const category = categories.find(c => c.id === set.category_id)
+        
+        return {
+          ...set,
+          questionsCount,
+          category: category ? {
+            id: category.id,
+            name: category.name,
+            color: category.color,
+            icon: category.icon
+          } : null
+        }
+      }))
       
       return NextResponse.json({
         success: true,
         data: {
+          categories,
           questionSets: setsWithCount,
           totalSets: questionSets.length
         }

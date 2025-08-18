@@ -24,11 +24,12 @@ export async function POST(request: NextRequest) {
       sessionId,
       employeeName,
       setId,
+      categoryId, // 新增类别ID
       startedAt,
       answers // 格式: { questionId: selectedAnswer }
     } = await request.json()
     
-    console.log(`[${new Date().toISOString()}] 收到答题提交:`, { sessionId, employeeName, setId, answersCount: Object.keys(answers).length })
+    console.log(`[${new Date().toISOString()}] 收到答题提交:`, { sessionId, employeeName, setId, categoryId, answersCount: Object.keys(answers).length })
     
     // 验证必要参数
     if (!sessionId || !employeeName || !setId || !startedAt || !answers) {
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
     const recordData = {
       employee_name: employeeName.trim(),
       set_id: setId,
+      category_id: categoryId || null, // 新增类别ID字段
       answers: JSON.stringify(answerResults),
       score,
       total_questions: questions.length,

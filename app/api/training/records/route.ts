@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { trainingRecordDB, questionSetDB, systemConfigDB } from '@/lib/database'
+import { trainingRecordDB, questionSetDB, examCategoryDB, systemConfigDB } from '@/lib/database'
 
 // 获取培训记录统计数据
 export async function GET(request: NextRequest) {
@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
     const employeeName = searchParams.get('employeeName') || undefined
     const setIdParam = searchParams.get('setId')
     const setId = setIdParam && setIdParam !== 'all' ? parseInt(setIdParam) : undefined
+    const categoryIdParam = searchParams.get('categoryId')
+    const categoryId = categoryIdParam && categoryIdParam !== 'all' ? parseInt(categoryIdParam) : undefined
     const minScore = searchParams.get('minScore') ? parseInt(searchParams.get('minScore')!) : undefined
     const maxScore = searchParams.get('maxScore') ? parseInt(searchParams.get('maxScore')!) : undefined
     const dateRange = (searchParams.get('dateRange') as 'today' | 'week' | 'month' | 'all') || 'all'
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
     const filters = {
       employeeName,
       setId,
+      categoryId, // 新增类别筛选
       minScore,
       maxScore,
       dateRange,
@@ -36,21 +39,33 @@ export async function GET(request: NextRequest) {
     const totalRecords = await trainingRecordDB.countWithFilters({
       employeeName,
       setId,
+      categoryId, // 新增类别筛选
       minScore,
       maxScore,
       dateRange
     })
     
-    // 获取试卷信息映射
-    const questionSets = await questionSetDB.findAll()
+    // 获取试卷信息和类别信息映射
+    const [questionSets, categories] = await Promise.all([
+      questionSetDB.findAll(),
+      examCategoryDB.getActiveCategories()
+    ])
+    
     const setMap = questionSets.reduce((map, set) => {
       map[set.id!] = set
       return map
     }, {} as { [key: number]: any })
     
-    // 处理记录数据，添加试卷信息
+    const categoryMap = categories.reduce((map, category) => {
+      map[category.id!] = category
+      return map
+    }, {} as { [key: number]: any })
+    
+    // 处理记录数据，添加试卷信息和类别信息
     const processedRecords = records.map(record => {
       const questionSet = setMap[record.set_id]
+      const category = record.category_id ? categoryMap[record.category_id] : null
+      
       return {
         id: record.id,
         employeeName: record.employee_name,
@@ -58,6 +73,12 @@ export async function GET(request: NextRequest) {
           id: questionSet.id,
           name: questionSet.name,
           description: questionSet.description
+        } : null,
+        category: category ? {
+          id: category.id,
+          name: category.name,
+          color: category.color,
+          icon: category.icon
         } : null,
         score: record.score,
         totalQuestions: record.total_questions,
