@@ -173,11 +173,25 @@ export interface ProgressRecord {
   created_at?: string
 }
 
+export interface ExamCategory {
+  id?: number
+  name: string
+  description?: string
+  icon?: string
+  color?: string
+  sort_order?: number
+  is_active?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export interface QuestionSet {
   id?: number
   name: string
   description?: string
+  category_id?: number
   total_questions: number
+  is_active?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -201,6 +215,7 @@ export interface TrainingRecord {
   id?: number
   employee_name: string
   set_id: number
+  category_id?: number
   answers: string
   score: number
   total_questions: number
@@ -608,19 +623,153 @@ export class ProjectDB {
   }
 }
 
+export class ExamCategoryDB { 
+  private db = getDatabase()
+  
+  async findAll(): Promise<ExamCategory[]> {
+    return await executeCompatibleQuery<ExamCategory>('SELECT * FROM exam_categories WHERE is_active = TRUE ORDER BY sort_order ASC', [])
+  }
+  
+  async findById(id: number): Promise<ExamCategory | null> {
+    return await executeCompatibleSingle<ExamCategory>('SELECT * FROM exam_categories WHERE id = ?', [id])
+  }
+  
+  async insertCategory(category: Omit<ExamCategory, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+    const sql = `INSERT INTO exam_categories (name, description, icon, color, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)`
+    const result = await executeCompatibleRun(sql, [
+      category.name, 
+      category.description || null, 
+      category.icon || 'BookOpen',
+      category.color || '#3b82f6',
+      category.sort_order || 0,
+      category.is_active ?? true
+    ])
+    return result.lastInsertRowid
+  }
+  
+  async updateCategory(id: number, updates: Partial<Pick<ExamCategory, 'name' | 'description' | 'icon' | 'color' | 'sort_order' | 'is_active'>>): Promise<boolean> {
+    const updateFields: string[] = []
+    const values: any[] = []
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        updateFields.push(`${key} = ?`)
+        values.push(value)
+      }
+    })
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = NOW()')
+    values.push(id)
+    
+    const sql = `UPDATE exam_categories SET ${updateFields.join(', ')} WHERE id = ?`
+    const result = await executeCompatibleRun(sql, values)
+    return result.changes > 0
+  }
+  
+  async deleteCategory(id: number): Promise<boolean> {
+    const result = await executeCompatibleRun('UPDATE exam_categories SET is_active = FALSE WHERE id = ?', [id])
+    return result.changes > 0
+  }
+  
+  async getCategoryStats(): Promise<any[]> {
+    // 直接查询统计数据，而不依赖视图
+    const sql = `
+      SELECT 
+        c.id,
+        c.name,
+        c.description,
+        c.icon,
+        c.color,
+        c.sort_order,
+        c.is_active,
+        c.created_at,
+        c.updated_at,
+        COALESCE(qs.question_sets_count, 0) as question_sets_count,
+        COALESCE(tr.exam_records_count, 0) as exam_records_count
+      FROM exam_categories c
+      LEFT JOIN (
+        SELECT category_id, COUNT(*) as question_sets_count 
+        FROM question_sets 
+        WHERE is_active = TRUE 
+        GROUP BY category_id
+      ) qs ON c.id = qs.category_id
+      LEFT JOIN (
+        SELECT category_id, COUNT(*) as exam_records_count 
+        FROM training_records 
+        GROUP BY category_id
+      ) tr ON c.id = tr.category_id
+      WHERE c.is_active = TRUE
+      ORDER BY c.sort_order ASC
+    `
+    return await executeCompatibleQuery<any>(sql, [])
+  }
+  
+  async getActiveCategories(): Promise<ExamCategory[]> {
+    return await executeCompatibleQuery<ExamCategory>('SELECT * FROM exam_categories WHERE is_active = TRUE ORDER BY sort_order ASC', [])
+  }
+}
+
 export class QuestionSetDB { 
   private db = getDatabase()
   async findAll(): Promise<QuestionSet[]> {
-    return await executeCompatibleQuery<QuestionSet>('SELECT * FROM question_sets ORDER BY created_at DESC')
+    return await executeCompatibleQuery<QuestionSet>('SELECT * FROM question_sets WHERE is_active = TRUE ORDER BY created_at DESC')
+  }
+
+  async findByCategory(categoryId: number): Promise<QuestionSet[]> {
+    return await executeCompatibleQuery<QuestionSet>('SELECT * FROM question_sets WHERE category_id = ? AND is_active = TRUE ORDER BY created_at DESC', [categoryId])
   }
 
   async getRandomSet(): Promise<QuestionSet | null> {
-    const result = await executeCompatibleSingle<QuestionSet>('SELECT * FROM question_sets ORDER BY RAND() LIMIT 1', [])
+    const result = await executeCompatibleSingle<QuestionSet>('SELECT * FROM question_sets WHERE is_active = TRUE ORDER BY RAND() LIMIT 1', [])
+    return result || null
+  }
+
+  async getRandomSetByCategory(categoryId: number): Promise<QuestionSet | null> {
+    const result = await executeCompatibleSingle<QuestionSet>('SELECT * FROM question_sets WHERE category_id = ? AND is_active = TRUE ORDER BY RAND() LIMIT 1', [categoryId])
     return result || null
   }
 
   async findById(id: number): Promise<QuestionSet | null> {
     return await executeCompatibleSingle<QuestionSet>('SELECT * FROM question_sets WHERE id = ?', [id])
+  }
+  
+  async getQuestionsBySetId(setId: number): Promise<Question[]> {
+    return await executeCompatibleQuery<Question>('SELECT * FROM questions WHERE set_id = ? ORDER BY question_number ASC', [setId])
+  }
+
+  async insertQuestionSet(set: Omit<QuestionSet, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+    const sql = `INSERT INTO question_sets (name, description, category_id, total_questions, is_active) VALUES (?, ?, ?, ?, ?)`
+    const result = await executeCompatibleRun(sql, [
+      set.name, 
+      set.description || null, 
+      set.category_id || null,
+      set.total_questions,
+      set.is_active ?? true
+    ])
+    return result.lastInsertRowid
+  }
+
+  async updateQuestionSet(id: number, updates: Partial<Pick<QuestionSet, 'name' | 'description' | 'category_id' | 'total_questions' | 'is_active'>>): Promise<boolean> {
+    const updateFields: string[] = []
+    const values: any[] = []
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        updateFields.push(`${key} = ?`)
+        values.push(value)
+      }
+    })
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = NOW()')
+    values.push(id)
+    
+    const sql = `UPDATE question_sets SET ${updateFields.join(', ')} WHERE id = ?`
+    const result = await executeCompatibleRun(sql, values)
+    return result.changes > 0
   }
 }
 
@@ -633,6 +782,33 @@ export class QuestionDB {
   async countBySetId(setId: number): Promise<number> {
     const result = await executeCompatibleSingle<{ count: number }>('SELECT COUNT(*) as count FROM questions WHERE set_id = ?', [setId])
     return result?.count || 0
+  }
+
+  async insertQuestion(question: Omit<Question, 'id' | 'created_at'>): Promise<number> {
+    const sql = `INSERT INTO questions (set_id, question_number, section, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    const result = await executeCompatibleRun(sql, [
+      question.set_id,
+      question.question_number,
+      question.section || null,
+      question.question_text,
+      question.option_a,
+      question.option_b,
+      question.option_c,
+      question.option_d,
+      question.correct_answer,
+      question.explanation || null
+    ])
+    return result.lastInsertRowid
+  }
+
+  async deleteQuestion(id: number): Promise<boolean> {
+    const result = await executeCompatibleRun('DELETE FROM questions WHERE id = ?', [id])
+    return result.changes > 0
+  }
+
+  async deleteBySetId(setId: number): Promise<number> {
+    const result = await executeCompatibleRun('DELETE FROM questions WHERE set_id = ?', [setId])
+    return result.changes
   }
 }
 
@@ -648,9 +824,9 @@ export class TrainingRecordDB {
       }
     }
     
-    const sql = `INSERT INTO training_records (employee_name, set_id, answers, score, total_questions, started_at, ip_address, session_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    const sql = `INSERT INTO training_records (employee_name, set_id, category_id, answers, score, total_questions, started_at, ip_address, session_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     const result = await executeCompatibleRun(sql, [
-      record.employee_name, record.set_id, record.answers, record.score, 
+      record.employee_name, record.set_id, record.category_id || null, record.answers, record.score, 
       record.total_questions, processedStartedAt, record.ip_address || null, record.session_duration || null
     ])
     return result.lastInsertRowid
@@ -673,6 +849,11 @@ export class TrainingRecordDB {
     if (filters.setId) {
       conditions.push('set_id = ?')
       params.push(filters.setId)
+    }
+
+    if (filters.categoryId) {
+      conditions.push('category_id = ?')
+      params.push(filters.categoryId)
     }
     
     if (filters.minScore !== undefined) {
@@ -720,6 +901,11 @@ export class TrainingRecordDB {
     if (filters.setId) {
       conditions.push('set_id = ?')
       params.push(filters.setId)
+    }
+
+    if (filters.categoryId) {
+      conditions.push('category_id = ?')
+      params.push(filters.categoryId)
     }
     
     if (filters.minScore !== undefined) {
@@ -850,6 +1036,7 @@ export const importRecordDB = new ImportRecordDB()
 export const failedCompanyDB = new FailedCompanyDB()
 export const platformDB = new PlatformDB()
 export const projectDB = new ProjectDB()
+export const examCategoryDB = new ExamCategoryDB()
 export const questionSetDB = new QuestionSetDB()
 export const questionDB = new QuestionDB()
 export const trainingRecordDB = new TrainingRecordDB()
