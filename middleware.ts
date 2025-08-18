@@ -31,7 +31,14 @@ export async function middleware(request: NextRequest) {
     const publicApiRoutes = [
       '/api/auth/login',
       '/api/training/start',
-      '/api/training/submit'
+      '/api/training/submit',
+      '/api/training/categories', // 考核类别查询
+      '/api/training/sets', // 题库列表查询
+      '/api/training/parse-html', // HTML解析
+      '/api/training/import-html', // HTML导入
+      '/api/migrate/exam-categories', // 允许迁移API
+      '/api/fix-db', // 数据库修复API
+      '/api/test' // 测试API
     ]
 
     // 检查是否为公开API路由

@@ -9,35 +9,99 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { BookOpen, Clock, Target, Users, ArrowRight, CheckCircle, GraduationCap } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { 
+  BookOpen, 
+  Clock, 
+  Target, 
+  Users, 
+  ArrowRight, 
+  CheckCircle, 
+  GraduationCap,
+  Building2,
+  Award,
+  Shield,
+  Scale,
+  RefreshCw
+} from 'lucide-react'
 import { PlatformFooter } from '@/components/platform-footer'
+
+interface ExamCategory {
+  id: number
+  name: string
+  description?: string
+  icon?: string
+  color?: string
+  question_sets_count?: number
+  total_questions?: number
+}
+
+interface QuestionSet {
+  id: number
+  name: string
+  description?: string
+  questionsCount: number
+  category?: {
+    id: number
+    name: string
+    color: string
+    icon: string
+  }
+}
+
+const getIconComponent = (iconName?: string) => {
+  switch (iconName) {
+    case 'GraduationCap': return GraduationCap
+    case 'Building2': return Building2
+    case 'Award': return Award
+    case 'Shield': return Shield
+    case 'Scale': return Scale
+    default: return BookOpen
+  }
+}
 
 export default function TrainingEntryPage() {
   const [employeeName, setEmployeeName] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [availableSets, setAvailableSets] = useState<any[]>([])
+  
+  const [categories, setCategories] = useState<ExamCategory[]>([])
+  const [availableSets, setAvailableSets] = useState<QuestionSet[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
-  const [passScore, setPassScore] = useState(60) // 动态合格分数
+  const [passScore, setPassScore] = useState(60)
   
   const router = useRouter()
 
   useEffect(() => {
-    loadAvailableSets()
+    loadAvailableData()
   }, [])
 
-  const loadAvailableSets = async () => {
+  const loadAvailableData = async () => {
     try {
-      // 并行加载题库信息和合格分数
-      const [setsResponse, configResponse] = await Promise.all([
+      setLoadingStats(true)
+      
+      // 并行加载数据
+      const [startResponse, configResponse] = await Promise.all([
         fetch('/api/training/start'),
         fetch('/api/config?key=training_pass_score')
       ])
       
-      if (setsResponse.ok) {
-        const result = await setsResponse.json()
+      if (startResponse.ok) {
+        const result = await startResponse.json()
         if (result.success) {
+          setCategories(result.data.categories || [])
           setAvailableSets(result.data.questionSets || [])
+          
+          // 设置默认选择的类别（选择第一个有题库的类别）
+          if (result.data.categories?.length > 0) {
+            const categoryWithSets = result.data.categories.find((cat: ExamCategory) => 
+              result.data.questionSets?.some((set: QuestionSet) => set.category?.id === cat.id)
+            )
+            if (categoryWithSets) {
+              setSelectedCategory(categoryWithSets.id.toString())
+            }
+          }
         }
       }
       
@@ -50,6 +114,7 @@ export default function TrainingEntryPage() {
       }
     } catch (error) {
       console.error('加载页面信息失败:', error)
+      setError('加载页面信息失败，请刷新重试')
     } finally {
       setLoadingStats(false)
     }
@@ -63,6 +128,11 @@ export default function TrainingEntryPage() {
       return
     }
 
+    if (!selectedCategory) {
+      setError('请选择考核类别')
+      return
+    }
+
     setError('')
     setIsLoading(true)
 
@@ -73,7 +143,8 @@ export default function TrainingEntryPage() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          employeeName: employeeName.trim()
+          employeeName: employeeName.trim(),
+          categoryId: parseInt(selectedCategory)
         })
       })
 
@@ -95,11 +166,20 @@ export default function TrainingEntryPage() {
     }
   }
 
+  // 获取选中类别的题库
+  const getCategoryQuestionSets = (categoryId: string) => {
+    if (!categoryId) return []
+    return availableSets.filter(set => set.category?.id === parseInt(categoryId))
+  }
+
+  const selectedCategoryData = categories.find(cat => cat.id.toString() === selectedCategory)
+  const categoryQuestionSets = getCategoryQuestionSets(selectedCategory)
+
   return (
     <>
       <ModuleHeader
-        title="培训考试"
-        description="员工在线培训考试系统"
+        title="员工考核系统"
+        description="在线考核评估平台"
         icon={GraduationCap}
         showAuthStatus={false}
       />
@@ -115,159 +195,234 @@ export default function TrainingEntryPage() {
             <BookOpen className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            新员工入职培训考试
+            公司业务考核
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            欢迎参加公司入职培训考试，本次考试将评估您对公司文化、产品知识和业务流程的掌握程度
+            选择适合的考核类别，提升专业技能和业务水平
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* 考试信息卡片 */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="w-5 h-5 text-blue-600" />
-                  考试说明
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium">考试内容</p>
-                    <p className="text-sm text-muted-foreground">涵盖公司基础文化、产品技术知识、市场客户开发、销售流程技巧、外贸运营实务等方面</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Clock className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium">考试时间</p>
-                    <p className="text-sm text-muted-foreground">不限时，建议在安静的环境下认真作答</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Users className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium">评分标准</p>
-                    <p className="text-sm text-muted-foreground">满分100分，{passScore}分及以上为合格，系统自动评分</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 题库统计 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-indigo-600" />
-                  题库信息
-                </CardTitle>
-                <CardDescription>
-                  系统将随机为您分配一套试卷
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingStats ? (
-                  <div className="text-center py-4">
-                    <div className="animate-pulse text-muted-foreground">加载中...</div>
-                  </div>
-                ) : availableSets.length > 0 ? (
-                  <div className="space-y-3">
-                    {availableSets.map((set, index) => (
-                      <div key={set.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">{set.name}</p>
-                          <p className="text-xs text-muted-foreground">{set.description}</p>
-                        </div>
-                        <Badge variant="secondary">
-                          {set.questionsCount} 题
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <Alert>
-                    <AlertDescription>
-                      暂无可用题库，请联系管理员
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
+        {loadingStats ? (
+          <div className="text-center py-8">
+            <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
+            <p className="text-gray-500">正在加载考核信息...</p>
           </div>
-
-          {/* 开始考试表单 */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>开始考试</CardTitle>
-                <CardDescription>
-                  请输入您的姓名开始考试
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleStartExam} className="space-y-4">
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{error}</AlertDescription>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            
+            {/* 左侧：考核类别选择 */}
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-blue-600" />
+                    选择考核类别
+                  </CardTitle>
+                  <CardDescription>
+                    请选择您要参加的考核类别，系统将随机分配该类别下的试卷
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {categories.length > 0 ? (
+                    <div className="space-y-3">
+                      {categories.map((category) => {
+                        const IconComponent = getIconComponent(category.icon)
+                        const setsCount = availableSets.filter(set => set.category?.id === category.id).length
+                        const totalQuestions = availableSets
+                          .filter(set => set.category?.id === category.id)
+                          .reduce((sum, set) => sum + set.questionsCount, 0)
+                        
+                        return (
+                          <div
+                            key={category.id}
+                            onClick={() => setsCount > 0 && setSelectedCategory(category.id.toString())}
+                            className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                              selectedCategory === category.id.toString()
+                                ? 'border-blue-500 bg-blue-50 shadow-md'
+                                : setsCount > 0
+                                ? 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                                : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div 
+                                className={`w-10 h-10 rounded-full flex items-center justify-center`}
+                                style={{ backgroundColor: category.color || '#3b82f6' }}
+                              >
+                                <IconComponent className="w-5 h-5 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-900">{category.name}</div>
+                                <div className="text-sm text-gray-500 mt-1">
+                                  {category.description || '暂无描述'}
+                                </div>
+                                <div className="flex items-center gap-4 mt-2">
+                                  <Badge variant={setsCount > 0 ? "secondary" : "outline"}>
+                                    {setsCount} 套试卷
+                                  </Badge>
+                                  {totalQuestions > 0 && (
+                                    <Badge variant="outline">
+                                      {totalQuestions} 题
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              {selectedCategory === category.id.toString() && (
+                                <CheckCircle className="w-5 h-5 text-blue-500" />
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <Alert>
+                      <AlertDescription>
+                        暂无可用的考核类别，请联系管理员
+                      </AlertDescription>
                     </Alert>
                   )}
+                </CardContent>
+              </Card>
+            </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="employeeName">姓名 *</Label>
-                    <Input
-                      id="employeeName"
-                      type="text"
-                      placeholder="请输入您的姓名"
-                      value={employeeName}
-                      onChange={(e) => setEmployeeName(e.target.value)}
-                      required
-                      className="text-lg py-3"
-                      autoComplete="name"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      请输入您的真实姓名，以便记录考试成绩
-                    </p>
+            {/* 右侧：开始考试表单 */}
+            <div className="space-y-6">
+              {/* 考试说明 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-orange-500" />
+                    考试说明
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">考试内容</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedCategoryData ? 
+                          `${selectedCategoryData.name}相关知识和技能考核` : 
+                          '请先选择考核类别'
+                        }
+                      </p>
+                    </div>
                   </div>
+                  <div className="flex items-start gap-3">
+                    <Users className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">评分标准</p>
+                      <p className="text-sm text-muted-foreground">满分100分，{passScore}分及以上为合格</p>
+                    </div>
+                  </div>
+                  {categoryQuestionSets.length > 0 && (
+                    <div className="flex items-start gap-3">
+                      <BookOpen className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">可用试卷</p>
+                        <p className="text-sm text-muted-foreground">
+                          {categoryQuestionSets.length} 套试卷，系统将随机选择
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-                  <Button
-                    type="submit"
-                    className="w-full text-lg py-6"
-                    disabled={isLoading || !employeeName.trim() || availableSets.length === 0}
-                    size="lg"
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        正在准备考试...
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        开始考试
-                        <ArrowRight className="w-4 h-4" />
-                      </div>
+              {/* 开始考试表单 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>开始考试</CardTitle>
+                  <CardDescription>
+                    请输入您的姓名并确认考核类别
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleStartExam} className="space-y-4">
+                    {error && (
+                      <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
                     )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
 
-            {/* 注意事项 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">注意事项</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm space-y-2">
-                <p>• 请在安静的环境下独立完成考试</p>
-                <p>• 每道题只有一个正确答案</p>
-                <p>• 提交后无法修改，请仔细检查答案</p>
-                <p>• 如遇技术问题，请联系IT支持</p>
-              </CardContent>
-            </Card>
+                    <div className="space-y-2">
+                      <Label htmlFor="employeeName">姓名 *</Label>
+                      <Input
+                        id="employeeName"
+                        type="text"
+                        placeholder="请输入您的姓名"
+                        value={employeeName}
+                        onChange={(e) => setEmployeeName(e.target.value)}
+                        required
+                        className="text-lg py-3"
+                        autoComplete="name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>选择考核类别 *</Label>
+                      <div className="p-3 border rounded-md bg-gray-50">
+                        {selectedCategoryData ? (
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-8 h-8 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: selectedCategoryData.color || '#3b82f6' }}
+                            >
+                              {React.createElement(getIconComponent(selectedCategoryData.icon), { 
+                                className: "w-4 h-4 text-white" 
+                              })}
+                            </div>
+                            <div>
+                              <div className="font-medium">{selectedCategoryData.name}</div>
+                              <div className="text-sm text-gray-500">
+                                {categoryQuestionSets.length} 套试卷可用
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-gray-500">请先选择考核类别</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      className="w-full text-lg py-6"
+                      disabled={isLoading || !employeeName.trim() || !selectedCategory || categoryQuestionSets.length === 0}
+                      size="lg"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          正在准备考试...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          开始考试
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
+                      )}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              {/* 注意事项 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">注意事项</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm space-y-2">
+                  <p>• 请在安静的环境下独立完成考试</p>
+                  <p>• 每道题只有一个正确答案</p>
+                  <p>• 提交后无法修改，请仔细检查答案</p>
+                  <p>• 如遇技术问题，请联系IT支持</p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 管理员入口 */}
         <div className="text-center mb-6">
@@ -276,18 +431,29 @@ export default function TrainingEntryPage() {
               <div className="flex items-center gap-4">
                 <div>
                   <p className="font-medium text-sm">管理员功能</p>
-                  <p className="text-xs text-muted-foreground">查看考试统计和管理记录</p>
+                  <p className="text-xs text-muted-foreground">查看考试统计、管理题库和类别</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push('/training/admin')}
-                  className="flex items-center gap-2"
-                >
-                  <Users className="w-4 h-4" />
-                  进入管理后台
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push('/training/import')}
+                    className="flex items-center gap-2"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    题库管理
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push('/training/admin')}
+                    className="flex items-center gap-2"
+                  >
+                    <Users className="w-4 h-4" />
+                    考试管理
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

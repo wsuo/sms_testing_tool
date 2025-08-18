@@ -46,14 +46,28 @@ interface TrainingRecord {
     name: string
     description: string
   } | null
+  category?: {
+    id: number
+    name: string
+    color: string
+    icon: string
+  } | null
   score: number
   totalQuestions: number
   passed: boolean
   sessionDuration: number
   startedAt: string
   completedAt: string
-  ipAddress: string
-  answers: any[]
+  ipAddress?: string
+  answers?: any[]
+}
+
+interface ExamCategory {
+  id: number
+  name: string
+  description?: string
+  icon?: string
+  color?: string
 }
 
 interface AnswerDetail {
@@ -93,6 +107,7 @@ export default function TrainingAdminPage() {
   const [records, setRecords] = useState<TrainingRecord[]>([])
   const [statistics, setStatistics] = useState<Statistics | null>(null)
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([])
+  const [categories, setCategories] = useState<ExamCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
@@ -124,6 +139,7 @@ export default function TrainingAdminPage() {
   const [filters, setFilters] = useState({
     employeeName: '',
     setId: 'all',
+    categoryId: 'all', // 新增类别筛选
     minScore: '',
     maxScore: '',
     dateRange: 'all'
@@ -162,14 +178,15 @@ export default function TrainingAdminPage() {
       setError('')
       
       // 并行加载数据和配置
-      const [dataResponse, configResponse, timeLimitResponse] = await Promise.all([
+      const [dataResponse, configResponse, timeLimitResponse, categoriesResponse] = await Promise.all([
         fetch(`/api/training/records?${new URLSearchParams({
           page: pagination.page.toString(),
           pageSize: pagination.pageSize.toString(),
           ...Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== ''))
         })}`),
         fetch('/api/config?key=training_pass_score'),
-        fetch('/api/config?key=exam_time_limit')
+        fetch('/api/config?key=exam_time_limit'),
+        fetch('/api/training/categories')
       ])
       
       const result = await dataResponse.json()
@@ -185,6 +202,14 @@ export default function TrainingAdminPage() {
         }))
       } else {
         setError(result.message || '加载数据失败')
+      }
+      
+      // 加载考核类别
+      if (categoriesResponse.ok) {
+        const categoriesResult = await categoriesResponse.json()
+        if (categoriesResult.success) {
+          setCategories(categoriesResult.data || [])
+        }
       }
       
       // 加载配置
@@ -630,7 +655,7 @@ export default function TrainingAdminPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             <div className="space-y-2">
               <Label htmlFor="employeeName">员工姓名</Label>
               <Input
@@ -639,6 +664,23 @@ export default function TrainingAdminPage() {
                 value={filters.employeeName}
                 onChange={(e) => handleFilterChange('employeeName', e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="categorySelect">考核类别</Label>
+              <Select value={filters.categoryId} onValueChange={(value) => handleFilterChange('categoryId', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择考核类别" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部类别</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">
