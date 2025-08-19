@@ -738,6 +738,16 @@ export class QuestionSetDB {
   async getQuestionsBySetId(setId: number): Promise<Question[]> {
     return await executeCompatibleQuery<Question>('SELECT * FROM questions WHERE set_id = ? ORDER BY question_number ASC', [setId])
   }
+  
+  async deleteQuestionsBySetId(setId: number): Promise<boolean> {
+    const result = await executeCompatibleRun('DELETE FROM questions WHERE set_id = ?', [setId])
+    return result.changes > 0
+  }
+  
+  async deleteQuestionSet(setId: number): Promise<boolean> {
+    const result = await executeCompatibleRun('DELETE FROM question_sets WHERE id = ?', [setId])
+    return result.changes > 0
+  }
 
   async insertQuestionSet(set: Omit<QuestionSet, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
     const sql = `INSERT INTO question_sets (name, description, category_id, total_questions, is_active) VALUES (?, ?, ?, ?, ?)`
@@ -989,6 +999,13 @@ export class TrainingRecordDB {
     return await executeCompatibleQuery<TrainingRecord>(
       'SELECT * FROM training_records WHERE employee_name = ? ORDER BY completed_at DESC', 
       [employeeName]
+    )
+  }
+  
+  async findBySetId(setId: number): Promise<TrainingRecord[]> {
+    return await executeCompatibleQuery<TrainingRecord>(
+      'SELECT * FROM training_records WHERE set_id = ? ORDER BY completed_at DESC', 
+      [setId]
     )
   }
 }
