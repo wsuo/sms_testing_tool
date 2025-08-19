@@ -34,7 +34,10 @@ import {
   Lock,
   Settings,
   Save,
-  Info
+  Info,
+  Upload,
+  Database,
+  Plus
 } from 'lucide-react'
 import { ModuleHeader } from '@/components/module-header'
 
@@ -511,7 +514,25 @@ export default function TrainingAdminPage() {
       <div className="pt-24 container mx-auto px-4 py-8 space-y-8">
         {/* 页面控制按钮 */}
         <div className="flex items-center justify-between">
-          <div></div>
+          <div className="flex items-center gap-3">
+            {/* 题库管理快捷入口 */}
+            <Card 
+              className="bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 cursor-pointer hover:shadow-md transition-all duration-200"
+              onClick={() => window.location.href = '/training/import'}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 bg-emerald-500 rounded-lg">
+                    <Database className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-emerald-800 text-sm">题库管理</h3>
+                    <p className="text-xs text-emerald-600">导入和管理题库</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={loadData} disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
