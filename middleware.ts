@@ -38,7 +38,10 @@ export async function middleware(request: NextRequest) {
       '/api/training/import-html', // HTML导入
       '/api/migrate/exam-categories', // 允许迁移API
       '/api/fix-db', // 数据库修复API
-      '/api/test' // 测试API
+      '/api/test', // 测试API
+      '/api/auth/send-verification', // 管理员验证码发送
+      '/api/auth/verify-code', // 管理员验证码校验
+      '/api/connection-status' // 连接池状态监控
     ]
 
     // 检查是否为公开API路由
