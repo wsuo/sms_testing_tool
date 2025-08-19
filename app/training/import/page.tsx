@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { AuthDialog } from '@/components/auth-dialog'
 import { ModuleHeader } from '@/components/module-header'
+import { WithAdminAuth } from '@/components/with-admin-auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -35,7 +36,12 @@ import {
   Shield,
   Scale,
   Save,
-  X
+  X,
+  CloudUpload,
+  File,
+  Image,
+  Mail,
+  Clock
 } from 'lucide-react'
 
 interface ExamCategory {
@@ -111,6 +117,14 @@ export default function TrainingImportPage() {
   const [questionSetDetails, setQuestionSetDetails] = useState<any>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
   
+  // 拖拽上传状态
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [dragCounter, setDragCounter] = useState(0)
+  
+  // 题库删除状态
+  const [deletingQuestionSet, setDeletingQuestionSet] = useState<any>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       loadInitialData()
@@ -146,21 +160,67 @@ export default function TrainingImportPage() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      if (file.type !== 'text/html' && !file.name.toLowerCase().endsWith('.html')) {
-        setError('请选择HTML文件')
-        return
-      }
-      
-      setSelectedFile(file)
-      setError('')
-      
-      // 读取文件内容
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const content = e.target?.result as string
-        setHtmlContent(content)
-      }
-      reader.readAsText(file)
+      processFile(file)
+    }
+  }
+  
+  const processFile = (file: File) => {
+    // 支持 .html 和 .txt 文件
+    const isValidFile = file.type === 'text/html' || 
+                       file.name.toLowerCase().endsWith('.html') ||
+                       file.name.toLowerCase().endsWith('.txt') ||
+                       file.type === 'text/plain'
+    
+    if (!isValidFile) {
+      setError('请选择HTML文件(.html)或文本文件(.txt)')
+      return
+    }
+    
+    setSelectedFile(file)
+    setError('')
+    
+    // 读取文件内容
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      setHtmlContent(content)
+    }
+    reader.readAsText(file)
+  }
+  
+  // 拖拽处理函数
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragCounter(prev => prev + 1)
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true)
+    }
+  }
+  
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragCounter(prev => prev - 1)
+    if (dragCounter <= 1) {
+      setIsDragOver(false)
+    }
+  }
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    setDragCounter(0)
+    
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      processFile(files[0])
     }
   }
   
@@ -400,6 +460,45 @@ export default function TrainingImportPage() {
     setQuestionSetDetails(null)
   }
   
+  // 题库删除功能
+  const handleDeleteQuestionSet = (questionSet: any) => {
+    setDeletingQuestionSet(questionSet)
+    setDeleteConfirmOpen(true)
+  }
+  
+  const closeDeleteConfirm = () => {
+    setDeleteConfirmOpen(false)
+    setDeletingQuestionSet(null)
+  }
+  
+  const confirmDeleteQuestionSet = async () => {
+    if (!deletingQuestionSet) return
+    
+    setLoading(true)
+    setError('')
+    
+    try {
+      const response = await fetch(`/api/training/sets/${deletingQuestionSet.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setSuccess(`题库 "${deletingQuestionSet.name}" 已删除`)
+        closeDeleteConfirm()
+        loadInitialData() // 重新加载数据
+      } else {
+        setError(result.message || '删除失败')
+      }
+    } catch (error) {
+      setError('网络请求失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+  
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 flex items-center justify-center">
@@ -566,7 +665,7 @@ export default function TrainingImportPage() {
                     </CardContent>
                   </Card>
                   
-                  {/* 导入方式选择 */}
+                  {/* HTML内容输入与拖拽上传区域 */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -574,37 +673,79 @@ export default function TrainingImportPage() {
                         HTML内容输入
                       </CardTitle>
                       <CardDescription>
-                        支持上传HTML文件或直接粘贴HTML代码
+                        支持拖拽上传HTML/TXT文件或直接粘贴HTML代码
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       
-                      {/* 文件上传 */}
-                      <div className="space-y-2">
-                        <Label htmlFor="htmlFile">HTML文件上传</Label>
-                        <Input
-                          id="htmlFile"
-                          type="file"
-                          accept=".html"
-                          onChange={handleFileChange}
-                        />
-                        {selectedFile && (
-                          <p className="text-sm text-green-600">
-                            已选择: {selectedFile.name}
-                          </p>
-                        )}
+                      {/* 拖拽上传区域 */}
+                      <div 
+                        className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 ${
+                          isDragOver 
+                            ? 'border-emerald-500 bg-emerald-50/50 scale-102' 
+                            : 'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50/20'
+                        }`}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                      >
+                        <div className="text-center space-y-4">
+                          <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
+                            isDragOver 
+                              ? 'bg-emerald-500 text-white scale-110' 
+                              : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            <CloudUpload className="w-8 h-8" />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <p className={`text-lg font-medium transition-colors ${
+                              isDragOver ? 'text-emerald-600' : 'text-gray-600'
+                            }`}>
+                              {isDragOver ? '松开鼠标即可上传' : '拖拽文件到此处'}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              支持 .html、.txt 格式文件，或者
+                            </p>
+                          </div>
+                          
+                          {/* 文件选择按钮 */}
+                          <div className="space-y-3">
+                            <Label htmlFor="htmlFile" className="cursor-pointer">
+                              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-emerald-400 transition-colors">
+                                <File className="w-4 h-4" />
+                                选择文件
+                              </div>
+                            </Label>
+                            <Input
+                              id="htmlFile"
+                              type="file"
+                              accept=".html,.txt"
+                              onChange={handleFileChange}
+                              className="hidden"
+                            />
+                            
+                            {selectedFile && (
+                              <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">
+                                <CheckCircle className="w-4 h-4" />
+                                已选择: {selectedFile.name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       
-                      {/* HTML代码输入 */}
+                      {/* HTML代码直接输入 */}
                       <div className="space-y-2">
-                        <Label htmlFor="htmlContent">HTML代码</Label>
+                        <Label htmlFor="htmlContent">或直接粘贴HTML代码</Label>
                         <Textarea
                           id="htmlContent"
                           placeholder="粘贴HTML代码到这里..."
-                          rows={10}
+                          rows={12}
                           value={htmlContent}
                           onChange={(e) => setHtmlContent(e.target.value)}
-                          className="font-mono text-sm"
+                          className="font-mono text-sm resize-none"
                         />
                       </div>
                       
@@ -727,14 +868,14 @@ export default function TrainingImportPage() {
                     <div className="space-y-4">
                       {existingSets.map((set, index) => (
                         <div key={set.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div>
-                            <div className="font-medium">{set.name}</div>
-                            <div className="text-sm text-gray-500">
+                          <div className="flex-1 min-w-0 mr-4">
+                            <div className="font-medium truncate">{set.name}</div>
+                            <div className="text-sm text-gray-500 truncate">
                               {set.description || '无描述'} • {set.questionsCount} 题
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary">
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Badge variant="secondary" className="whitespace-nowrap">
                               {categories.find(c => c.id === set.categoryId)?.name || '未分类'}
                             </Badge>
                             <Button 
@@ -745,6 +886,17 @@ export default function TrainingImportPage() {
                               <Eye className="w-4 h-4 mr-1" />
                               查看
                             </Button>
+                            <WithAdminAuth actionName="删除题库">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleDeleteQuestionSet(set)}
+                                className="text-red-600 hover:text-red-700 hover:border-red-300"
+                              >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                删除
+                              </Button>
+                            </WithAdminAuth>
                           </div>
                         </div>
                       ))}
@@ -1085,6 +1237,62 @@ export default function TrainingImportPage() {
                 <Button variant="outline" onClick={closeQuestionSetDetails}>
                   <X className="w-4 h-4 mr-2" />
                   关闭
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* 删除题库确认对话框 */}
+          <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="w-5 h-5" />
+                  确认删除题库
+                </DialogTitle>
+                <DialogDescription>
+                  此操作将永久删除题库及其所有题目，且无法撤销
+                </DialogDescription>
+              </DialogHeader>
+              
+              {deletingQuestionSet && (
+                <div className="space-y-4 py-4">
+                  {/* 题库信息 */}
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="font-medium text-red-800">
+                      题库名称：{deletingQuestionSet.name}
+                    </div>
+                    <div className="text-sm text-red-600 mt-1">
+                      {deletingQuestionSet.description || '无描述'} • {deletingQuestionSet.questionsCount} 题
+                    </div>
+                    <div className="text-sm text-red-600 mt-2">
+                      <strong>警告：</strong>删除后，此题库中的所有题目和相关考试记录都将被移除
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={closeDeleteConfirm}>
+                  <X className="w-4 h-4 mr-2" />
+                  取消
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={confirmDeleteQuestionSet}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      删除中...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      确认删除
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
