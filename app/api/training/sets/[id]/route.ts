@@ -1,6 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { questionSetDB, trainingRecordDB } from '@/lib/database'
 
+// 更新题库
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const setId = parseInt(params.id)
+    
+    if (isNaN(setId)) {
+      return NextResponse.json(
+        { success: false, message: '无效的题库ID' },
+        { status: 400 }
+      )
+    }
+    
+    const updates = await request.json()
+    
+    // 检查题库是否存在
+    const questionSet = await questionSetDB.findById(setId)
+    
+    if (!questionSet) {
+      return NextResponse.json(
+        { success: false, message: '题库不存在' },
+        { status: 404 }
+      )
+    }
+    
+    // 更新题库
+    const updateResult = await questionSetDB.updateQuestionSet(setId, updates)
+    
+    if (updateResult) {
+      return NextResponse.json({
+        success: true,
+        message: `题库 "${questionSet.name}" 已成功更新`,
+        data: { ...questionSet, ...updates }
+      })
+    } else {
+      return NextResponse.json(
+        { success: false, message: '更新失败' },
+        { status: 500 }
+      )
+    }
+    
+  } catch (error) {
+    console.error('更新题库失败:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: '更新题库失败',
+        error: error instanceof Error ? error.message : '未知错误'
+      },
+      { status: 500 }
+    )
+  }
+}
+
 // 删除题库
 export async function DELETE(
   request: NextRequest,

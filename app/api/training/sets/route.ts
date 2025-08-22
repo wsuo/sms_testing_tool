@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
           questionsCount: actualQuestionsCount,
           categoryId: set.category_id,
           categoryName: category?.name || '未分类',
-          categoryColor: category?.color || '#6b7280'
+          categoryColor: category?.color || '#6b7280',
+          is_active: set.is_active ?? true // 确保返回is_active状态
         }
       })
     )

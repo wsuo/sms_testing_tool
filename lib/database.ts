@@ -714,6 +714,10 @@ export class ExamCategoryDB {
 export class QuestionSetDB { 
   private db = getDatabase()
   async findAll(): Promise<QuestionSet[]> {
+    return await executeCompatibleQuery<QuestionSet>('SELECT * FROM question_sets ORDER BY created_at DESC')
+  }
+
+  async findAllActive(): Promise<QuestionSet[]> {
     return await executeCompatibleQuery<QuestionSet>('SELECT * FROM question_sets WHERE is_active = TRUE ORDER BY created_at DESC')
   }
 
