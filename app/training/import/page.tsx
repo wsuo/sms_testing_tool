@@ -17,6 +17,7 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
+import { useToast } from '@/hooks/use-toast'
 import { 
   Upload, 
   FileText, 
@@ -82,6 +83,7 @@ interface ImportResult {
 }
 
 export default function TrainingImportPage() {
+  const { toast } = useToast()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   
@@ -119,6 +121,15 @@ export default function TrainingImportPage() {
   const [questionSetDetailsOpen, setQuestionSetDetailsOpen] = useState(false)
   const [questionSetDetails, setQuestionSetDetails] = useState<any>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
+  
+  // 题目编辑状态
+  const [editingQuestion, setEditingQuestion] = useState<any>(null)
+  const [isEditQuestionOpen, setIsEditQuestionOpen] = useState(false)
+  const [isSavingQuestion, setIsSavingQuestion] = useState(false)
+  
+  // 数据质量检查状态
+  const [checkingQuality, setCheckingQuality] = useState(false)
+  const [qualityIssues, setQualityIssues] = useState<any[]>([])
   
   // 拖拽上传状态
   const [isDragOver, setIsDragOver] = useState(false)
@@ -454,6 +465,123 @@ export default function TrainingImportPage() {
       setError('网络请求失败')
     } finally {
       setLoadingDetails(false)
+    }
+  }
+  
+  // 题目编辑功能
+  const handleEditQuestion = async (question: any) => {
+    try {
+      const response = await fetch(`/api/admin/questions/${question.id}`, {
+        headers: getAuthHeaders()
+      })
+      const result = await response.json()
+      
+      if (result.success) {
+        setEditingQuestion(result.data)
+        setIsEditQuestionOpen(true)
+      } else {
+        setError('获取题目详情失败')
+      }
+    } catch (error) {
+      setError('网络请求失败')
+    }
+  }
+  
+  const handleSaveQuestion = async () => {
+    if (!editingQuestion) return
+    
+    setIsSavingQuestion(true)
+    try {
+      const response = await fetch(`/api/admin/questions/${editingQuestion.id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(editingQuestion)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setIsEditQuestionOpen(false)
+        setEditingQuestion(null)
+        
+        // 重新获取题库详情以更新显示
+        if (viewingQuestionSet) {
+          handleViewQuestionSet(viewingQuestionSet)
+        }
+      } else {
+        setError('保存失败: ' + result.error)
+      }
+    } catch (error) {
+      setError('网络错误或服务器异常')
+    } finally {
+      setIsSavingQuestion(false)
+    }
+  }
+  
+  // 数据质量检查功能
+  const handleCheckQuality = async () => {
+    if (!viewingQuestionSet) return
+    
+    setCheckingQuality(true)
+    try {
+      const response = await fetch(`/api/admin/questions/check-empty?setId=${viewingQuestionSet.id}`, {
+        headers: getAuthHeaders()
+      })
+      const result = await response.json()
+      
+      if (result.success) {
+        setQualityIssues(result.details || [])
+        if (result.problemQuestions === 0) {
+          // 检查通过时，使用toast提示
+          toast({
+            title: "质量检查完成",
+            description: "该题库所有选项都完整，没有发现问题！✅",
+            variant: "default"
+          })
+        } else {
+          // 如果有问题题目，自动跳转到第一个有问题的题目
+          if (result.details && result.details.length > 0) {
+            const firstProblemQuestion = result.details[0]
+            setTimeout(() => {
+              const questionElement = document.getElementById(`question-${firstProblemQuestion.id}`)
+              if (questionElement) {
+                questionElement.scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'center' 
+                })
+                // 添加高亮效果
+                questionElement.classList.add('ring-2', 'ring-red-500', 'ring-offset-2')
+                setTimeout(() => {
+                  questionElement.classList.remove('ring-2', 'ring-red-500', 'ring-offset-2')
+                }, 3000)
+              }
+            }, 100)
+            setError(`发现 ${result.problemQuestions} 个问题题目，已自动定位到第一个问题题目`)
+          }
+        }
+      } else {
+        setError('检查失败: ' + result.error)
+      }
+    } catch (error) {
+      setError('网络错误或服务器异常')
+    } finally {
+      setCheckingQuality(false)
+    }
+  }
+  
+  // 获取认证headers
+  const getAuthHeaders = () => {
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`
+      const parts = value.split(`; ${name}=`)
+      if (parts.length === 2) return parts.pop()?.split(';').shift()
+      return null
+    }
+
+    const token = getCookie('platform-auth')
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` })
     }
   }
   
@@ -1264,27 +1392,61 @@ export default function TrainingImportPage() {
                       <h4 className="font-medium">题目列表</h4>
                       <div className="max-h-96 overflow-y-auto space-y-3">
                         {questionSetDetails.questions && questionSetDetails.questions.length > 0 ? (
-                          questionSetDetails.questions.map((question: any, index: number) => (
-                            <div key={question.id} className="p-4 border rounded-lg">
-                              <div className="font-medium mb-2">
-                                {question.question_text.match(/^\d+\.\s*/) ? question.question_text : `${index + 1}. ${question.question_text}`}
-                              </div>
-                              <div className="text-sm space-y-1 text-gray-600">
-                                <div>A. {question.option_a}</div>
-                                <div>B. {question.option_b}</div>
-                                <div>C. {question.option_c}</div>
-                                <div>D. {question.option_d}</div>
-                              </div>
-                              <div className="text-sm mt-2 text-green-600">
-                                <strong>正确答案：</strong> {question.correct_answer}
-                              </div>
-                              {question.explanation && (
-                                <div className="text-sm mt-1 text-blue-600">
-                                  <strong>解析：</strong> {question.explanation}
+                          questionSetDetails.questions.map((question: any, index: number) => {
+                            const hasEmptyOptions = !question.option_a || !question.option_b || !question.option_c || !question.option_d || 
+                              question.option_a.trim() === '' || question.option_b.trim() === '' || 
+                              question.option_c.trim() === '' || question.option_d.trim() === ''
+                            
+                            return (
+                              <div 
+                                key={question.id} 
+                                id={`question-${question.id}`}
+                                className={`p-4 border rounded-lg transition-all duration-300 ${hasEmptyOptions ? 'border-red-300 bg-red-50' : ''}`}
+                              >
+                                <div className="flex justify-between items-start mb-2">
+                                  <div className="font-medium flex-1">
+                                    {question.question_text.match(/^\d+\.\s*/) ? question.question_text : `${index + 1}. ${question.question_text}`}
+                                    {hasEmptyOptions && (
+                                      <Badge variant="destructive" className="ml-2 text-xs">
+                                        有空选项
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleEditQuestion(question)}
+                                    className="ml-2 shrink-0"
+                                  >
+                                    <Edit className="w-3 h-3 mr-1" />
+                                    编辑
+                                  </Button>
                                 </div>
-                              )}
-                            </div>
-                          ))
+                                <div className="text-sm space-y-1 text-gray-600">
+                                  <div className={!question.option_a || question.option_a.trim() === '' ? 'text-red-600' : ''}>
+                                    A. {question.option_a || '(空)'}
+                                  </div>
+                                  <div className={!question.option_b || question.option_b.trim() === '' ? 'text-red-600' : ''}>
+                                    B. {question.option_b || '(空)'}
+                                  </div>
+                                  <div className={!question.option_c || question.option_c.trim() === '' ? 'text-red-600' : ''}>
+                                    C. {question.option_c || '(空)'}
+                                  </div>
+                                  <div className={!question.option_d || question.option_d.trim() === '' ? 'text-red-600' : ''}>
+                                    D. {question.option_d || '(空)'}
+                                  </div>
+                                </div>
+                                <div className="text-sm mt-2 text-green-600">
+                                  <strong>正确答案：</strong> {question.correct_answer}
+                                </div>
+                                {question.explanation && (
+                                  <div className="text-sm mt-1 text-blue-600">
+                                    <strong>解析：</strong> {question.explanation}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })
                         ) : (
                           <div className="text-center py-8 text-gray-500">
                             暂无题目数据
@@ -1301,6 +1463,19 @@ export default function TrainingImportPage() {
               </div>
               
               <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCheckQuality}
+                  disabled={checkingQuality}
+                  className="mr-auto"
+                >
+                  {checkingQuality ? (
+                    <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Shield className="w-4 h-4 mr-2" />
+                  )}
+                  {checkingQuality ? '检查中...' : '数据质量检查'}
+                </Button>
                 <Button variant="outline" onClick={closeQuestionSetDetails}>
                   <X className="w-4 h-4 mr-2" />
                   关闭
@@ -1366,6 +1541,151 @@ export default function TrainingImportPage() {
           </Dialog>
         </div>
       </div>
+      
+      {/* 题目编辑对话框 */}
+      <Dialog open={isEditQuestionOpen} onOpenChange={setIsEditQuestionOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>编辑题目 (ID: {editingQuestion?.id})</DialogTitle>
+          </DialogHeader>
+          
+          {editingQuestion && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="question_text">题目内容 *</Label>
+                <Textarea
+                  id="question_text"
+                  value={editingQuestion.question_text}
+                  onChange={(e) => setEditingQuestion({
+                    ...editingQuestion,
+                    question_text: e.target.value
+                  })}
+                  placeholder="请输入题目内容"
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="option_a">选项A *</Label>
+                  <Input
+                    id="option_a"
+                    value={editingQuestion.option_a}
+                    onChange={(e) => setEditingQuestion({
+                      ...editingQuestion,
+                      option_a: e.target.value
+                    })}
+                    placeholder="选项A内容"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="option_b">选项B *</Label>
+                  <Input
+                    id="option_b"
+                    value={editingQuestion.option_b}
+                    onChange={(e) => setEditingQuestion({
+                      ...editingQuestion,
+                      option_b: e.target.value
+                    })}
+                    placeholder="选项B内容"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="option_c">选项C *</Label>
+                  <Input
+                    id="option_c"
+                    value={editingQuestion.option_c}
+                    onChange={(e) => setEditingQuestion({
+                      ...editingQuestion,
+                      option_c: e.target.value
+                    })}
+                    placeholder="选项C内容"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="option_d">选项D *</Label>
+                  <Input
+                    id="option_d"
+                    value={editingQuestion.option_d}
+                    onChange={(e) => setEditingQuestion({
+                      ...editingQuestion,
+                      option_d: e.target.value
+                    })}
+                    placeholder="选项D内容"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="correct_answer">正确答案 *</Label>
+                  <Select 
+                    value={editingQuestion.correct_answer} 
+                    onValueChange={(value) => setEditingQuestion({
+                      ...editingQuestion,
+                      correct_answer: value
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择正确答案" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="C">C</SelectItem>
+                      <SelectItem value="D">D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="section">章节</Label>
+                  <Input
+                    id="section"
+                    value={editingQuestion.section || ''}
+                    onChange={(e) => setEditingQuestion({
+                      ...editingQuestion,
+                      section: e.target.value
+                    })}
+                    placeholder="题目所属章节"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="explanation">解释说明</Label>
+                <Textarea
+                  id="explanation"
+                  value={editingQuestion.explanation || ''}
+                  onChange={(e) => setEditingQuestion({
+                    ...editingQuestion,
+                    explanation: e.target.value
+                  })}
+                  placeholder="题目解释说明"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsEditQuestionOpen(false)}
+                  disabled={isSavingQuestion}
+                >
+                  取消
+                </Button>
+                <Button 
+                  onClick={handleSaveQuestion}
+                  disabled={isSavingQuestion}
+                >
+                  {isSavingQuestion ? '保存中...' : '保存'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
