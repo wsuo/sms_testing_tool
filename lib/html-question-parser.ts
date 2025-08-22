@@ -225,18 +225,103 @@ export class HTMLQuestionParser {
    * 解析选项列表
    */
   private static parseOptions(optionsHTML: string): string[] {
-    const options: string[] = []
-    
-    // 匹配所有选项
-    const optionPattern = /<li[^>]*><label[^>]*><input[^>]*value=["']([A-D])["'][^>]*>\s*(.*?)<\/label><\/li>/gi
-    
-    let match
     const optionMap: { [key: string]: string } = {}
     
-    while ((match = optionPattern.exec(optionsHTML)) !== null) {
+    // 首先尝试标准格式 - 使用更严格的匹配，避免跨选项匹配
+    const standardPattern = /<li[^>]*><label[^>]*><input[^>]*value=["']([A-D])["'][^>]*>\s*(.*?)<\/label><\/li>/gi
+    let match
+    
+    // 重置正则表达式状态
+    standardPattern.lastIndex = 0
+    
+    while ((match = standardPattern.exec(optionsHTML)) !== null) {
       const optionLetter = match[1].toUpperCase()
-      const optionText = this.cleanText(match[2])
+      let optionText = match[2]
+      
+      // 检查是否包含了下一个选项的内容（恶意HTML的情况）
+      // 如果文本中包含input标签，说明解析有问题
+      if (optionText.includes('<input')) {
+        // 跳过这个匹配，让后面的恶意HTML处理逻辑处理
+        continue
+      }
+      
+      optionText = this.cleanText(optionText)
       optionMap[optionLetter] = optionText
+    }
+    
+    // 如果还有选项没有解析到，使用智能恶意HTML处理方法
+    if (Object.keys(optionMap).length < 4) {
+      // 先找到所有的input标签及其value和位置
+      const inputPattern = /<input[^>]*value=["']([A-D])["'][^>]*>/gi
+      const allInputs = []
+      
+      while ((match = inputPattern.exec(optionsHTML)) !== null) {
+        allInputs.push({
+          letter: match[1].toUpperCase(),
+          position: match.index,
+          fullMatch: match[0],
+          endPosition: match.index + match[0].length
+        })
+      }
+      
+      // 为每个input找到对应的选项文本
+      for (let i = 0; i < allInputs.length; i++) {
+        const current = allInputs[i]
+        const next = allInputs[i + 1]
+        
+        // 如果该选项还没有被解析
+        if (!optionMap[current.letter]) {
+          // 从input标签结束位置开始提取选项文本
+          let startPos = current.endPosition
+          
+          // 智能确定结束位置
+          let endPos = optionsHTML.length
+          
+          if (next) {
+            // 下一个选项存在时，查找它前面最近的分隔符
+            const nextOptionStart = next.position
+            
+            // 在当前位置和下一个选项之间寻找分隔符
+            const betweenText = optionsHTML.substring(startPos, nextOptionStart)
+            
+            // 寻找可能的分隔符：按优先级排序
+            const separatorPatterns = [
+              /<li[\s>]/i,     // 下一个li标签开始
+              /<\/li\s*>/i,    // 当前li标签结束
+              /<\/label\s*>/i, // label标签结束
+              /<label[\s>]/i,  // 下一个label标签开始
+            ]
+            
+            let bestEndPos = nextOptionStart
+            for (const pattern of separatorPatterns) {
+              const separatorMatch = betweenText.match(pattern)
+              if (separatorMatch && separatorMatch.index !== undefined) {
+                const absolutePos = startPos + separatorMatch.index
+                if (absolutePos < bestEndPos) {
+                  bestEndPos = absolutePos
+                }
+              }
+            }
+            endPos = bestEndPos
+          }
+          
+          // 提取文本并清理
+          let optionText = optionsHTML.substring(startPos, endPos)
+          
+          // 移除无效的HTML标签（如<g>, </g>等）
+          optionText = optionText.replace(/<\/?\w+[^>]*>/g, '')
+          
+          // 移除开头的符号和空白
+          optionText = optionText.replace(/^\s*[>\s]*/, '')
+          
+          // 清理和标准化文本
+          optionText = this.cleanText(optionText)
+          
+          if (optionText.trim()) {
+            optionMap[current.letter] = optionText
+          }
+        }
+      }
     }
     
     // 按ABCD顺序返回
