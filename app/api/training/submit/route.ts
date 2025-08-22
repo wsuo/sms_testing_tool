@@ -26,10 +26,18 @@ export async function POST(request: NextRequest) {
       setId,
       categoryId, // 新增类别ID
       startedAt,
-      answers // 格式: { questionId: selectedAnswer }
+      answers, // 格式: { questionId: selectedAnswer }
+      autoSubmitted = false // 是否为自动提交
     } = await request.json()
     
-    console.log(`[${new Date().toISOString()}] 收到答题提交:`, { sessionId, employeeName, setId, categoryId, answersCount: Object.keys(answers).length })
+    console.log(`[${new Date().toISOString()}] 收到答题提交:`, { 
+      sessionId, 
+      employeeName, 
+      setId, 
+      categoryId, 
+      answersCount: Object.keys(answers).length,
+      autoSubmitted: autoSubmitted ? '自动提交' : '手动提交'
+    })
     
     // 验证必要参数
     if (!sessionId || !employeeName || !setId || !startedAt || !answers) {
