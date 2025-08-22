@@ -36,6 +36,7 @@ export async function middleware(request: NextRequest) {
       '/api/training/sets', // 题库列表查询
       '/api/training/parse-html', // HTML解析
       '/api/training/import-html', // HTML导入
+      '/api/public-config', // 公开配置查询（考试时间限制等）
       '/api/migrate/exam-categories', // 允许迁移API
       '/api/fix-db', // 数据库修复API
       '/api/test', // 测试API
