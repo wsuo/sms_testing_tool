@@ -431,7 +431,7 @@ export default function TrainingEntryPage() {
               <div className="flex items-center gap-4">
                 <div>
                   <p className="font-medium text-sm">管理员功能</p>
-                  <p className="text-xs text-muted-foreground">查看考试统计、管理题库和类别</p>
+                  <p className="text-xs text-muted-foreground">管理题库、编辑题目、查看考试统计和类别配置</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
