@@ -105,3 +105,9 @@ docs/
 *.csv
 *测试*.csv
 *导出*.csv
+
+# Project configuration files (should not be committed)
+AGENTS.md
+CODEX.md
+CLAUDE.md
+.codex/
