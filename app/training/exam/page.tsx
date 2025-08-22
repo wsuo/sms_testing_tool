@@ -100,6 +100,9 @@ export default function TrainingExamPage() {
         if (savedAnswers) {
           setAnswers(JSON.parse(savedAnswers))
         }
+        
+        // 加载时间限制配置
+        loadTimeLimit()
       } catch (error) {
         console.error('加载考试数据失败:', error)
         router.push('/training')
@@ -113,7 +116,7 @@ export default function TrainingExamPage() {
   // 加载时间限制配置
   const loadTimeLimit = async () => {
     try {
-      const response = await fetch('/api/config?key=exam_time_limit')
+      const response = await fetch('/api/public-config?key=exam_time_limit')
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
@@ -135,6 +138,25 @@ export default function TrainingExamPage() {
       // 使用默认35分钟
     }
   }
+
+  // 测试超时自动提交功能（仅开发环境）
+  const testAutoSubmit = () => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('测试超时自动提交功能...')
+      setTimeRemaining(0)
+      setIsTimeUp(true)
+      handleAutoSubmit()
+    }
+  }
+  useEffect(() => {
+    if (examData && timeLimit) {
+      const startTime = new Date(examData.startedAt).getTime()
+      const now = Date.now()
+      const elapsed = Math.floor((now - startTime) / 1000)
+      const remaining = Math.max(0, (timeLimit * 60) - elapsed)
+      setTimeRemaining(remaining)
+    }
+  }, [examData, timeLimit])
 
   // 自动提交（时间到期）
   const handleAutoSubmit = useCallback(async () => {
@@ -219,13 +241,14 @@ export default function TrainingExamPage() {
       
       // 时间到了自动提交
       if (remaining <= 0 && !isTimeUp) {
+        console.log(`[考试系统] 时间到期，触发自动提交。剩余时间: ${remaining}秒`)
         setIsTimeUp(true)
         handleAutoSubmit()
       }
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [examData, timeLimit, handleAutoSubmit])
+  }, [examData, timeLimit, handleAutoSubmit, isTimeUp])
 
   // 保存答案到localStorage
   const saveAnswersToLocal = useCallback((newAnswers: {[key: number]: string}) => {
@@ -679,7 +702,7 @@ export default function TrainingExamPage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-3">
                             <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                              第 {currentQuestion.questionNumber} 题
+                              第 {currentQuestionIndex + 1} 题
                             </Badge>
                             {currentQuestion.section && (
                               <Badge variant="outline" className="border-teal-200 text-teal-700">
@@ -747,6 +770,18 @@ export default function TrainingExamPage() {
                     </Button>
 
                     <div className="flex items-center gap-3">
+                      {/* 开发环境测试按钮 */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <Button
+                          onClick={testAutoSubmit}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-300 text-red-600 hover:bg-red-50"
+                        >
+                          测试超时提交
+                        </Button>
+                      )}
+                      
                       {/* 如果所有题目都已作答，显示提交按钮 */}
                       {isAllAnswered ? (
                         <Button

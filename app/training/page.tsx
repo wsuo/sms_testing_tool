@@ -84,7 +84,7 @@ export default function TrainingEntryPage() {
       // 并行加载数据
       const [startResponse, configResponse] = await Promise.all([
         fetch('/api/training/start'),
-        fetch('/api/config?key=training_pass_score')
+        fetch('/api/public-config?key=training_pass_score')
       ])
       
       if (startResponse.ok) {
