@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
 import { 
   Upload, 
   FileText, 
@@ -41,7 +42,9 @@ import {
   File,
   Image,
   Mail,
-  Clock
+  Clock,
+  Power,
+  PowerOff
 } from 'lucide-react'
 
 interface ExamCategory {
@@ -498,6 +501,35 @@ export default function TrainingImportPage() {
       setLoading(false)
     }
   }
+
+  // 切换题库启用/禁用状态
+  const handleToggleQuestionSetStatus = async (questionSet: any) => {
+    setLoading(true)
+    setError('')
+    
+    try {
+      const response = await fetch(`/api/training/sets/${questionSet.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_active: !questionSet.is_active
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setSuccess(`题库 "${questionSet.name}" 已${questionSet.is_active ? '禁用' : '启用'}`)
+        loadInitialData() // 重新加载数据
+      } else {
+        setError(result.message || '状态切换失败')
+      }
+    } catch (error) {
+      setError('网络请求失败')
+    } finally {
+      setLoading(false)
+    }
+  }
   
   if (authLoading) {
     return (
@@ -799,7 +831,7 @@ export default function TrainingImportPage() {
                           {parseResult.questions.slice(0, 3).map((q, index) => (
                             <div key={index} className="p-4 border rounded-lg">
                               <div className="font-medium mb-2">
-                                {q.questionNumber}. {q.questionText}
+                                {q.questionText.match(/^\d+\.\s*/) ? q.questionText : `${q.questionNumber}. ${q.questionText}`}
                               </div>
                               <div className="text-sm space-y-1 text-gray-600">
                                 <div>A. {q.optionA}</div>
@@ -867,36 +899,71 @@ export default function TrainingImportPage() {
                   {existingSets.length > 0 ? (
                     <div className="space-y-4">
                       {existingSets.map((set, index) => (
-                        <div key={set.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex-1 min-w-0 mr-4">
-                            <div className="font-medium truncate">{set.name}</div>
-                            <div className="text-sm text-gray-500 truncate">
+                        <div key={set.id} className={`flex items-center p-4 border rounded-lg transition-all ${
+                          set.is_active === false ? 'bg-gray-50 border-gray-300 opacity-75' : 'bg-white border-gray-200'
+                        }`}>
+                          <div className="flex-1 min-w-0 mr-6">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className={`font-medium truncate ${set.is_active === false ? 'text-gray-500' : 'text-gray-900'}`}>
+                                {set.name}
+                              </div>
+                              {set.is_active === false && (
+                                <Badge variant="secondary" className="text-xs bg-gray-200 text-gray-600">已禁用</Badge>
+                              )}
+                            </div>
+                            <div className={`text-sm truncate ${set.is_active === false ? 'text-gray-400' : 'text-gray-500'}`}>
                               {set.description || '无描述'} • {set.questionsCount} 题
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <Badge variant="secondary" className="whitespace-nowrap">
+                          <div className="flex items-center gap-4 flex-shrink-0">
+                            <Badge variant="outline" className="whitespace-nowrap flex-shrink-0">
                               {categories.find(c => c.id === set.categoryId)?.name || '未分类'}
                             </Badge>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleViewQuestionSet(set)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              查看
-                            </Button>
-                            <WithAdminAuth actionName="删除题库">
+                            <div className="flex items-center gap-2">
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleDeleteQuestionSet(set)}
-                                className="text-red-600 hover:text-red-700 hover:border-red-300"
+                                onClick={() => handleViewQuestionSet(set)}
+                                className="flex-shrink-0"
                               >
-                                <Trash2 className="w-4 h-4 mr-1" />
-                                删除
+                                <Eye className="w-4 h-4 mr-1" />
+                                查看
                               </Button>
-                            </WithAdminAuth>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleQuestionSetStatus(set)}
+                                disabled={loading}
+                                className={`flex-shrink-0 ${
+                                  set.is_active !== false 
+                                    ? 'text-orange-600 hover:text-orange-700 hover:border-orange-300' 
+                                    : 'text-green-600 hover:text-green-700 hover:border-green-300'
+                                }`}
+                              >
+                                {set.is_active !== false ? (
+                                  <>
+                                    <PowerOff className="w-4 h-4 mr-1" />
+                                    禁用
+                                  </>
+                                ) : (
+                                  <>
+                                    <Power className="w-4 h-4 mr-1" />
+                                    启用
+                                  </>
+                                )}
+                              </Button>
+                              <WithAdminAuth actionName="删除题库">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleDeleteQuestionSet(set)}
+                                  className="text-red-600 hover:text-red-700 hover:border-red-300 flex-shrink-0"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  删除
+                                </Button>
+                              </WithAdminAuth>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1200,7 +1267,7 @@ export default function TrainingImportPage() {
                           questionSetDetails.questions.map((question: any, index: number) => (
                             <div key={question.id} className="p-4 border rounded-lg">
                               <div className="font-medium mb-2">
-                                {index + 1}. {question.question_text}
+                                {question.question_text.match(/^\d+\.\s*/) ? question.question_text : `${index + 1}. ${question.question_text}`}
                               </div>
                               <div className="text-sm space-y-1 text-gray-600">
                                 <div>A. {question.option_a}</div>
