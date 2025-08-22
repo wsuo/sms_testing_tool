@@ -139,15 +139,6 @@ export default function TrainingExamPage() {
     }
   }
 
-  // 测试超时自动提交功能（仅开发环境）
-  const testAutoSubmit = () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('测试超时自动提交功能...')
-      setTimeRemaining(0)
-      setIsTimeUp(true)
-      handleAutoSubmit()
-    }
-  }
   useEffect(() => {
     if (examData && timeLimit) {
       const startTime = new Date(examData.startedAt).getTime()
@@ -770,18 +761,6 @@ export default function TrainingExamPage() {
                     </Button>
 
                     <div className="flex items-center gap-3">
-                      {/* 开发环境测试按钮 */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <Button
-                          onClick={testAutoSubmit}
-                          variant="outline"
-                          size="sm"
-                          className="border-red-300 text-red-600 hover:bg-red-50"
-                        >
-                          测试超时提交
-                        </Button>
-                      )}
-                      
                       {/* 如果所有题目都已作答，显示提交按钮 */}
                       {isAllAnswered ? (
                         <Button
