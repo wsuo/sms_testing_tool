@@ -4,10 +4,11 @@ import { questionSetDB } from '@/lib/database'
 // 获取题库详情（包含所有题目）
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const setId = parseInt(params.id)
+    const { id } = await params
+    const setId = parseInt(id)
     
     if (isNaN(setId)) {
       return NextResponse.json(

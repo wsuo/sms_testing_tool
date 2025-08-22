@@ -4,10 +4,11 @@ import { questionSetDB, trainingRecordDB } from '@/lib/database'
 // 更新题库
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const setId = parseInt(params.id)
+    const { id } = await params
+    const setId = parseInt(id)
     
     if (isNaN(setId)) {
       return NextResponse.json(
@@ -60,10 +61,11 @@ export async function PUT(
 // 删除题库
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const setId = parseInt(params.id)
+    const { id } = await params
+    const setId = parseInt(id)
     
     if (isNaN(setId)) {
       return NextResponse.json(
