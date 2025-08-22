@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { questionSetDB, questionDB, examCategoryDB } from '@/lib/database'
 
+// Fisher-Yates洗牌算法 - 真正的随机排序
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
 // 开始答题 - 支持按类别随机分配试卷
 export async function POST(request: NextRequest) {
   try {
@@ -52,12 +62,15 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // 返回题目信息（不包含正确答案）
-    const questionsForExam = questions.map(q => ({
+    // 对题目进行随机排序
+    const shuffledQuestions = shuffleArray(questions)
+    
+    // 返回题目信息（不包含正确答案），并清理题目文本中的编号
+    const questionsForExam = shuffledQuestions.map((q, index) => ({
       id: q.id,
-      questionNumber: q.question_number,
+      questionNumber: index + 1, // 使用新的序号，不再依赖原始的questionNumber
       section: q.section,
-      questionText: q.question_text,
+      questionText: q.question_text.replace(/^\d+\.\s*/, ''), // 移除题目文本开头的编号
       optionA: q.option_a,
       optionB: q.option_b,
       optionC: q.option_c,
